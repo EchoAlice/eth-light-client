@@ -1,0 +1,66 @@
+[package]
+name = "eth-light-client"
+version = "0.1.0"
+edition = "2021"
+# authors = ["Echo echoalice0@gmail.com"]
+description = "Verification-only Ethereum consensus-layer light client"
+license = "MIT OR Apache-2.0"
+# repository = "https://github.com/yourusername/eth-light-client"
+keywords = ["ethereum", "blockchain", "light-client", "consensus"]
+categories = ["cryptography", "network-programming"]
+resolver = "2"
+
+[dependencies]
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+hex = "0.4"
+
+# Cryptography
+sha2 = "0.10"
+blst = "0.3.10"  # BLS signatures for beacon chain
+
+# Ethereum-specific types
+ruint = { version = "1.8", features = ["serde"] }
+
+# SSZ and Tree Hashing - Production-grade libraries used by Lighthouse
+ethereum_ssz = "0.5"        # SSZ encoding/decoding
+ethereum_ssz_derive = "0.5" # SSZ derive macros
+tree_hash = "0.5"           # TreeHash trait and merkle root computation
+tree_hash_derive = "0.5"    # Derive macros for TreeHash
+
+# Error handling
+thiserror = "1.0"
+
+[features]
+default = []
+# Expose test utilities for integration tests and downstream testing.
+# Not part of the stable API - may change without notice.
+test-utils = ["dep:serde_yaml", "dep:snap", "dep:ssz_rs"]
+
+[dependencies.serde_yaml]
+version = "0.9"
+optional = true
+
+[dependencies.snap]
+version = "1.1"
+optional = true
+
+[dependencies.ssz_rs]
+version = "0.9"
+optional = true
+
+# Testing
+[dev-dependencies]
+serde_yaml = "0.9"  # For parsing test metadata (meta.yaml, steps.yaml)
+walkdir = "2.4"     # For recursively finding BLS test cases
+snap = "1.1"        # For decompressing .ssz_snappy files
+ssz_rs = "0.9"      # For test vector encoding (test vectors generated with ssz_rs)
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+
+[profile.dev]
+opt-level = 0
+debug = true
