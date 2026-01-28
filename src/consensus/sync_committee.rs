@@ -30,7 +30,9 @@ pub(crate) struct SyncCommitteeTracker {
     current_period: u64,
     /// Committee update history for verification
     committee_history: HashMap<u64, SyncCommittee>,
-    /// Fork version for domain computation
+    /// Fork version from bootstrap (retained for API stability; domain computation
+    /// now uses chain_spec.fork_version_at_epoch())
+    #[allow(dead_code)]
     fork_version: ForkVersion,
 }
 
@@ -193,18 +195,17 @@ impl SyncCommitteeTracker {
 
     /// Compute domain for sync committee signatures at a specific epoch.
     ///
+    /// Looks up the fork version from the chain spec's fork schedule.
     /// Takes `genesis_validators_root` as parameter (from LightClientStore).
     fn compute_domain_for_epoch(
         &self,
-        _epoch: Epoch,
+        epoch: Epoch,
         genesis_validators_root: Root,
     ) -> Result<Domain> {
-        // For now, use the stored fork version
-        // TODO: In a full implementation, this should look up the fork version
-        // that was active at the given epoch from fork schedule
+        let fork_version = self.chain_spec.fork_version_at_epoch(epoch);
         Ok(compute_domain(
             DOMAIN_SYNC_COMMITTEE,
-            self.fork_version,
+            fork_version,
             genesis_validators_root,
         ))
     }
