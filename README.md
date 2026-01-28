@@ -74,8 +74,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
   `next_sync_committee()`, `current_period()`, `is_synced()`, `chain_spec()`
 
 ### Trust Model
-- **Safety**: follows from correct verification, given the user provides a legitimate bootstrap.  
+- **Safety**: follows from correct verification, given the user provides a legitimate bootstrap.
 - **Liveness** depends on the user's update source (and will improve further once `force_update` is implemented).
+
 See `docs/architecture.md` for details.
 
 <br>
