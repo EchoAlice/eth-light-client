@@ -3,7 +3,7 @@ use crate::consensus::merkle::verify_next_sync_committee;
 use crate::error::{Error, Result};
 use crate::types::consensus::{LightClientUpdate, SyncCommittee};
 use crate::types::primitives::{
-    BLSPublicKey, BLSSignature, Domain, Epoch, ForkVersion, Root, Slot,
+    BLSPublicKey, BLSSignature, Domain, ForkVersion, Root, Slot,
 };
 use std::collections::HashMap;
 use tree_hash::TreeHash;
@@ -179,8 +179,11 @@ impl SyncCommitteeTracker {
         }
 
         // Compute domain based on signature slot epoch
-        let signature_epoch = self.chain_spec.slot_to_epoch(signature_slot);
-        let domain = self.compute_domain_for_epoch(signature_epoch, genesis_validators_root)?;
+        let domain = compute_sync_committee_domain_for_slot(
+            signature_slot,
+            genesis_validators_root,
+            &self.chain_spec,
+        );
 
         // Verify BLS aggregate signature
         let result = verify_sync_committee_signature(
@@ -192,31 +195,12 @@ impl SyncCommitteeTracker {
 
         Ok(result)
     }
-
-    /// Compute domain for sync committee signatures at a specific epoch.
-    ///
-    /// Looks up the fork version from the chain spec's fork schedule.
-    /// Takes `genesis_validators_root` as parameter (from LightClientStore).
-    fn compute_domain_for_epoch(
-        &self,
-        epoch: Epoch,
-        genesis_validators_root: Root,
-    ) -> Result<Domain> {
-        let fork_version = self.chain_spec.fork_version_at_epoch(epoch);
-        Ok(compute_domain(
-            DOMAIN_SYNC_COMMITTEE,
-            fork_version,
-            genesis_validators_root,
-        ))
-    }
 }
 
 /// Compute the sync committee domain for a given signature slot.
 ///
 /// Derives the epoch from `signature_slot`, looks up the fork version for that epoch,
 /// and computes the domain used in sync committee BLS signature verification.
-// Will be used in the next commit to refactor verify_sync_aggregate.
-#[allow(dead_code)]
 pub(crate) fn compute_sync_committee_domain_for_slot(
     signature_slot: Slot,
     genesis_validators_root: Root,
