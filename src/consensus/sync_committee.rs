@@ -723,4 +723,99 @@ mod tests {
         assert!(wrong_domain_verification.is_ok());
         assert!(!wrong_domain_verification.unwrap()); // Should fail verification
     }
+
+    /// Test that domain computation uses the fork version for the epoch of signature_slot.
+    ///
+    /// Uses `compute_sync_committee_domain_for_slot`, the same path as production code
+    /// (`SyncCommitteeTracker::verify_sync_aggregate`), to compute domains.
+    ///
+    /// Creates a custom ChainSpec with an artificial fork boundary:
+    /// - Fork A (Altair): epoch 0, fork_version = [0,0,0,0]
+    /// - Fork B (Bellatrix): epoch 1, fork_version = [1,0,0,0]
+    ///
+    /// Verifies that domains differ across the fork boundary because the fork version
+    /// is hashed into `fork_data_root`, which forms part of the domain.
+    #[test]
+    fn test_domain_uses_fork_version_at_signature_slot_epoch() {
+        use super::compute_sync_committee_domain_for_slot;
+        use crate::config::ChainSpec;
+
+        // Create custom ChainSpec with fork boundary at epoch 1
+        let chain_spec = ChainSpec {
+            preset_name: "test_fork_boundary",
+            slots_per_epoch: 8, // 8 slots per epoch for easy testing
+            epochs_per_sync_committee_period: 8,
+            sync_committee_size: 32,
+
+            // Fork A at epoch 0: version [0,0,0,0]
+            altair_fork_version: [0x00, 0x00, 0x00, 0x00],
+            // Fork B at epoch 1: version [1,0,0,0]
+            bellatrix_fork_version: [0x01, 0x00, 0x00, 0x00],
+            // Later forks at u64::MAX (won't activate)
+            capella_fork_version: [0x02, 0x00, 0x00, 0x00],
+            deneb_fork_version: [0x03, 0x00, 0x00, 0x00],
+            electra_fork_version: [0x04, 0x00, 0x00, 0x00],
+
+            altair_fork_epoch: 0,        // Fork A active from epoch 0
+            bellatrix_fork_epoch: 1,     // Fork B active from epoch 1
+            capella_fork_epoch: u64::MAX,
+            deneb_fork_epoch: u64::MAX,
+            electra_fork_epoch: u64::MAX,
+
+            genesis_time: 0,
+            seconds_per_slot: 12,
+        };
+
+        let genesis_validators_root = [0xABu8; 32];
+
+        // Compute expected domains directly from known fork versions
+        let expected_domain_fork_a = compute_beacon_domain(
+            DOMAIN_SYNC_COMMITTEE,
+            [0x00, 0x00, 0x00, 0x00],
+            genesis_validators_root,
+        );
+        let expected_domain_fork_b = compute_beacon_domain(
+            DOMAIN_SYNC_COMMITTEE,
+            [0x01, 0x00, 0x00, 0x00],
+            genesis_validators_root,
+        );
+
+        // Sanity check: expected domains must differ (fork version hashed into fork_data_root)
+        assert_ne!(
+            expected_domain_fork_a, expected_domain_fork_b,
+            "expected domains should differ for different fork versions"
+        );
+
+        // Test case 1: slot 0 (epoch 0) -> should use Fork A
+        let slot_0: u64 = 0;
+        let domain_slot_0 =
+            compute_sync_committee_domain_for_slot(slot_0, genesis_validators_root, &chain_spec);
+        assert_eq!(
+            domain_slot_0, expected_domain_fork_a,
+            "slot 0 (epoch 0) should produce Fork A domain"
+        );
+
+        // Test case 2: slot = slots_per_epoch (epoch 1) -> should use Fork B
+        let slot_epoch_1: u64 = chain_spec.slots_per_epoch; // slot 8
+        let domain_slot_8 =
+            compute_sync_committee_domain_for_slot(slot_epoch_1, genesis_validators_root, &chain_spec);
+        assert_eq!(
+            domain_slot_8, expected_domain_fork_b,
+            "slot 8 (epoch 1) should produce Fork B domain"
+        );
+
+        // Test case 3: slot = slots_per_epoch - 1 (last slot of epoch 0) -> still Fork A
+        let last_slot_epoch_0: u64 = chain_spec.slots_per_epoch - 1; // slot 7
+        let domain_slot_7 =
+            compute_sync_committee_domain_for_slot(last_slot_epoch_0, genesis_validators_root, &chain_spec);
+        assert_eq!(
+            domain_slot_7, expected_domain_fork_a,
+            "slot 7 (last slot of epoch 0) should still produce Fork A domain"
+        );
+
+        // Verify epoch derivation is correct (documents the slot -> epoch mapping)
+        assert_eq!(chain_spec.slot_to_epoch(slot_0), 0);
+        assert_eq!(chain_spec.slot_to_epoch(last_slot_epoch_0), 0);
+        assert_eq!(chain_spec.slot_to_epoch(slot_epoch_1), 1);
+    }
 }
