@@ -323,7 +323,7 @@ mod tests {
             bootstrap.current_sync_committee,
             &bootstrap.current_sync_committee_branch,
             bootstrap.genesis_validators_root,
-            chain_spec.altair_fork_version,
+            chain_spec.altair_fork_version(),
         )
         .unwrap();
 
@@ -345,7 +345,7 @@ mod tests {
             bootstrap.current_sync_committee,
             &empty_branch,
             bootstrap.genesis_validators_root,
-            chain_spec.altair_fork_version,
+            chain_spec.altair_fork_version(),
         );
 
         assert!(result.is_err(), "Should reject invalid branch proof");
@@ -363,7 +363,7 @@ mod tests {
             bootstrap.current_sync_committee,
             &bootstrap.current_sync_committee_branch,
             bootstrap.genesis_validators_root,
-            chain_spec.altair_fork_version,
+            chain_spec.altair_fork_version(),
         )
         .unwrap();
 

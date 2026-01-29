@@ -18,7 +18,7 @@ use tree_hash::TreeHash;
 /// Compute SSZ hash_tree_root for SyncCommittee using tree_hash library.
 ///     (SyncCommittee is an SSZ Container:)
 fn compute_sync_committee_root(spec: &ChainSpec, committee: &SyncCommittee) -> Root {
-    let n = spec.sync_committee_size;
+    let n = spec.sync_committee_size();
 
     // Step 1 & 2: Compute hash_tree_root for each of the first N pubkeys directly into a single buffer.
     let mut pubkeys_bytes = Vec::with_capacity(32 * n);

@@ -742,26 +742,14 @@ mod tests {
         use crate::config::ChainSpec;
 
         // Create custom ChainSpec with fork boundary at epoch 1
-        let chain_spec = ChainSpec {
-            preset_name: "test_fork_boundary",
-            genesis_time: 0,
-            seconds_per_slot: 12,
-            slots_per_epoch: 8,
-            epochs_per_sync_committee_period: 8,
-            sync_committee_size: 32,
-
-            altair_fork_version: [0x00, 0x00, 0x00, 0x00],
-            bellatrix_fork_version: [0x01, 0x00, 0x00, 0x00],
-            capella_fork_version: [0x02, 0x00, 0x00, 0x00],
-            deneb_fork_version: [0x03, 0x00, 0x00, 0x00],
-            electra_fork_version: [0x04, 0x00, 0x00, 0x00],
-
-            altair_fork_epoch: 0,
-            bellatrix_fork_epoch: 1,
-            capella_fork_epoch: u64::MAX,
-            deneb_fork_epoch: u64::MAX,
-            electra_fork_epoch: u64::MAX,
-        };
+        // Fork A (Altair) at epoch 0, Fork B (Bellatrix) at epoch 1
+        let chain_spec = ChainSpec::for_test(
+            8, // slots_per_epoch
+            [0x00, 0x00, 0x00, 0x00], // altair_fork_version (Fork A)
+            [0x01, 0x00, 0x00, 0x00], // bellatrix_fork_version (Fork B)
+            0, // altair_fork_epoch
+            1, // bellatrix_fork_epoch
+        );
 
         let genesis_validators_root = [0xABu8; 32];
 
@@ -793,7 +781,7 @@ mod tests {
         );
 
         // Test case 2: slot = slots_per_epoch (epoch 1) -> should use Fork B
-        let slot_epoch_1: u64 = chain_spec.slots_per_epoch; // slot 8
+        let slot_epoch_1: u64 = chain_spec.slots_per_epoch(); // slot 8
         let domain_slot_8 = compute_sync_committee_domain_for_slot(
             slot_epoch_1,
             genesis_validators_root,
@@ -805,7 +793,7 @@ mod tests {
         );
 
         // Test case 3: slot = slots_per_epoch - 1 (last slot of epoch 0) -> still Fork A
-        let last_slot_epoch_0: u64 = chain_spec.slots_per_epoch - 1; // slot 7
+        let last_slot_epoch_0: u64 = chain_spec.slots_per_epoch() - 1; // slot 7
         let domain_slot_7 = compute_sync_committee_domain_for_slot(
             last_slot_epoch_0,
             genesis_validators_root,

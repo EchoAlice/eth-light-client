@@ -27,25 +27,27 @@ impl Fork {
 /// Defines network-specific constants for mainnet and minimal (test) presets.
 /// Includes fork schedule and fork-specific constants.
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct ChainSpec {
-    pub preset_name: &'static str,
-    pub genesis_time: u64,
-    pub seconds_per_slot: u64,
-    pub slots_per_epoch: u64,
-    pub epochs_per_sync_committee_period: u64,
-    pub sync_committee_size: usize,
+    preset_name: &'static str,
+    genesis_time: u64,
+    seconds_per_slot: u64,
+    slots_per_epoch: u64,
+    epochs_per_sync_committee_period: u64,
+    sync_committee_size: usize,
 
-    pub altair_fork_version: [u8; 4],
-    pub bellatrix_fork_version: [u8; 4],
-    pub capella_fork_version: [u8; 4],
-    pub deneb_fork_version: [u8; 4],
-    pub electra_fork_version: [u8; 4],
+    altair_fork_version: [u8; 4],
+    bellatrix_fork_version: [u8; 4],
+    capella_fork_version: [u8; 4],
+    deneb_fork_version: [u8; 4],
+    electra_fork_version: [u8; 4],
 
-    pub altair_fork_epoch: u64,
-    pub bellatrix_fork_epoch: u64,
-    pub capella_fork_epoch: u64,
-    pub deneb_fork_epoch: u64,
-    pub electra_fork_epoch: u64,
+    #[allow(dead_code)] // Altair is the fallback case in fork_at_epoch
+    altair_fork_epoch: u64,
+    bellatrix_fork_epoch: u64,
+    capella_fork_epoch: u64,
+    deneb_fork_epoch: u64,
+    electra_fork_epoch: u64,
 }
 
 impl ChainSpec {
@@ -97,6 +99,65 @@ impl ChainSpec {
         }
     }
 
+    /// Test constructor for creating custom specs (e.g., fork boundary tests).
+    #[cfg(test)]
+    pub(crate) fn for_test(
+        slots_per_epoch: u64,
+        altair_fork_version: [u8; 4],
+        bellatrix_fork_version: [u8; 4],
+        altair_fork_epoch: u64,
+        bellatrix_fork_epoch: u64,
+    ) -> Self {
+        Self {
+            preset_name: "test",
+            genesis_time: 0,
+            seconds_per_slot: 12,
+            slots_per_epoch,
+            epochs_per_sync_committee_period: 8,
+            sync_committee_size: 32,
+
+            altair_fork_version,
+            bellatrix_fork_version,
+            capella_fork_version: [0x02, 0x00, 0x00, 0x00],
+            deneb_fork_version: [0x03, 0x00, 0x00, 0x00],
+            electra_fork_version: [0x04, 0x00, 0x00, 0x00],
+
+            altair_fork_epoch,
+            bellatrix_fork_epoch,
+            capella_fork_epoch: u64::MAX,
+            deneb_fork_epoch: u64::MAX,
+            electra_fork_epoch: u64::MAX,
+        }
+    }
+
+    pub const fn preset_name(&self) -> &'static str {
+        self.preset_name
+    }
+
+    pub const fn genesis_time(&self) -> u64 {
+        self.genesis_time
+    }
+
+    pub const fn seconds_per_slot(&self) -> u64 {
+        self.seconds_per_slot
+    }
+
+    pub const fn slots_per_epoch(&self) -> u64 {
+        self.slots_per_epoch
+    }
+
+    pub const fn epochs_per_sync_committee_period(&self) -> u64 {
+        self.epochs_per_sync_committee_period
+    }
+
+    pub const fn sync_committee_size(&self) -> usize {
+        self.sync_committee_size
+    }
+
+    pub(crate) const fn altair_fork_version(&self) -> [u8; 4] {
+        self.altair_fork_version
+    }
+
     /// Calculate total slots per sync committee period
     pub const fn slots_per_sync_committee_period(&self) -> u64 {
         self.slots_per_epoch * self.epochs_per_sync_committee_period
@@ -137,10 +198,6 @@ impl ChainSpec {
             0
         }
     }
-
-    // =========================================================================
-    // Fork Detection
-    // =========================================================================
 
     /// Determine which fork is active at a given epoch.
     ///
@@ -183,19 +240,12 @@ impl ChainSpec {
         self.fork_version_at_epoch(slot / self.slots_per_epoch)
     }
 
-    // =========================================================================
     // Beacon State Generalized Indices
-    // =========================================================================
     //
     // These return the SSZ generalized index for various beacon state fields.
     // Indices changed in Electra due to BeaconState restructuring.
     //
     // Reference: https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/sync-protocol.md
-
-    /// Get the generalized index for `BeaconState.current_sync_committee` at a given slot.
-    ///
-    /// - Altair through Deneb: 54
-    /// - Electra onwards: 86
     #[inline]
     pub const fn current_sync_committee_gindex(&self, slot: Slot) -> u64 {
         match self.fork_at_slot(slot) {
@@ -205,9 +255,6 @@ impl ChainSpec {
     }
 
     /// Get the generalized index for `BeaconState.next_sync_committee` at a given slot.
-    ///
-    /// - Altair through Deneb: 55
-    /// - Electra onwards: 87
     #[inline]
     pub const fn next_sync_committee_gindex(&self, slot: Slot) -> u64 {
         match self.fork_at_slot(slot) {
@@ -217,9 +264,6 @@ impl ChainSpec {
     }
 
     /// Get the generalized index for `BeaconState.finalized_checkpoint.root` at a given slot.
-    ///
-    /// - Altair through Deneb: 105
-    /// - Electra onwards: 169
     #[inline]
     pub const fn finalized_root_gindex(&self, slot: Slot) -> u64 {
         match self.fork_at_slot(slot) {
@@ -236,23 +280,23 @@ mod tests {
     #[test]
     fn test_mainnet_spec() {
         let spec = ChainSpec::mainnet();
-        assert_eq!(spec.preset_name, "mainnet");
-        assert_eq!(spec.slots_per_epoch, 32);
-        assert_eq!(spec.epochs_per_sync_committee_period, 256);
-        assert_eq!(spec.sync_committee_size, 512);
+        assert_eq!(spec.preset_name(), "mainnet");
+        assert_eq!(spec.slots_per_epoch(), 32);
+        assert_eq!(spec.epochs_per_sync_committee_period(), 256);
+        assert_eq!(spec.sync_committee_size(), 512);
         assert_eq!(spec.slots_per_sync_committee_period(), 8192);
-        assert_eq!(spec.altair_fork_version, [0x01, 0x00, 0x00, 0x00]);
+        assert_eq!(spec.altair_fork_version(), [0x01, 0x00, 0x00, 0x00]);
     }
 
     #[test]
     fn test_minimal_spec() {
         let spec = ChainSpec::minimal();
-        assert_eq!(spec.preset_name, "minimal");
-        assert_eq!(spec.slots_per_epoch, 8);
-        assert_eq!(spec.epochs_per_sync_committee_period, 8);
-        assert_eq!(spec.sync_committee_size, 32);
+        assert_eq!(spec.preset_name(), "minimal");
+        assert_eq!(spec.slots_per_epoch(), 8);
+        assert_eq!(spec.epochs_per_sync_committee_period(), 8);
+        assert_eq!(spec.sync_committee_size(), 32);
         assert_eq!(spec.slots_per_sync_committee_period(), 64);
-        assert_eq!(spec.altair_fork_version, [0x01, 0x00, 0x00, 0x01]);
+        assert_eq!(spec.altair_fork_version(), [0x01, 0x00, 0x00, 0x01]);
     }
 
     #[test]
@@ -305,10 +349,7 @@ mod tests {
         assert_eq!(spec.timestamp_to_slot(1578009600 - 100), 0); // Before genesis
     }
 
-    // =========================================================================
     // Fork Detection Tests
-    // =========================================================================
-
     #[test]
     fn test_fork_at_epoch_mainnet() {
         let spec = ChainSpec::mainnet();
@@ -398,10 +439,7 @@ mod tests {
         assert_eq!(Fork::Electra.name(), "electra");
     }
 
-    // =========================================================================
     // Generalized Index Tests
-    // =========================================================================
-
     #[test]
     fn test_gindex_altair_through_deneb() {
         let spec = ChainSpec::mainnet();
