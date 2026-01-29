@@ -211,6 +211,22 @@ impl SyncCommitteeTracker {
     }
 }
 
+/// Compute the sync committee domain for a given signature slot.
+///
+/// Derives the epoch from `signature_slot`, looks up the fork version for that epoch,
+/// and computes the domain used in sync committee BLS signature verification.
+// Will be used in the next commit to refactor verify_sync_aggregate.
+#[allow(dead_code)]
+pub(crate) fn compute_sync_committee_domain_for_slot(
+    signature_slot: Slot,
+    genesis_validators_root: Root,
+    chain_spec: &ChainSpec,
+) -> Domain {
+    let epoch = chain_spec.slot_to_epoch(signature_slot);
+    let fork_version = chain_spec.fork_version_at_epoch(epoch);
+    compute_domain(DOMAIN_SYNC_COMMITTEE, fork_version, genesis_validators_root)
+}
+
 /// Fork data structure for domain computation
 /// Uses TreeHash derive for proper SSZ hash_tree_root computation
 #[derive(Debug, Clone, TreeHash)]
