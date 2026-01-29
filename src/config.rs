@@ -1,27 +1,13 @@
 use crate::types::primitives::Slot;
 
-// =============================================================================
-// Fork Enum
-// =============================================================================
-
-/// Ethereum consensus layer forks (post-merge light client relevant).
-///
-/// Each fork may change the BeaconState structure, affecting generalized indices
-/// and the LightClientHeader format.
-///
-/// Internal to the crate - not part of the public API.
+/// Each fork may change the BeaconState structure, affecting generalized indices and the LightClientHeader format.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) enum Fork {
-    /// Altair - Light client protocol introduced (Oct 2021)
-    Altair,
-    /// Bellatrix - The Merge (Sep 2022). No LC header changes.
-    Bellatrix,
-    /// Capella - Withdrawals (Apr 2023). LC header gains execution payload.
-    Capella,
-    /// Deneb - Blobs/4844 (Mar 2024). LC header adds blob fields.
-    Deneb,
-    /// Electra - Pectra upgrade (2025). BeaconState restructured, gindices change.
-    Electra,
+    Altair,    // Light client protocol introduced (Oct 2021)
+    Bellatrix, // The Merge (Sep 2022). No LC header changes.
+    Capella,   // Withdrawals (Apr 2023). LC header gains execution payload.
+    Deneb,     // Blobs/4844 (Mar 2024). LC header adds blob fields.
+    Electra,   // Pectra upgrade (2025). BeaconState restructured, gindice change.
 }
 
 impl Fork {
@@ -38,64 +24,28 @@ impl Fork {
     }
 }
 
-// =============================================================================
-// ChainSpec
-// =============================================================================
-
-/// Ethereum consensus layer chain specification
-///
 /// Defines network-specific constants for mainnet and minimal (test) presets.
 /// Includes fork schedule and fork-specific constants.
 #[derive(Debug, Clone, Copy)]
 pub struct ChainSpec {
-    /// Preset name ("mainnet" or "minimal")
     pub preset_name: &'static str,
-
-    /// Number of slots per epoch
-    /// - Mainnet: 32
-    /// - Minimal: 8
+    pub genesis_time: u64,
+    pub seconds_per_slot: u64,
     pub slots_per_epoch: u64,
-
-    /// Number of epochs per sync committee period
-    /// - Mainnet: 256 (8192 slots/period)
-    /// - Minimal: 8 (64 slots/period)
     pub epochs_per_sync_committee_period: u64,
-
-    /// Sync committee size
-    /// - Mainnet: 512
-    /// - Minimal: 32
     pub sync_committee_size: usize,
 
-    // =========================================================================
-    // Fork Versions
-    // =========================================================================
     pub altair_fork_version: [u8; 4],
     pub bellatrix_fork_version: [u8; 4],
     pub capella_fork_version: [u8; 4],
     pub deneb_fork_version: [u8; 4],
     pub electra_fork_version: [u8; 4],
 
-    // =========================================================================
-    // Fork Epochs (when each fork activates)
-    // =========================================================================
     pub altair_fork_epoch: u64,
     pub bellatrix_fork_epoch: u64,
     pub capella_fork_epoch: u64,
     pub deneb_fork_epoch: u64,
     pub electra_fork_epoch: u64,
-
-    // =========================================================================
-    // Time
-    // =========================================================================
-    /// Genesis time (Unix timestamp)
-    /// - Mainnet: 1606824023 (Dec 1, 2020, 12:00:23 UTC)
-    /// - Minimal: 1578009600 (test preset, Jan 3, 2020)
-    pub genesis_time: u64,
-
-    /// Seconds per slot
-    /// - Mainnet: 12
-    /// - Minimal: 6 (faster for testing)
-    pub seconds_per_slot: u64,
 }
 
 impl ChainSpec {
@@ -103,26 +53,23 @@ impl ChainSpec {
     pub const fn mainnet() -> Self {
         Self {
             preset_name: "mainnet",
+            genesis_time: 1606824023,
+            seconds_per_slot: 12,
             slots_per_epoch: 32,
             epochs_per_sync_committee_period: 256,
             sync_committee_size: 512,
 
-            // Fork versions (mainnet)
             altair_fork_version: [0x01, 0x00, 0x00, 0x00],
             bellatrix_fork_version: [0x02, 0x00, 0x00, 0x00],
             capella_fork_version: [0x03, 0x00, 0x00, 0x00],
             deneb_fork_version: [0x04, 0x00, 0x00, 0x00],
             electra_fork_version: [0x05, 0x00, 0x00, 0x00],
 
-            // Fork epochs (mainnet)
-            altair_fork_epoch: 74240,     // Oct 27, 2021
-            bellatrix_fork_epoch: 144896, // Sep 6, 2022
-            capella_fork_epoch: 194048,   // Apr 12, 2023
-            deneb_fork_epoch: 269568,     // Mar 13, 2024
-            electra_fork_epoch: 364544,   // May 7, 2025
-
-            genesis_time: 1606824023, // Dec 1, 2020, 12:00:23 UTC
-            seconds_per_slot: 12,
+            altair_fork_epoch: 74240,
+            bellatrix_fork_epoch: 144896,
+            capella_fork_epoch: 194048,
+            deneb_fork_epoch: 269568,
+            electra_fork_epoch: 364544,
         }
     }
 
@@ -130,27 +77,23 @@ impl ChainSpec {
     pub const fn minimal() -> Self {
         Self {
             preset_name: "minimal",
+            genesis_time: 1578009600,
+            seconds_per_slot: 6,
             slots_per_epoch: 8,
             epochs_per_sync_committee_period: 8,
             sync_committee_size: 32,
 
-            // Fork versions (minimal preset)
             altair_fork_version: [0x01, 0x00, 0x00, 0x01],
             bellatrix_fork_version: [0x02, 0x00, 0x00, 0x01],
             capella_fork_version: [0x03, 0x00, 0x00, 0x01],
             deneb_fork_version: [0x04, 0x00, 0x00, 0x01],
             electra_fork_version: [0x05, 0x00, 0x00, 0x01],
 
-            // Fork epochs (minimal preset for Altair tests)
-            // Only Altair is active; later forks not yet activated
             altair_fork_epoch: 0,
             bellatrix_fork_epoch: u64::MAX,
             capella_fork_epoch: u64::MAX,
             deneb_fork_epoch: u64::MAX,
             electra_fork_epoch: u64::MAX,
-
-            genesis_time: 1578009600, // Jan 3, 2020 (test value)
-            seconds_per_slot: 6,      // Faster slots for testing
         }
     }
 
