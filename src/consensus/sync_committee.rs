@@ -425,8 +425,7 @@ mod tests {
         let committee = create_test_sync_committee();
         let fork_version = [1u8; 4];
 
-        let tracker =
-            SyncCommitteeTracker::new(committee.clone(), 0, fork_version).unwrap();
+        let tracker = SyncCommitteeTracker::new(committee.clone(), 0, fork_version).unwrap();
 
         assert_eq!(tracker.current_period(), 0);
         assert!(!tracker.has_next_committee());
@@ -438,8 +437,7 @@ mod tests {
         let fork_version = [1u8; 4];
         let chain_spec = ChainSpec::mainnet();
 
-        let tracker =
-            SyncCommitteeTracker::new(committee.clone(), 0, fork_version).unwrap();
+        let tracker = SyncCommitteeTracker::new(committee.clone(), 0, fork_version).unwrap();
 
         // Should return current committee for period 0 slots (mainnet: 0-8191)
         assert!(tracker.get_committee_for_slot(0, &chain_spec).is_ok());
@@ -455,8 +453,7 @@ mod tests {
         let fork_version = [1u8; 4];
         let chain_spec = ChainSpec::mainnet();
 
-        let mut tracker =
-            SyncCommitteeTracker::new(committee.clone(), 0, fork_version).unwrap();
+        let mut tracker = SyncCommitteeTracker::new(committee.clone(), 0, fork_version).unwrap();
 
         // Should not advance without next committee (mainnet period boundary: slot 8192)
         assert!(!tracker.should_advance_period(8192, &chain_spec));
@@ -743,11 +740,11 @@ mod tests {
         // Create custom ChainSpec with fork boundary at epoch 1
         // Fork A (Altair) at epoch 0, Fork B (Bellatrix) at epoch 1
         let chain_spec = ChainSpec::for_test(
-            8, // slots_per_epoch
+            8,                        // slots_per_epoch
             [0x00, 0x00, 0x00, 0x00], // altair_fork_version (Fork A)
             [0x01, 0x00, 0x00, 0x00], // bellatrix_fork_version (Fork B)
-            0, // altair_fork_epoch
-            1, // bellatrix_fork_epoch
+            0,                        // altair_fork_epoch
+            1,                        // bellatrix_fork_epoch
         );
 
         let genesis_validators_root = [0xABu8; 32];

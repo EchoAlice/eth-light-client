@@ -65,11 +65,8 @@ impl LightClientProcessor {
         );
         let initial_period = chain_spec.slot_to_sync_committee_period(trusted_header.slot);
 
-        let sync_committee_tracker = SyncCommitteeTracker::new(
-            current_sync_committee,
-            initial_period,
-            fork_version,
-        )?;
+        let sync_committee_tracker =
+            SyncCommitteeTracker::new(current_sync_committee, initial_period, fork_version)?;
 
         Ok(Self {
             chain_spec,

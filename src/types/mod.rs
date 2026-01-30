@@ -20,7 +20,5 @@ pub mod consensus_types {
 }
 
 // Top-level re-exports for convenience
-pub use consensus::{
-    BeaconBlockHeader, LightClientUpdate, SyncAggregate, SyncCommittee,
-};
+pub use consensus::{BeaconBlockHeader, LightClientUpdate, SyncAggregate, SyncCommittee};
 pub use primitives::*;

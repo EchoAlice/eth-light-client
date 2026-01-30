@@ -141,7 +141,11 @@ pub(crate) fn verify_bls_aggregate_signature(
 ///
 /// # Returns
 /// * `true` if aggregate signature is valid, `false` otherwise
-pub(crate) fn fast_aggregate_verify(pubkeys: &[[u8; 48]], message: &[u8], signature: &[u8; 96]) -> bool {
+pub(crate) fn fast_aggregate_verify(
+    pubkeys: &[[u8; 48]],
+    message: &[u8],
+    signature: &[u8; 96],
+) -> bool {
     // Try using blst's native fast_aggregate_verify first
     if let Some(result) = fast_aggregate_verify_native(pubkeys, message, signature) {
         return result;
