@@ -2,9 +2,7 @@ use crate::config::ChainSpec;
 use crate::consensus::merkle::verify_next_sync_committee;
 use crate::error::{Error, Result};
 use crate::types::consensus::{LightClientUpdate, SyncCommittee};
-use crate::types::primitives::{
-    BLSPublicKey, BLSSignature, Domain, ForkVersion, Root, Slot,
-};
+use crate::types::primitives::{BLSPublicKey, BLSSignature, Domain, ForkVersion, Root, Slot};
 use std::collections::HashMap;
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
@@ -20,8 +18,6 @@ const DOMAIN_BEACON_PROPOSER: [u8; 4] = [0, 0, 0, 0];
 /// Sync committee tracker for managing committee rotations
 #[derive(Debug, Clone)]
 pub(crate) struct SyncCommitteeTracker {
-    /// Chain specification (mainnet or minimal)
-    chain_spec: ChainSpec,
     /// Current trusted sync committee
     current_committee: SyncCommittee,
     /// Next sync committee (if known and verified)
@@ -39,13 +35,11 @@ pub(crate) struct SyncCommitteeTracker {
 impl SyncCommitteeTracker {
     /// Create new sync committee tracker with initial trusted committee
     pub(crate) fn new(
-        chain_spec: ChainSpec,
         initial_committee: SyncCommittee,
         initial_period: u64,
         fork_version: ForkVersion,
     ) -> Result<Self> {
         let mut tracker = Self {
-            chain_spec,
             current_committee: initial_committee.clone(),
             next_committee: None,
             current_period: initial_period,
@@ -67,8 +61,12 @@ impl SyncCommitteeTracker {
     /// - If slot is in current period, return current_committee
     /// - If slot is in next period, return next_committee (if available)
     /// - Otherwise, return an error
-    pub(crate) fn get_committee_for_slot(&self, slot: Slot) -> Result<&SyncCommittee> {
-        let period = self.chain_spec.slot_to_sync_committee_period(slot);
+    pub(crate) fn get_committee_for_slot(
+        &self,
+        slot: Slot,
+        chain_spec: &ChainSpec,
+    ) -> Result<&SyncCommittee> {
+        let period = chain_spec.slot_to_sync_committee_period(slot);
 
         if period == self.current_period {
             Ok(&self.current_committee)
@@ -88,14 +86,16 @@ impl SyncCommitteeTracker {
     ///
     /// This verifies the merkle branch proof that the next_sync_committee is properly
     /// embedded in the attested header's state root before accepting the update.
-    pub(crate) fn process_sync_committee_update(&mut self, update: &LightClientUpdate) -> Result<bool> {
+    pub(crate) fn process_sync_committee_update(
+        &mut self,
+        update: &LightClientUpdate,
+        chain_spec: &ChainSpec,
+    ) -> Result<bool> {
         if !update.has_sync_committee_update() {
             return Ok(false);
         }
 
-        let update_period = self
-            .chain_spec
-            .slot_to_sync_committee_period(update.attested_header.slot);
+        let update_period = chain_spec.slot_to_sync_committee_period(update.attested_header.slot);
         let next_committee = update.next_sync_committee.as_ref().unwrap();
 
         // Validate that the update is for current or next period
@@ -115,7 +115,7 @@ impl SyncCommitteeTracker {
             &update.next_sync_committee_branch,
             update.attested_header.slot,
             &update.attested_header.state_root,
-            &self.chain_spec,
+            chain_spec,
         )?;
 
         // Store the next committee
@@ -140,8 +140,8 @@ impl SyncCommitteeTracker {
     }
 
     /// Check if we should advance to the next period based on current slot
-    pub(crate) fn should_advance_period(&self, current_slot: Slot) -> bool {
-        let current_slot_period = self.chain_spec.slot_to_sync_committee_period(current_slot);
+    pub(crate) fn should_advance_period(&self, current_slot: Slot, chain_spec: &ChainSpec) -> bool {
+        let current_slot_period = chain_spec.slot_to_sync_committee_period(current_slot);
         let has_next = self.next_committee.is_some();
         current_slot_period > self.current_period && has_next
     }
@@ -168,8 +168,9 @@ impl SyncCommitteeTracker {
         sync_committee_bits: &[bool; 512],
         sync_committee_signature: &BLSSignature,
         genesis_validators_root: Root,
+        chain_spec: &ChainSpec,
     ) -> Result<bool> {
-        let committee = self.get_committee_for_slot(signature_slot)?;
+        let committee = self.get_committee_for_slot(signature_slot, chain_spec)?;
 
         // Get participating public keys
         let participating_pubkeys = committee.get_participating_pubkeys(sync_committee_bits)?;
@@ -182,7 +183,7 @@ impl SyncCommitteeTracker {
         let domain = compute_sync_committee_domain_for_slot(
             signature_slot,
             genesis_validators_root,
-            &self.chain_spec,
+            chain_spec,
         );
 
         // Verify BLS aggregate signature
@@ -423,10 +424,8 @@ mod tests {
     fn test_sync_committee_tracker_creation() {
         let committee = create_test_sync_committee();
         let fork_version = [1u8; 4];
-        let chain_spec = ChainSpec::mainnet();
 
-        let tracker =
-            SyncCommitteeTracker::new(chain_spec, committee.clone(), 0, fork_version).unwrap();
+        let tracker = SyncCommitteeTracker::new(committee.clone(), 0, fork_version).unwrap();
 
         assert_eq!(tracker.current_period(), 0);
         assert!(!tracker.has_next_committee());
@@ -438,15 +437,14 @@ mod tests {
         let fork_version = [1u8; 4];
         let chain_spec = ChainSpec::mainnet();
 
-        let tracker =
-            SyncCommitteeTracker::new(chain_spec, committee.clone(), 0, fork_version).unwrap();
+        let tracker = SyncCommitteeTracker::new(committee.clone(), 0, fork_version).unwrap();
 
         // Should return current committee for period 0 slots (mainnet: 0-8191)
-        assert!(tracker.get_committee_for_slot(0).is_ok());
-        assert!(tracker.get_committee_for_slot(8191).is_ok());
+        assert!(tracker.get_committee_for_slot(0, &chain_spec).is_ok());
+        assert!(tracker.get_committee_for_slot(8191, &chain_spec).is_ok());
 
         // Should fail for next period without next committee
-        assert!(tracker.get_committee_for_slot(8192).is_err());
+        assert!(tracker.get_committee_for_slot(8192, &chain_spec).is_err());
     }
 
     #[test]
@@ -455,15 +453,14 @@ mod tests {
         let fork_version = [1u8; 4];
         let chain_spec = ChainSpec::mainnet();
 
-        let mut tracker =
-            SyncCommitteeTracker::new(chain_spec, committee.clone(), 0, fork_version).unwrap();
+        let mut tracker = SyncCommitteeTracker::new(committee.clone(), 0, fork_version).unwrap();
 
         // Should not advance without next committee (mainnet period boundary: slot 8192)
-        assert!(!tracker.should_advance_period(8192));
+        assert!(!tracker.should_advance_period(8192, &chain_spec));
 
         // Add next committee and test advancement
         tracker.next_committee = Some(committee.clone());
-        assert!(tracker.should_advance_period(8192));
+        assert!(tracker.should_advance_period(8192, &chain_spec));
 
         // Test actual advancement
         assert!(tracker.advance_to_next_period().is_ok());
@@ -741,30 +738,14 @@ mod tests {
         use crate::config::ChainSpec;
 
         // Create custom ChainSpec with fork boundary at epoch 1
-        let chain_spec = ChainSpec {
-            preset_name: "test_fork_boundary",
-            slots_per_epoch: 8, // 8 slots per epoch for easy testing
-            epochs_per_sync_committee_period: 8,
-            sync_committee_size: 32,
-
-            // Fork A at epoch 0: version [0,0,0,0]
-            altair_fork_version: [0x00, 0x00, 0x00, 0x00],
-            // Fork B at epoch 1: version [1,0,0,0]
-            bellatrix_fork_version: [0x01, 0x00, 0x00, 0x00],
-            // Later forks at u64::MAX (won't activate)
-            capella_fork_version: [0x02, 0x00, 0x00, 0x00],
-            deneb_fork_version: [0x03, 0x00, 0x00, 0x00],
-            electra_fork_version: [0x04, 0x00, 0x00, 0x00],
-
-            altair_fork_epoch: 0,        // Fork A active from epoch 0
-            bellatrix_fork_epoch: 1,     // Fork B active from epoch 1
-            capella_fork_epoch: u64::MAX,
-            deneb_fork_epoch: u64::MAX,
-            electra_fork_epoch: u64::MAX,
-
-            genesis_time: 0,
-            seconds_per_slot: 12,
-        };
+        // Fork A (Altair) at epoch 0, Fork B (Bellatrix) at epoch 1
+        let chain_spec = ChainSpec::for_test(
+            8,                        // slots_per_epoch
+            [0x00, 0x00, 0x00, 0x00], // altair_fork_version (Fork A)
+            [0x01, 0x00, 0x00, 0x00], // bellatrix_fork_version (Fork B)
+            0,                        // altair_fork_epoch
+            1,                        // bellatrix_fork_epoch
+        );
 
         let genesis_validators_root = [0xABu8; 32];
 
@@ -796,18 +777,24 @@ mod tests {
         );
 
         // Test case 2: slot = slots_per_epoch (epoch 1) -> should use Fork B
-        let slot_epoch_1: u64 = chain_spec.slots_per_epoch; // slot 8
-        let domain_slot_8 =
-            compute_sync_committee_domain_for_slot(slot_epoch_1, genesis_validators_root, &chain_spec);
+        let slot_epoch_1: u64 = chain_spec.slots_per_epoch(); // slot 8
+        let domain_slot_8 = compute_sync_committee_domain_for_slot(
+            slot_epoch_1,
+            genesis_validators_root,
+            &chain_spec,
+        );
         assert_eq!(
             domain_slot_8, expected_domain_fork_b,
             "slot 8 (epoch 1) should produce Fork B domain"
         );
 
         // Test case 3: slot = slots_per_epoch - 1 (last slot of epoch 0) -> still Fork A
-        let last_slot_epoch_0: u64 = chain_spec.slots_per_epoch - 1; // slot 7
-        let domain_slot_7 =
-            compute_sync_committee_domain_for_slot(last_slot_epoch_0, genesis_validators_root, &chain_spec);
+        let last_slot_epoch_0: u64 = chain_spec.slots_per_epoch() - 1; // slot 7
+        let domain_slot_7 = compute_sync_committee_domain_for_slot(
+            last_slot_epoch_0,
+            genesis_validators_root,
+            &chain_spec,
+        );
         assert_eq!(
             domain_slot_7, expected_domain_fork_a,
             "slot 7 (last slot of epoch 0) should still produce Fork A domain"

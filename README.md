@@ -73,6 +73,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 - Getters: `finalized_header()`, `optimistic_header()`, `current_sync_committee()`,
   `next_sync_committee()`, `current_period()`, `is_synced()`, `chain_spec()`
 
+**Custom/Devnet Configuration:**
+
+For local testnets or devnets, use `ChainSpecConfig` with `ChainSpec::try_from_config()`. See the rustdoc on `ChainSpecConfig` for usage examples.
+
+Current limitations (Tier-0):
+- `sync_committee_size` must be 32 or 512 (matching minimal/mainnet presets)
+- `altair_fork_epoch` must be 0 (light client protocol requires Altair from genesis)
+- Generalized indices and BeaconState layout are not configurable (hardcoded per-fork)
+
 ### Trust Model
 - **Safety**: follows from correct verification, given the user provides a legitimate bootstrap.
 - **Liveness** depends on the user's update source (and will improve further once `force_update` is implemented).

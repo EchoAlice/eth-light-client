@@ -65,12 +65,8 @@ impl LightClientProcessor {
         );
         let initial_period = chain_spec.slot_to_sync_committee_period(trusted_header.slot);
 
-        let sync_committee_tracker = SyncCommitteeTracker::new(
-            chain_spec,
-            current_sync_committee,
-            initial_period,
-            fork_version,
-        )?;
+        let sync_committee_tracker =
+            SyncCommitteeTracker::new(current_sync_committee, initial_period, fork_version)?;
 
         Ok(Self {
             chain_spec,
@@ -167,6 +163,7 @@ impl LightClientProcessor {
             update.sync_aggregate.sync_committee_bits.as_ref(),
             &update.sync_aggregate.sync_committee_signature,
             self.store.genesis_validators_root,
+            &self.chain_spec,
         )?;
 
         if !is_valid {
@@ -186,7 +183,7 @@ impl LightClientProcessor {
         // This ensures newly loaded committees stay as next_committee
         let should_advance = self
             .sync_committee_tracker
-            .should_advance_period(update.attested_header.slot);
+            .should_advance_period(update.attested_header.slot, &self.chain_spec);
         if should_advance {
             self.sync_committee_tracker.advance_to_next_period()?;
             // Update the store's committees to match the tracker
@@ -200,7 +197,7 @@ impl LightClientProcessor {
         if update.has_sync_committee_update()
             && self
                 .sync_committee_tracker
-                .process_sync_committee_update(&update)?
+                .process_sync_committee_update(&update, &self.chain_spec)?
         {
             // Also update the store's next_sync_committee to keep it in sync
             self.store.next_sync_committee = update.next_sync_committee.clone();
@@ -317,13 +314,14 @@ mod tests {
         let chain_spec = crate::config::ChainSpec::minimal();
         let expected_slot = bootstrap.header.slot;
 
+        let fork_version = chain_spec.altair_fork_version();
         let processor = LightClientProcessor::new(
             chain_spec,
             bootstrap.header,
             bootstrap.current_sync_committee,
             &bootstrap.current_sync_committee_branch,
             bootstrap.genesis_validators_root,
-            chain_spec.altair_fork_version,
+            fork_version,
         )
         .unwrap();
 
@@ -339,13 +337,14 @@ mod tests {
         // Empty branch should fail verification
         let empty_branch: Vec<Root> = vec![];
 
+        let fork_version = chain_spec.altair_fork_version();
         let result = LightClientProcessor::new(
             chain_spec,
             bootstrap.header,
             bootstrap.current_sync_committee,
             &empty_branch,
             bootstrap.genesis_validators_root,
-            chain_spec.altair_fork_version,
+            fork_version,
         );
 
         assert!(result.is_err(), "Should reject invalid branch proof");
@@ -357,13 +356,14 @@ mod tests {
         let chain_spec = crate::config::ChainSpec::minimal();
         let bootstrap_slot = bootstrap.header.slot;
 
+        let fork_version = chain_spec.altair_fork_version();
         let processor = LightClientProcessor::new(
             chain_spec,
             bootstrap.header,
             bootstrap.current_sync_committee,
             &bootstrap.current_sync_committee_branch,
             bootstrap.genesis_validators_root,
-            chain_spec.altair_fork_version,
+            fork_version,
         )
         .unwrap();
 

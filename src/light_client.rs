@@ -557,7 +557,7 @@ mod tests {
 
         // Verify we can access chain spec (minimal preset)
         let spec = client.chain_spec();
-        assert_eq!(spec.slots_per_epoch, 8); // minimal preset uses 8
+        assert_eq!(spec.slots_per_epoch(), 8); // minimal preset uses 8
     }
 
     #[test]

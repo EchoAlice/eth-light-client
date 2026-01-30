@@ -38,7 +38,7 @@ impl BeaconConsensus {
         current_sync_committee_branch: &[Root],
         genesis_validators_root: Root,
     ) -> Result<Self> {
-        let fork_version = chain_spec.altair_fork_version;
+        let fork_version = chain_spec.altair_fork_version();
 
         let light_client = LightClientProcessor::new(
             chain_spec,
