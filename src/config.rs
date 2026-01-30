@@ -1,3 +1,4 @@
+use crate::error::{Error, Result};
 use crate::types::primitives::Slot;
 
 /// Each fork may change the BeaconState structure, affecting generalized indices and the LightClientHeader format.
@@ -21,6 +22,122 @@ impl Fork {
             Fork::Deneb => "deneb",
             Fork::Electra => "electra",
         }
+    }
+}
+
+/// Configuration for creating a custom [`ChainSpec`].
+///
+/// Use this to configure a light client for local testnets or devnets.
+/// For mainnet or standard test networks, use [`ChainSpec::mainnet()`] or [`ChainSpec::minimal()`].
+///
+/// # Example
+///
+/// ```
+/// use eth_light_client::{ChainSpec, ChainSpecConfig};
+///
+/// let config = ChainSpecConfig {
+///     genesis_time: 1700000000,
+///     seconds_per_slot: 12,
+///     slots_per_epoch: 32,
+///     epochs_per_sync_committee_period: 256,
+///     sync_committee_size: 512,
+///     altair_fork_version: [0x01, 0x00, 0x00, 0x00],
+///     bellatrix_fork_version: [0x02, 0x00, 0x00, 0x00],
+///     capella_fork_version: [0x03, 0x00, 0x00, 0x00],
+///     deneb_fork_version: [0x04, 0x00, 0x00, 0x00],
+///     electra_fork_version: [0x05, 0x00, 0x00, 0x00],
+///     altair_fork_epoch: 0,
+///     bellatrix_fork_epoch: 10,
+///     capella_fork_epoch: 20,
+///     deneb_fork_epoch: 30,
+///     electra_fork_epoch: 40,
+/// };
+///
+/// let spec = ChainSpec::try_from_config(config).unwrap();
+/// assert_eq!(spec.genesis_time(), 1700000000);
+/// ```
+#[derive(Debug, Clone, Copy)]
+pub struct ChainSpecConfig {
+    pub genesis_time: u64,
+    pub seconds_per_slot: u64,
+    pub slots_per_epoch: u64,
+    pub epochs_per_sync_committee_period: u64,
+    /// Must be 32 (minimal) or 512 (mainnet).
+    pub sync_committee_size: usize,
+
+    pub altair_fork_version: [u8; 4],
+    pub bellatrix_fork_version: [u8; 4],
+    pub capella_fork_version: [u8; 4],
+    pub deneb_fork_version: [u8; 4],
+    pub electra_fork_version: [u8; 4],
+
+    /// Must be 0 (light client protocol requires Altair from genesis).
+    pub altair_fork_epoch: u64,
+    pub bellatrix_fork_epoch: u64,
+    pub capella_fork_epoch: u64,
+    pub deneb_fork_epoch: u64,
+    pub electra_fork_epoch: u64,
+}
+
+impl ChainSpecConfig {
+    /// Validate the configuration.
+    ///
+    /// Returns an error if any values are invalid or inconsistent.
+    pub fn validate(&self) -> Result<()> {
+        if self.seconds_per_slot == 0 {
+            return Err(Error::InvalidInput(
+                "seconds_per_slot must be > 0".to_string(),
+            ));
+        }
+        if self.slots_per_epoch == 0 {
+            return Err(Error::InvalidInput(
+                "slots_per_epoch must be > 0".to_string(),
+            ));
+        }
+        if self.epochs_per_sync_committee_period == 0 {
+            return Err(Error::InvalidInput(
+                "epochs_per_sync_committee_period must be > 0".to_string(),
+            ));
+        }
+
+        // Strict validation: only 32 or 512 are valid sync committee sizes
+        if self.sync_committee_size != 32 && self.sync_committee_size != 512 {
+            return Err(Error::InvalidInput(
+                "sync_committee_size must be 32 or 512".to_string(),
+            ));
+        }
+
+        // Light client protocol requires Altair from genesis
+        if self.altair_fork_epoch != 0 {
+            return Err(Error::InvalidInput(
+                "altair_fork_epoch must be 0 (light client requires Altair from genesis)"
+                    .to_string(),
+            ));
+        }
+
+        // Fork epochs must be monotonically non-decreasing
+        if self.bellatrix_fork_epoch < self.altair_fork_epoch {
+            return Err(Error::InvalidInput(
+                "bellatrix_fork_epoch must be >= altair_fork_epoch".to_string(),
+            ));
+        }
+        if self.capella_fork_epoch < self.bellatrix_fork_epoch {
+            return Err(Error::InvalidInput(
+                "capella_fork_epoch must be >= bellatrix_fork_epoch".to_string(),
+            ));
+        }
+        if self.deneb_fork_epoch < self.capella_fork_epoch {
+            return Err(Error::InvalidInput(
+                "deneb_fork_epoch must be >= capella_fork_epoch".to_string(),
+            ));
+        }
+        if self.electra_fork_epoch < self.deneb_fork_epoch {
+            return Err(Error::InvalidInput(
+                "electra_fork_epoch must be >= deneb_fork_epoch".to_string(),
+            ));
+        }
+
+        Ok(())
     }
 }
 
@@ -97,6 +214,39 @@ impl ChainSpec {
             deneb_fork_epoch: u64::MAX,
             electra_fork_epoch: u64::MAX,
         }
+    }
+
+    /// Create a ChainSpec from a custom configuration.
+    ///
+    /// Use this for local testnets or devnets with non-standard parameters.
+    /// The configuration is validated before the ChainSpec is created.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration is invalid (see [`ChainSpecConfig::validate`]).
+    pub fn try_from_config(config: ChainSpecConfig) -> Result<Self> {
+        config.validate()?;
+
+        Ok(Self {
+            preset_name: "custom",
+            genesis_time: config.genesis_time,
+            seconds_per_slot: config.seconds_per_slot,
+            slots_per_epoch: config.slots_per_epoch,
+            epochs_per_sync_committee_period: config.epochs_per_sync_committee_period,
+            sync_committee_size: config.sync_committee_size,
+
+            altair_fork_version: config.altair_fork_version,
+            bellatrix_fork_version: config.bellatrix_fork_version,
+            capella_fork_version: config.capella_fork_version,
+            deneb_fork_version: config.deneb_fork_version,
+            electra_fork_version: config.electra_fork_version,
+
+            altair_fork_epoch: config.altair_fork_epoch,
+            bellatrix_fork_epoch: config.bellatrix_fork_epoch,
+            capella_fork_epoch: config.capella_fork_epoch,
+            deneb_fork_epoch: config.deneb_fork_epoch,
+            electra_fork_epoch: config.electra_fork_epoch,
+        })
     }
 
     /// Test constructor for creating custom specs (e.g., fork boundary tests).
@@ -502,5 +652,165 @@ mod tests {
         assert_eq!(spec.current_sync_committee_gindex(1_000_000), 54);
         assert_eq!(spec.next_sync_committee_gindex(1_000_000), 55);
         assert_eq!(spec.finalized_root_gindex(1_000_000), 105);
+    }
+
+    // ChainSpecConfig Tests
+
+    fn valid_config() -> ChainSpecConfig {
+        ChainSpecConfig {
+            genesis_time: 1700000000,
+            seconds_per_slot: 12,
+            slots_per_epoch: 32,
+            epochs_per_sync_committee_period: 256,
+            sync_committee_size: 512,
+            altair_fork_version: [0x01, 0x00, 0x00, 0x00],
+            bellatrix_fork_version: [0x02, 0x00, 0x00, 0x00],
+            capella_fork_version: [0x03, 0x00, 0x00, 0x00],
+            deneb_fork_version: [0x04, 0x00, 0x00, 0x00],
+            electra_fork_version: [0x05, 0x00, 0x00, 0x00],
+            altair_fork_epoch: 0,
+            bellatrix_fork_epoch: 0,
+            capella_fork_epoch: 0,
+            deneb_fork_epoch: 0,
+            electra_fork_epoch: 10,
+        }
+    }
+
+    #[test]
+    fn test_chainspec_config_valid() {
+        let config = valid_config();
+        assert!(config.validate().is_ok());
+
+        let spec = ChainSpec::try_from_config(config).unwrap();
+        assert_eq!(spec.preset_name(), "custom");
+        assert_eq!(spec.genesis_time(), 1700000000);
+        assert_eq!(spec.seconds_per_slot(), 12);
+        assert_eq!(spec.slots_per_epoch(), 32);
+        assert_eq!(spec.epochs_per_sync_committee_period(), 256);
+        assert_eq!(spec.sync_committee_size(), 512);
+    }
+
+    #[test]
+    fn test_chainspec_config_custom_timing() {
+        let config = ChainSpecConfig {
+            genesis_time: 1234567890,
+            seconds_per_slot: 6,
+            slots_per_epoch: 8,
+            epochs_per_sync_committee_period: 8,
+            sync_committee_size: 32,
+            altair_fork_version: [0xAA, 0xBB, 0xCC, 0xDD],
+            bellatrix_fork_version: [0x02, 0x00, 0x00, 0x00],
+            capella_fork_version: [0x03, 0x00, 0x00, 0x00],
+            deneb_fork_version: [0x04, 0x00, 0x00, 0x00],
+            electra_fork_version: [0x05, 0x00, 0x00, 0x00],
+            altair_fork_epoch: 0,
+            bellatrix_fork_epoch: 100,
+            capella_fork_epoch: 200,
+            deneb_fork_epoch: 300,
+            electra_fork_epoch: 400,
+        };
+
+        let spec = ChainSpec::try_from_config(config).unwrap();
+
+        // Test slot_to_epoch with custom slots_per_epoch=8
+        assert_eq!(spec.slot_to_epoch(0), 0);
+        assert_eq!(spec.slot_to_epoch(7), 0);
+        assert_eq!(spec.slot_to_epoch(8), 1);
+        assert_eq!(spec.slot_to_epoch(16), 2);
+
+        // Test fork_at_epoch with custom fork schedule
+        assert_eq!(spec.fork_at_epoch(0), Fork::Altair);
+        assert_eq!(spec.fork_at_epoch(99), Fork::Altair);
+        assert_eq!(spec.fork_at_epoch(100), Fork::Bellatrix);
+        assert_eq!(spec.fork_at_epoch(199), Fork::Bellatrix);
+        assert_eq!(spec.fork_at_epoch(200), Fork::Capella);
+        assert_eq!(spec.fork_at_epoch(300), Fork::Deneb);
+        assert_eq!(spec.fork_at_epoch(400), Fork::Electra);
+
+        // Test fork_version_at_epoch with custom fork version
+        assert_eq!(spec.fork_version_at_epoch(0), [0xAA, 0xBB, 0xCC, 0xDD]);
+
+        // Test fork_at_slot (slot 800 = epoch 100 = Bellatrix)
+        assert_eq!(spec.fork_at_slot(800), Fork::Bellatrix);
+    }
+
+    #[test]
+    fn test_chainspec_config_validation_seconds_per_slot() {
+        let mut config = valid_config();
+        config.seconds_per_slot = 0;
+        assert!(config.validate().is_err());
+        assert!(ChainSpec::try_from_config(config).is_err());
+    }
+
+    #[test]
+    fn test_chainspec_config_validation_slots_per_epoch() {
+        let mut config = valid_config();
+        config.slots_per_epoch = 0;
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_chainspec_config_validation_epochs_per_period() {
+        let mut config = valid_config();
+        config.epochs_per_sync_committee_period = 0;
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_chainspec_config_validation_sync_committee_size() {
+        // Valid sizes: 32 and 512
+        let mut config = valid_config();
+        config.sync_committee_size = 32;
+        assert!(config.validate().is_ok());
+
+        config.sync_committee_size = 512;
+        assert!(config.validate().is_ok());
+
+        // Invalid sizes
+        config.sync_committee_size = 0;
+        assert!(config.validate().is_err());
+
+        config.sync_committee_size = 64;
+        assert!(config.validate().is_err());
+
+        config.sync_committee_size = 256;
+        assert!(config.validate().is_err());
+
+        config.sync_committee_size = 1024;
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_chainspec_config_validation_altair_epoch() {
+        let mut config = valid_config();
+        config.altair_fork_epoch = 1; // Must be 0
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_chainspec_config_validation_fork_ordering() {
+        // bellatrix < altair
+        let mut config = valid_config();
+        config.altair_fork_epoch = 0;
+        config.bellatrix_fork_epoch = 0; // Equal is OK
+        assert!(config.validate().is_ok());
+
+        // capella < bellatrix
+        let mut config = valid_config();
+        config.bellatrix_fork_epoch = 100;
+        config.capella_fork_epoch = 50;
+        assert!(config.validate().is_err());
+
+        // deneb < capella
+        let mut config = valid_config();
+        config.capella_fork_epoch = 100;
+        config.deneb_fork_epoch = 50;
+        assert!(config.validate().is_err());
+
+        // electra < deneb
+        let mut config = valid_config();
+        config.deneb_fork_epoch = 100;
+        config.electra_fork_epoch = 50;
+        assert!(config.validate().is_err());
     }
 }

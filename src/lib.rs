@@ -18,7 +18,7 @@ mod consensus;
 pub mod test_utils;
 
 // Re-export main types at crate root for convenience
-pub use crate::config::ChainSpec;
+pub use crate::config::{ChainSpec, ChainSpecConfig};
 pub use crate::error::{Error, Result};
 pub use crate::light_client::{LightClient, UpdateOutcome};
 pub use crate::types::{
