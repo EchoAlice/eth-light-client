@@ -27,37 +27,61 @@ impl Fork {
 
 /// Fork version and activation epoch for a single fork.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ForkParams {
-    pub version: [u8; 4],
-    pub epoch: u64,
+pub(crate) struct ForkParams {
+    version: [u8; 4],
+    epoch: u64,
 }
 
 impl ForkParams {
-    pub const fn new(version: [u8; 4], epoch: u64) -> Self {
+    pub(crate) const fn new(version: [u8; 4], epoch: u64) -> Self {
         Self { version, epoch }
+    }
+
+    pub(crate) const fn version(&self) -> [u8; 4] {
+        self.version
+    }
+
+    pub(crate) const fn epoch(&self) -> u64 {
+        self.epoch
     }
 }
 
 /// Complete fork schedule for a network.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ForkSchedule {
-    pub altair: ForkParams,
-    pub bellatrix: ForkParams,
-    pub capella: ForkParams,
-    pub deneb: ForkParams,
-    pub electra: ForkParams,
+pub(crate) struct ForkSchedule {
+    altair: ForkParams,
+    bellatrix: ForkParams,
+    capella: ForkParams,
+    deneb: ForkParams,
+    electra: ForkParams,
 }
 
 impl ForkSchedule {
+    pub(crate) const fn new(
+        altair: ForkParams,
+        bellatrix: ForkParams,
+        capella: ForkParams,
+        deneb: ForkParams,
+        electra: ForkParams,
+    ) -> Self {
+        Self {
+            altair,
+            bellatrix,
+            capella,
+            deneb,
+            electra,
+        }
+    }
+
     /// Determine which fork is active at a given epoch.
     pub(crate) const fn fork_at_epoch(&self, epoch: u64) -> Fork {
-        if epoch >= self.electra.epoch {
+        if epoch >= self.electra.epoch() {
             Fork::Electra
-        } else if epoch >= self.deneb.epoch {
+        } else if epoch >= self.deneb.epoch() {
             Fork::Deneb
-        } else if epoch >= self.capella.epoch {
+        } else if epoch >= self.capella.epoch() {
             Fork::Capella
-        } else if epoch >= self.bellatrix.epoch {
+        } else if epoch >= self.bellatrix.epoch() {
             Fork::Bellatrix
         } else {
             Fork::Altair
@@ -67,12 +91,16 @@ impl ForkSchedule {
     /// Get the fork version for a given epoch.
     pub(crate) const fn version_at_epoch(&self, epoch: u64) -> [u8; 4] {
         match self.fork_at_epoch(epoch) {
-            Fork::Altair => self.altair.version,
-            Fork::Bellatrix => self.bellatrix.version,
-            Fork::Capella => self.capella.version,
-            Fork::Deneb => self.deneb.version,
-            Fork::Electra => self.electra.version,
+            Fork::Altair => self.altair.version(),
+            Fork::Bellatrix => self.bellatrix.version(),
+            Fork::Capella => self.capella.version(),
+            Fork::Deneb => self.deneb.version(),
+            Fork::Electra => self.electra.version(),
         }
+    }
+
+    pub(crate) const fn altair_version(&self) -> [u8; 4] {
+        self.altair.version()
     }
 }
 
@@ -216,13 +244,13 @@ impl ChainSpec {
             slots_per_epoch: 32,
             epochs_per_sync_committee_period: 256,
             sync_committee_size: 512,
-            fork_schedule: ForkSchedule {
-                altair: ForkParams::new([0x01, 0x00, 0x00, 0x00], 74240),
-                bellatrix: ForkParams::new([0x02, 0x00, 0x00, 0x00], 144896),
-                capella: ForkParams::new([0x03, 0x00, 0x00, 0x00], 194048),
-                deneb: ForkParams::new([0x04, 0x00, 0x00, 0x00], 269568),
-                electra: ForkParams::new([0x05, 0x00, 0x00, 0x00], 364544),
-            },
+            fork_schedule: ForkSchedule::new(
+                ForkParams::new([0x01, 0x00, 0x00, 0x00], 74240),
+                ForkParams::new([0x02, 0x00, 0x00, 0x00], 144896),
+                ForkParams::new([0x03, 0x00, 0x00, 0x00], 194048),
+                ForkParams::new([0x04, 0x00, 0x00, 0x00], 269568),
+                ForkParams::new([0x05, 0x00, 0x00, 0x00], 364544),
+            ),
         }
     }
 
@@ -235,13 +263,13 @@ impl ChainSpec {
             slots_per_epoch: 8,
             epochs_per_sync_committee_period: 8,
             sync_committee_size: 32,
-            fork_schedule: ForkSchedule {
-                altair: ForkParams::new([0x01, 0x00, 0x00, 0x01], 0),
-                bellatrix: ForkParams::new([0x02, 0x00, 0x00, 0x01], u64::MAX),
-                capella: ForkParams::new([0x03, 0x00, 0x00, 0x01], u64::MAX),
-                deneb: ForkParams::new([0x04, 0x00, 0x00, 0x01], u64::MAX),
-                electra: ForkParams::new([0x05, 0x00, 0x00, 0x01], u64::MAX),
-            },
+            fork_schedule: ForkSchedule::new(
+                ForkParams::new([0x01, 0x00, 0x00, 0x01], 0),
+                ForkParams::new([0x02, 0x00, 0x00, 0x01], u64::MAX),
+                ForkParams::new([0x03, 0x00, 0x00, 0x01], u64::MAX),
+                ForkParams::new([0x04, 0x00, 0x00, 0x01], u64::MAX),
+                ForkParams::new([0x05, 0x00, 0x00, 0x01], u64::MAX),
+            ),
         }
     }
 
@@ -259,16 +287,13 @@ impl ChainSpec {
             slots_per_epoch: config.slots_per_epoch,
             epochs_per_sync_committee_period: config.epochs_per_sync_committee_period,
             sync_committee_size: config.sync_committee_size,
-            fork_schedule: ForkSchedule {
-                altair: ForkParams::new(config.altair_fork_version, config.altair_fork_epoch),
-                bellatrix: ForkParams::new(
-                    config.bellatrix_fork_version,
-                    config.bellatrix_fork_epoch,
-                ),
-                capella: ForkParams::new(config.capella_fork_version, config.capella_fork_epoch),
-                deneb: ForkParams::new(config.deneb_fork_version, config.deneb_fork_epoch),
-                electra: ForkParams::new(config.electra_fork_version, config.electra_fork_epoch),
-            },
+            fork_schedule: ForkSchedule::new(
+                ForkParams::new(config.altair_fork_version, config.altair_fork_epoch),
+                ForkParams::new(config.bellatrix_fork_version, config.bellatrix_fork_epoch),
+                ForkParams::new(config.capella_fork_version, config.capella_fork_epoch),
+                ForkParams::new(config.deneb_fork_version, config.deneb_fork_epoch),
+                ForkParams::new(config.electra_fork_version, config.electra_fork_epoch),
+            ),
         })
     }
 
@@ -288,13 +313,13 @@ impl ChainSpec {
             slots_per_epoch,
             epochs_per_sync_committee_period: 8,
             sync_committee_size: 32,
-            fork_schedule: ForkSchedule {
-                altair: ForkParams::new(altair_fork_version, altair_fork_epoch),
-                bellatrix: ForkParams::new(bellatrix_fork_version, bellatrix_fork_epoch),
-                capella: ForkParams::new([0x02, 0x00, 0x00, 0x00], u64::MAX),
-                deneb: ForkParams::new([0x03, 0x00, 0x00, 0x00], u64::MAX),
-                electra: ForkParams::new([0x04, 0x00, 0x00, 0x00], u64::MAX),
-            },
+            fork_schedule: ForkSchedule::new(
+                ForkParams::new(altair_fork_version, altair_fork_epoch),
+                ForkParams::new(bellatrix_fork_version, bellatrix_fork_epoch),
+                ForkParams::new([0x02, 0x00, 0x00, 0x00], u64::MAX),
+                ForkParams::new([0x03, 0x00, 0x00, 0x00], u64::MAX),
+                ForkParams::new([0x04, 0x00, 0x00, 0x00], u64::MAX),
+            ),
         }
     }
 
@@ -323,7 +348,7 @@ impl ChainSpec {
     }
 
     pub(crate) const fn altair_fork_version(&self) -> [u8; 4] {
-        self.fork_schedule.altair.version
+        self.fork_schedule.altair_version()
     }
 
     /// Calculate total slots per sync committee period
