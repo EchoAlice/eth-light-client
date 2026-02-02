@@ -1,3 +1,4 @@
+use crate::config::ChainSpec;
 use crate::error::{Error, Result};
 use crate::types::primitives::{BLSPublicKey, BLSSignature, Epoch, Root, Slot, ValidatorIndex};
 use ssz_derive::{Decode, Encode};
@@ -40,8 +41,17 @@ impl BeaconBlockHeader {
         Ok(result)
     }
 
+    /// Returns the epoch for this header's slot.
+    ///
+    /// **Note:** This method assumes mainnet's 32 slots per epoch.
+    /// For correct behavior with other presets, use [`epoch_with_spec`](Self::epoch_with_spec).
     pub fn epoch(&self) -> Epoch {
-        self.slot / 32 // 32 slots per epoch
+        self.slot / 32 // 32 slots per epoch (mainnet assumption)
+    }
+
+    /// Returns the epoch for this header's slot using the given chain spec.
+    pub fn epoch_with_spec(&self, spec: &ChainSpec) -> Epoch {
+        spec.slot_to_epoch(self.slot)
     }
 }
 
@@ -203,9 +213,42 @@ impl LightClientUpdate {
         self
     }
 
-    /// Validate basic properties of the light client update
-    /// Takes the sync committee to check participation against actual committee size
+    /// Validate basic properties of the light client update.
+    ///
+    /// **Note:** This method does not enforce the spec's signature_slot upper bound.
+    /// For complete validation, use [`validate_basic_with_spec`](Self::validate_basic_with_spec).
     pub fn validate_basic(&self, sync_committee: &SyncCommittee) -> Result<()> {
+        // Signature slot should be after attested header slot
+        if self.signature_slot <= self.attested_header.slot {
+            return Err(Error::InvalidInput(
+                "Signature slot must be after attested header slot".to_string(),
+            ));
+        }
+
+        // Must have supermajority participation (checks against actual committee size)
+        if !self.sync_aggregate.has_supermajority(sync_committee) {
+            return Err(Error::InvalidInput(
+                "Insufficient sync committee participation".to_string(),
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Validate basic properties with spec-driven bounds.
+    ///
+    /// Enforces (per spec):
+    /// - `signature_slot > attested_header.slot`
+    /// - supermajority participation
+    ///
+    /// Note: The spec also requires `signature_slot <= current_slot`, but that check
+    /// requires wall-clock context and is done in the processor's validation.
+    #[allow(unused_variables)] // spec param reserved for future spec-driven checks
+    pub fn validate_basic_with_spec(
+        &self,
+        sync_committee: &SyncCommittee,
+        spec: &ChainSpec,
+    ) -> Result<()> {
         // Signature slot should be after attested header slot
         if self.signature_slot <= self.attested_header.slot {
             return Err(Error::InvalidInput(
@@ -233,14 +276,30 @@ impl LightClientUpdate {
         self.finalized_header.is_some()
     }
 
-    /// Get the period of the attested header
+    /// Get the period of the attested header.
+    ///
+    /// **Note:** Assumes mainnet constants (32 slots/epoch, 256 epochs/period).
+    /// For correct behavior with other presets, use [`attested_period_with_spec`](Self::attested_period_with_spec).
     pub fn attested_period(&self) -> u64 {
-        self.attested_header.epoch() / 256 // 256 epochs per sync committee period
+        self.attested_header.epoch() / 256 // 256 epochs per sync committee period (mainnet)
     }
 
-    /// Get the period of the signature slot
+    /// Get the period of the attested header using the given chain spec.
+    pub fn attested_period_with_spec(&self, spec: &ChainSpec) -> u64 {
+        spec.slot_to_sync_committee_period(self.attested_header.slot)
+    }
+
+    /// Get the period of the signature slot.
+    ///
+    /// **Note:** Assumes mainnet constants (32 slots/epoch, 256 epochs/period).
+    /// For correct behavior with other presets, use [`signature_period_with_spec`](Self::signature_period_with_spec).
     pub fn signature_period(&self) -> u64 {
-        (self.signature_slot / 32) / 256 // Convert slot -> epoch -> period
+        (self.signature_slot / 32) / 256 // Convert slot -> epoch -> period (mainnet)
+    }
+
+    /// Get the period of the signature slot using the given chain spec.
+    pub fn signature_period_with_spec(&self, spec: &ChainSpec) -> u64 {
+        spec.slot_to_sync_committee_period(self.signature_slot)
     }
 }
 
@@ -324,14 +383,31 @@ impl LightClientStore {
     }
 
     // The following methods are reserved for future force_update implementation
+
+    /// Get the current sync committee period.
+    ///
+    /// **Note:** Assumes mainnet constants (32 slots/epoch, 256 epochs/period).
+    /// For correct behavior with other presets, use [`current_period_with_spec`](Self::current_period_with_spec).
     #[allow(dead_code)]
     pub fn current_period(&self) -> u64 {
-        self.finalized_header.epoch() / 256
+        self.finalized_header.epoch() / 256 // mainnet assumption
+    }
+
+    /// Get the current sync committee period using the given chain spec.
+    #[allow(dead_code)]
+    pub fn current_period_with_spec(&self, spec: &ChainSpec) -> u64 {
+        spec.slot_to_sync_committee_period(self.finalized_header.slot)
     }
 
     #[allow(dead_code)]
     pub fn next_period(&self) -> u64 {
         self.current_period() + 1
+    }
+
+    /// Get the next sync committee period using the given chain spec.
+    #[allow(dead_code)]
+    pub fn next_period_with_spec(&self, spec: &ChainSpec) -> u64 {
+        self.current_period_with_spec(spec) + 1
     }
 
     #[allow(dead_code)]
