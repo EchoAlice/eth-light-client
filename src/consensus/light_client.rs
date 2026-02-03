@@ -119,8 +119,8 @@ impl LightClientProcessor {
         update: &LightClientUpdate,
         current_slot: Slot,
     ) -> Result<()> {
-        // Spec-driven validation: checks signature_slot bounds and participation
-        update.validate_basic_with_spec(&self.store.current_sync_committee, &self.chain_spec)?;
+        // Basic validation: signature_slot > attested_header.slot, supermajority participation
+        update.validate_basic(&self.store.current_sync_committee)?;
 
         // Spec: current_slot >= signature_slot (strict, no tolerance)
         if update.signature_slot > current_slot {

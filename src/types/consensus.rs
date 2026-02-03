@@ -215,40 +215,13 @@ impl LightClientUpdate {
 
     /// Validate basic properties of the light client update.
     ///
-    /// **Note:** This method does not enforce the spec's signature_slot upper bound.
-    /// For complete validation, use [`validate_basic_with_spec`](Self::validate_basic_with_spec).
-    pub fn validate_basic(&self, sync_committee: &SyncCommittee) -> Result<()> {
-        // Signature slot should be after attested header slot
-        if self.signature_slot <= self.attested_header.slot {
-            return Err(Error::InvalidInput(
-                "Signature slot must be after attested header slot".to_string(),
-            ));
-        }
-
-        // Must have supermajority participation (checks against actual committee size)
-        if !self.sync_aggregate.has_supermajority(sync_committee) {
-            return Err(Error::InvalidInput(
-                "Insufficient sync committee participation".to_string(),
-            ));
-        }
-
-        Ok(())
-    }
-
-    /// Validate basic properties with spec-driven bounds.
-    ///
-    /// Enforces (per spec):
+    /// Enforces:
     /// - `signature_slot > attested_header.slot`
     /// - supermajority participation
     ///
     /// Note: The spec also requires `signature_slot <= current_slot`, but that check
     /// requires wall-clock context and is done in the processor's validation.
-    #[allow(unused_variables)] // spec param reserved for future spec-driven checks
-    pub fn validate_basic_with_spec(
-        &self,
-        sync_committee: &SyncCommittee,
-        spec: &ChainSpec,
-    ) -> Result<()> {
+    pub fn validate_basic(&self, sync_committee: &SyncCommittee) -> Result<()> {
         // Signature slot should be after attested header slot
         if self.signature_slot <= self.attested_header.slot {
             return Err(Error::InvalidInput(
