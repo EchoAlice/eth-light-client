@@ -119,14 +119,13 @@ impl LightClientProcessor {
         update: &LightClientUpdate,
         current_slot: Slot,
     ) -> Result<()> {
-        // Basic validation (pass current sync committee for participation check)
+        // Basic validation: signature_slot > attested_header.slot, supermajority participation
         update.validate_basic(&self.store.current_sync_committee)?;
 
-        // Allow signature slots up to 32 slots (~6.4 minutes on mainnet) in the future
-        // to account for clock skew and propagation delays
-        if update.signature_slot > current_slot + 32 {
+        // Spec: current_slot >= signature_slot (strict, no tolerance)
+        if update.signature_slot > current_slot {
             return Err(Error::InvalidInput(
-                "Update signature slot too far in future".to_string(),
+                "Update signature slot is in the future".to_string(),
             ));
         }
 
@@ -383,7 +382,7 @@ mod tests {
         let sync_aggregate = create_test_sync_aggregate();
         let new_update = LightClientUpdate::new(new_header, sync_aggregate, bootstrap_slot + 1001);
 
-        // Use a current_slot that allows the update (within 32 slots of signature_slot)
+        // Use a current_slot that allows the update (signature_slot <= current_slot)
         let current_slot_for_new = bootstrap_slot + 1001;
         // Basic validation should pass (signature verification tested separately)
         assert!(processor

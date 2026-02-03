@@ -179,7 +179,7 @@ impl SyncCommitteeTracker {
             return Ok(false);
         }
 
-        // Compute domain based on signature slot epoch
+        // Compute domain using fork_version_slot = max(signature_slot, 1) - 1 (per spec)
         let domain = compute_sync_committee_domain_for_slot(
             signature_slot,
             genesis_validators_root,
@@ -200,14 +200,18 @@ impl SyncCommitteeTracker {
 
 /// Compute the sync committee domain for a given signature slot.
 ///
-/// Derives the epoch from `signature_slot`, looks up the fork version for that epoch,
-/// and computes the domain used in sync committee BLS signature verification.
+/// Per spec: `fork_version_slot = max(signature_slot, 1) - 1`
+/// The sync committee signs at `signature_slot` but attests to the previous slot's state,
+/// so the fork version is determined by `signature_slot - 1` (saturating at 0).
 pub(crate) fn compute_sync_committee_domain_for_slot(
     signature_slot: Slot,
     genesis_validators_root: Root,
     chain_spec: &ChainSpec,
 ) -> Domain {
-    let epoch = chain_spec.slot_to_epoch(signature_slot);
+    // Spec: fork_version_slot = max(signature_slot, 1) - 1
+    // Equivalent to saturating_sub(1) in Rust
+    let fork_version_slot = signature_slot.saturating_sub(1);
+    let epoch = chain_spec.slot_to_epoch(fork_version_slot);
     let fork_version = chain_spec.fork_version_at_epoch(epoch);
     compute_domain(DOMAIN_SYNC_COMMITTEE, fork_version, genesis_validators_root)
 }
@@ -767,42 +771,41 @@ mod tests {
             "expected domains should differ for different fork versions"
         );
 
-        // Test case 1: slot 0 (epoch 0) -> should use Fork A
+        // Test case 1: signature_slot 0
+        // fork_version_slot = 0.saturating_sub(1) = 0 -> epoch 0 -> Fork A
         let slot_0: u64 = 0;
         let domain_slot_0 =
             compute_sync_committee_domain_for_slot(slot_0, genesis_validators_root, &chain_spec);
         assert_eq!(
             domain_slot_0, expected_domain_fork_a,
-            "slot 0 (epoch 0) should produce Fork A domain"
+            "signature_slot 0: fork_version_slot 0 (epoch 0) -> Fork A"
         );
 
-        // Test case 2: slot = slots_per_epoch (epoch 1) -> should use Fork B
-        let slot_epoch_1: u64 = chain_spec.slots_per_epoch(); // slot 8
-        let domain_slot_8 = compute_sync_committee_domain_for_slot(
-            slot_epoch_1,
-            genesis_validators_root,
-            &chain_spec,
-        );
+        // Test case 2: signature_slot 8 (first slot of epoch 1)
+        // fork_version_slot = 8 - 1 = 7 -> epoch 0 -> Fork A (NOT Fork B!)
+        // This is the key spec behavior: domain uses signature_slot - 1
+        let slot_8: u64 = chain_spec.slots_per_epoch(); // 8
+        let domain_slot_8 =
+            compute_sync_committee_domain_for_slot(slot_8, genesis_validators_root, &chain_spec);
         assert_eq!(
-            domain_slot_8, expected_domain_fork_b,
-            "slot 8 (epoch 1) should produce Fork B domain"
+            domain_slot_8, expected_domain_fork_a,
+            "signature_slot 8: fork_version_slot 7 (epoch 0) -> Fork A"
         );
 
-        // Test case 3: slot = slots_per_epoch - 1 (last slot of epoch 0) -> still Fork A
-        let last_slot_epoch_0: u64 = chain_spec.slots_per_epoch() - 1; // slot 7
-        let domain_slot_7 = compute_sync_committee_domain_for_slot(
-            last_slot_epoch_0,
-            genesis_validators_root,
-            &chain_spec,
-        );
+        // Test case 3: signature_slot 9
+        // fork_version_slot = 9 - 1 = 8 -> epoch 1 -> Fork B
+        // This is the first signature_slot that uses Fork B
+        let slot_9: u64 = chain_spec.slots_per_epoch() + 1; // 9
+        let domain_slot_9 =
+            compute_sync_committee_domain_for_slot(slot_9, genesis_validators_root, &chain_spec);
         assert_eq!(
-            domain_slot_7, expected_domain_fork_a,
-            "slot 7 (last slot of epoch 0) should still produce Fork A domain"
+            domain_slot_9, expected_domain_fork_b,
+            "signature_slot 9: fork_version_slot 8 (epoch 1) -> Fork B"
         );
 
-        // Verify epoch derivation is correct (documents the slot -> epoch mapping)
-        assert_eq!(chain_spec.slot_to_epoch(slot_0), 0);
-        assert_eq!(chain_spec.slot_to_epoch(last_slot_epoch_0), 0);
-        assert_eq!(chain_spec.slot_to_epoch(slot_epoch_1), 1);
+        // Verify the fork_version_slot -> epoch mapping
+        assert_eq!(chain_spec.slot_to_epoch(0), 0); // slot 0 -> epoch 0
+        assert_eq!(chain_spec.slot_to_epoch(7), 0); // slot 7 -> epoch 0
+        assert_eq!(chain_spec.slot_to_epoch(8), 1); // slot 8 -> epoch 1
     }
 }
