@@ -42,15 +42,7 @@ impl BeaconBlockHeader {
     }
 
     /// Returns the epoch for this header's slot.
-    ///
-    /// **Note:** This method assumes mainnet's 32 slots per epoch.
-    /// For correct behavior with other presets, use [`epoch_with_spec`](Self::epoch_with_spec).
-    pub fn epoch(&self) -> Epoch {
-        self.slot / 32 // 32 slots per epoch (mainnet assumption)
-    }
-
-    /// Returns the epoch for this header's slot using the given chain spec.
-    pub fn epoch_with_spec(&self, spec: &ChainSpec) -> Epoch {
+    pub fn epoch(&self, spec: &ChainSpec) -> Epoch {
         spec.slot_to_epoch(self.slot)
     }
 }
@@ -250,28 +242,12 @@ impl LightClientUpdate {
     }
 
     /// Get the period of the attested header.
-    ///
-    /// **Note:** Assumes mainnet constants (32 slots/epoch, 256 epochs/period).
-    /// For correct behavior with other presets, use [`attested_period_with_spec`](Self::attested_period_with_spec).
-    pub fn attested_period(&self) -> u64 {
-        self.attested_header.epoch() / 256 // 256 epochs per sync committee period (mainnet)
-    }
-
-    /// Get the period of the attested header using the given chain spec.
-    pub fn attested_period_with_spec(&self, spec: &ChainSpec) -> u64 {
+    pub fn attested_period(&self, spec: &ChainSpec) -> u64 {
         spec.slot_to_sync_committee_period(self.attested_header.slot)
     }
 
     /// Get the period of the signature slot.
-    ///
-    /// **Note:** Assumes mainnet constants (32 slots/epoch, 256 epochs/period).
-    /// For correct behavior with other presets, use [`signature_period_with_spec`](Self::signature_period_with_spec).
-    pub fn signature_period(&self) -> u64 {
-        (self.signature_slot / 32) / 256 // Convert slot -> epoch -> period (mainnet)
-    }
-
-    /// Get the period of the signature slot using the given chain spec.
-    pub fn signature_period_with_spec(&self, spec: &ChainSpec) -> u64 {
+    pub fn signature_period(&self, spec: &ChainSpec) -> u64 {
         spec.slot_to_sync_committee_period(self.signature_slot)
     }
 }
@@ -358,34 +334,21 @@ impl LightClientStore {
     // The following methods are reserved for future force_update implementation
 
     /// Get the current sync committee period.
-    ///
-    /// **Note:** Assumes mainnet constants (32 slots/epoch, 256 epochs/period).
-    /// For correct behavior with other presets, use [`current_period_with_spec`](Self::current_period_with_spec).
     #[allow(dead_code)]
-    pub fn current_period(&self) -> u64 {
-        self.finalized_header.epoch() / 256 // mainnet assumption
-    }
-
-    /// Get the current sync committee period using the given chain spec.
-    #[allow(dead_code)]
-    pub fn current_period_with_spec(&self, spec: &ChainSpec) -> u64 {
+    pub fn current_period(&self, spec: &ChainSpec) -> u64 {
         spec.slot_to_sync_committee_period(self.finalized_header.slot)
     }
 
+    /// Get the next sync committee period.
     #[allow(dead_code)]
-    pub fn next_period(&self) -> u64 {
-        self.current_period() + 1
+    pub fn next_period(&self, spec: &ChainSpec) -> u64 {
+        self.current_period(spec) + 1
     }
 
-    /// Get the next sync committee period using the given chain spec.
+    /// Check if we should update the sync committee for the given period.
     #[allow(dead_code)]
-    pub fn next_period_with_spec(&self, spec: &ChainSpec) -> u64 {
-        self.current_period_with_spec(spec) + 1
-    }
-
-    #[allow(dead_code)]
-    pub fn should_update_sync_committee(&self, period: u64) -> bool {
-        period == self.next_period() && self.next_sync_committee.is_some()
+    pub fn should_update_sync_committee(&self, spec: &ChainSpec, period: u64) -> bool {
+        period == self.next_period(spec) && self.next_sync_committee.is_some()
     }
 }
 
@@ -411,10 +374,11 @@ mod tests {
 
     #[test]
     fn test_beacon_block_header_creation() {
+        let spec = ChainSpec::mainnet();
         let header = create_test_beacon_header();
         assert_eq!(header.slot, 1000);
         assert_eq!(header.proposer_index, 42);
-        assert_eq!(header.epoch(), 31); // 1000 / 32
+        assert_eq!(header.epoch(&spec), 31); // 1000 / 32
     }
 
     #[test]
@@ -481,14 +445,15 @@ mod tests {
 
     #[test]
     fn test_light_client_store() {
+        let spec = ChainSpec::mainnet();
         let finalized_header = create_test_beacon_header();
         let sync_committee = create_test_sync_committee();
         let genesis_validators_root = [0u8; 32];
 
         let store =
             LightClientStore::new(finalized_header, sync_committee, genesis_validators_root);
-        assert_eq!(store.current_period(), 0); // epoch 31 / 256 = 0
-        assert_eq!(store.next_period(), 1);
+        assert_eq!(store.current_period(&spec), 0); // epoch 31 / 256 = 0
+        assert_eq!(store.next_period(&spec), 1);
         assert_eq!(store.genesis_validators_root, genesis_validators_root);
     }
 }
