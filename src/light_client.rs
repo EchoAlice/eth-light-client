@@ -31,7 +31,7 @@
 //! ```
 
 use crate::config::ChainSpec;
-use crate::consensus::BeaconConsensus;
+use crate::consensus::light_client::LightClientProcessor;
 use crate::error::Result;
 use crate::types::consensus::{
     BeaconBlockHeader, LightClientBootstrap, LightClientUpdate, SyncCommittee,
@@ -170,8 +170,8 @@ impl std::fmt::Display for UpdateOutcome {
 ///
 /// `LightClient` is `Send` but not `Sync`. For concurrent access, wrap in a mutex.
 pub struct LightClient {
-    /// Internal consensus engine (private, not exposed)
-    inner: BeaconConsensus,
+    /// Internal light client processor (private, not exposed)
+    inner: LightClientProcessor,
 }
 
 impl LightClient {
@@ -198,12 +198,15 @@ impl LightClient {
     /// the `bootstrap.current_sync_committee_branch` cryptographically proves it matches
     /// the `bootstrap.header.state_root`.
     pub fn new(chain_spec: ChainSpec, bootstrap: LightClientBootstrap) -> Result<Self> {
-        let inner = BeaconConsensus::new(
+        let fork_version = chain_spec.altair_fork_version();
+
+        let inner = LightClientProcessor::new(
             chain_spec,
             bootstrap.header,
             bootstrap.current_sync_committee,
             &bootstrap.current_sync_committee_branch,
             bootstrap.genesis_validators_root,
+            fork_version,
         )?;
 
         Ok(Self { inner })
