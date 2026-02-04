@@ -78,25 +78,22 @@ impl LightClientProcessor {
     /// Process a light client update using wall-clock time for slot validation.
     ///
     /// This is a convenience wrapper that computes `current_slot` from system time.
-    /// For spec-testable behavior, use `process_light_client_update_at_slot`.
-    pub(crate) fn process_light_client_update(
-        &mut self,
-        update: LightClientUpdate,
-    ) -> Result<bool> {
+    /// For spec-testable behavior, use `process_update_at_slot`.
+    pub(crate) fn process_update(&mut self, update: LightClientUpdate) -> Result<bool> {
         let current_timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| Error::Internal("Failed to get current time".to_string()))?
             .as_secs();
         let current_slot = self.chain_spec.timestamp_to_slot(current_timestamp);
 
-        self.process_light_client_update_at_slot(update, current_slot)
+        self.process_update_at_slot(update, current_slot)
     }
 
     /// Process a light client update with an explicit current slot.
     ///
     /// This allows spec tests to inject the fixture's `current_slot` so that
     /// time-based validation is properly exercised.
-    pub(crate) fn process_light_client_update_at_slot(
+    pub(crate) fn process_update_at_slot(
         &mut self,
         update: LightClientUpdate,
         current_slot: Slot,

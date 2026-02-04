@@ -244,7 +244,7 @@ impl LightClient {
         let old_period = self.inner.get_current_period();
 
         // Process the update (may mutate internal state)
-        let state_changed = self.inner.process_light_client_update(update)?;
+        let state_changed = self.inner.process_update(update)?;
 
         if !state_changed {
             return Ok(UpdateOutcome::NoChange);
@@ -294,9 +294,7 @@ impl LightClient {
         let old_period = self.inner.get_current_period();
 
         // Process the update with explicit slot (may mutate internal state)
-        let state_changed = self
-            .inner
-            .process_light_client_update_at_slot(update, current_slot)?;
+        let state_changed = self.inner.process_update_at_slot(update, current_slot)?;
 
         if !state_changed {
             return Ok(UpdateOutcome::NoChange);

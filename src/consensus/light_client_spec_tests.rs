@@ -108,7 +108,7 @@ fn execute_process_update_step(
         println!("   Has next sync committee: true");
     }
 
-    match processor.process_light_client_update_at_slot(update, step.current_slot) {
+    match processor.process_update_at_slot(update, step.current_slot) {
         Ok(state_changed) => {
             let after_finalized = processor.get_finalized_header().slot;
             let after_optimistic = processor.get_optimistic_header().slot;
