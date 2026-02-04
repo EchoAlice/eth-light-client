@@ -22,7 +22,7 @@
 //! | 9 | force_update | Safety timeout (NOT IMPLEMENTED) |
 //! | 10 | process_update | Depends on step 9 state |
 
-use crate::consensus::BeaconConsensus;
+use crate::consensus::light_client::LightClientProcessor;
 use crate::test_utils::{
     hex_to_root, ForceUpdateStep, ProcessUpdateStep, SpecTestLoader, TestStep,
 };
@@ -52,18 +52,20 @@ pub(crate) fn load_bootstrap_fixture() -> LightClientBootstrap {
     bootstrap.into_bootstrap()
 }
 
-fn initialize_beacon_consensus() -> BeaconConsensus {
+fn initialize_processor() -> LightClientProcessor {
     let bootstrap = load_bootstrap_fixture();
     let chain_spec = crate::config::ChainSpec::minimal();
+    let fork_version = chain_spec.altair_fork_version();
 
-    BeaconConsensus::new(
+    LightClientProcessor::new(
         chain_spec,
         bootstrap.header,
         bootstrap.current_sync_committee,
         &bootstrap.current_sync_committee_branch,
         bootstrap.genesis_validators_root,
+        fork_version,
     )
-    .expect("Failed to initialize BeaconConsensus")
+    .expect("Failed to initialize LightClientProcessor")
 }
 
 struct StepResult {
@@ -74,15 +76,15 @@ struct StepResult {
 fn execute_process_update_step(
     step_num: usize,
     step: &ProcessUpdateStep,
-    beacon_consensus: &mut BeaconConsensus,
+    processor: &mut LightClientProcessor,
     loader: &SpecTestLoader,
 ) -> StepResult {
     println!("\n📍 Step {}: process_update", step_num);
     println!("   Update file: {}", step.update);
     println!("   Current slot: {}", step.current_slot);
 
-    let before_finalized = beacon_consensus.get_finalized_header().slot;
-    let before_optimistic = beacon_consensus.get_optimistic_header().slot;
+    let before_finalized = processor.get_finalized_header().slot;
+    let before_optimistic = processor.get_optimistic_header().slot;
 
     let update = match loader.load_update(&step.update) {
         Ok(u) => u,
@@ -106,10 +108,10 @@ fn execute_process_update_step(
         println!("   Has next sync committee: true");
     }
 
-    match beacon_consensus.process_update_at_slot(update, step.current_slot) {
+    match processor.process_light_client_update_at_slot(update, step.current_slot) {
         Ok(state_changed) => {
-            let after_finalized = beacon_consensus.get_finalized_header().slot;
-            let after_optimistic = beacon_consensus.get_optimistic_header().slot;
+            let after_finalized = processor.get_finalized_header().slot;
+            let after_optimistic = processor.get_optimistic_header().slot;
 
             println!("   State changed: {}", state_changed);
             println!(
@@ -134,7 +136,7 @@ fn execute_process_update_step(
                     println!("   ✅ Finalized slot matches: {}", after_finalized);
                 }
 
-                let actual_root = beacon_consensus
+                let actual_root = processor
                     .get_finalized_header()
                     .hash_tree_root()
                     .expect("Failed to compute hash_tree_root");
@@ -160,7 +162,7 @@ fn execute_process_update_step(
                     println!("   ✅ Optimistic slot matches: {}", after_optimistic);
                 }
 
-                let actual_root = beacon_consensus
+                let actual_root = processor
                     .get_optimistic_header()
                     .hash_tree_root()
                     .expect("Failed to compute hash_tree_root");
@@ -199,19 +201,19 @@ fn execute_process_update_step(
 fn execute_force_update_step(
     step_num: usize,
     step: &ForceUpdateStep,
-    beacon_consensus: &mut BeaconConsensus,
+    processor: &mut LightClientProcessor,
 ) -> bool {
     println!("\n📍 Step {}: force_update", step_num);
     println!("   Current slot: {}", step.current_slot);
 
-    let before_finalized = beacon_consensus.get_finalized_header().slot;
-    let before_optimistic = beacon_consensus.get_optimistic_header().slot;
+    let before_finalized = processor.get_finalized_header().slot;
+    let before_optimistic = processor.get_optimistic_header().slot;
 
-    // TODO: Implement force_update in BeaconConsensus
+    // TODO: Implement force_update in LightClientProcessor
     println!("   ⚠️ force_update not yet implemented");
 
-    let after_finalized = beacon_consensus.get_finalized_header().slot;
-    let after_optimistic = beacon_consensus.get_optimistic_header().slot;
+    let after_finalized = processor.get_finalized_header().slot;
+    let after_optimistic = processor.get_optimistic_header().slot;
 
     println!(
         "   Before: finalized={}, optimistic={}",
@@ -270,7 +272,7 @@ fn test_altair_light_client_sync() {
     println!("   Total steps in spec: {}", steps.len());
     println!("   Running: steps 1-5 only");
 
-    let mut beacon_consensus = initialize_beacon_consensus();
+    let mut processor = initialize_processor();
 
     let mut passed = 0;
     let mut failed = 0;
@@ -282,12 +284,8 @@ fn test_altair_light_client_sync() {
     for (i, step) in steps.iter().enumerate().take(5) {
         match step {
             TestStep::ProcessUpdate { process_update } => {
-                let result = execute_process_update_step(
-                    i + 1,
-                    process_update,
-                    &mut beacon_consensus,
-                    &loader,
-                );
+                let result =
+                    execute_process_update_step(i + 1, process_update, &mut processor, &loader);
                 update_types_seen.insert(result.update_type);
                 if result.passed {
                     passed += 1;
@@ -326,7 +324,7 @@ fn test_altair_light_client_sync_with_force_update() {
 
     println!("   Total steps: {}", steps.len());
 
-    let mut beacon_consensus = initialize_beacon_consensus();
+    let mut processor = initialize_processor();
 
     let mut passed = 0;
     let mut failed = 0;
@@ -338,12 +336,8 @@ fn test_altair_light_client_sync_with_force_update() {
     for (i, step) in steps.iter().enumerate() {
         match step {
             TestStep::ProcessUpdate { process_update } => {
-                let result = execute_process_update_step(
-                    i + 1,
-                    process_update,
-                    &mut beacon_consensus,
-                    &loader,
-                );
+                let result =
+                    execute_process_update_step(i + 1, process_update, &mut processor, &loader);
                 update_types_seen.insert(result.update_type);
                 if result.passed {
                     passed += 1;
@@ -352,7 +346,7 @@ fn test_altair_light_client_sync_with_force_update() {
                 }
             }
             TestStep::ForceUpdate { force_update } => {
-                if execute_force_update_step(i + 1, force_update, &mut beacon_consensus) {
+                if execute_force_update_step(i + 1, force_update, &mut processor) {
                     passed += 1;
                 } else {
                     failed += 1;
