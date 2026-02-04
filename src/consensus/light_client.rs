@@ -235,23 +235,23 @@ impl LightClientProcessor {
         Ok(state_changed)
     }
 
-    /// Get current finalized header
-    pub(crate) fn get_finalized_header(&self) -> &BeaconBlockHeader {
+    /// Current finalized header
+    pub(crate) fn finalized_header(&self) -> &BeaconBlockHeader {
         &self.store.finalized_header
     }
 
-    /// Get current optimistic header (may be ahead of finalized)
-    pub(crate) fn get_optimistic_header(&self) -> &BeaconBlockHeader {
+    /// Current optimistic header (may be ahead of finalized)
+    pub(crate) fn optimistic_header(&self) -> &BeaconBlockHeader {
         &self.store.optimistic_header
     }
 
-    /// Get current sync committee
-    pub(crate) fn get_current_sync_committee(&self) -> &SyncCommittee {
+    /// Current sync committee
+    pub(crate) fn current_sync_committee(&self) -> &SyncCommittee {
         &self.store.current_sync_committee
     }
 
-    /// Get next sync committee if available
-    pub(crate) fn get_next_sync_committee(&self) -> Option<&SyncCommittee> {
+    /// Next sync committee if available
+    pub(crate) fn next_sync_committee(&self) -> Option<&SyncCommittee> {
         self.store.next_sync_committee.as_ref()
     }
 
@@ -271,13 +271,13 @@ impl LightClientProcessor {
         current_slot.saturating_sub(head_slot) <= 64
     }
 
-    /// Get current sync committee period
-    pub(crate) fn get_current_period(&self) -> u64 {
+    /// Current sync committee period
+    pub(crate) fn current_period(&self) -> u64 {
         self.sync_committee_tracker.current_period()
     }
 
-    /// Get the chain specification
-    pub(crate) fn get_chain_spec(&self) -> &ChainSpec {
+    /// Chain specification
+    pub(crate) fn chain_spec(&self) -> &ChainSpec {
         &self.chain_spec
     }
 }
@@ -321,8 +321,8 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(processor.get_finalized_header().slot, expected_slot);
-        assert_eq!(processor.get_optimistic_header().slot, expected_slot);
+        assert_eq!(processor.finalized_header().slot, expected_slot);
+        assert_eq!(processor.optimistic_header().slot, expected_slot);
     }
 
     #[test]

@@ -83,8 +83,8 @@ fn execute_process_update_step(
     println!("   Update file: {}", step.update);
     println!("   Current slot: {}", step.current_slot);
 
-    let before_finalized = processor.get_finalized_header().slot;
-    let before_optimistic = processor.get_optimistic_header().slot;
+    let before_finalized = processor.finalized_header().slot;
+    let before_optimistic = processor.optimistic_header().slot;
 
     let update = match loader.load_update(&step.update) {
         Ok(u) => u,
@@ -110,8 +110,8 @@ fn execute_process_update_step(
 
     match processor.process_update_at_slot(update, step.current_slot) {
         Ok(state_changed) => {
-            let after_finalized = processor.get_finalized_header().slot;
-            let after_optimistic = processor.get_optimistic_header().slot;
+            let after_finalized = processor.finalized_header().slot;
+            let after_optimistic = processor.optimistic_header().slot;
 
             println!("   State changed: {}", state_changed);
             println!(
@@ -137,7 +137,7 @@ fn execute_process_update_step(
                 }
 
                 let actual_root = processor
-                    .get_finalized_header()
+                    .finalized_header()
                     .hash_tree_root()
                     .expect("Failed to compute hash_tree_root");
                 let expected_root =
@@ -163,7 +163,7 @@ fn execute_process_update_step(
                 }
 
                 let actual_root = processor
-                    .get_optimistic_header()
+                    .optimistic_header()
                     .hash_tree_root()
                     .expect("Failed to compute hash_tree_root");
                 let expected_root =
@@ -206,14 +206,14 @@ fn execute_force_update_step(
     println!("\n📍 Step {}: force_update", step_num);
     println!("   Current slot: {}", step.current_slot);
 
-    let before_finalized = processor.get_finalized_header().slot;
-    let before_optimistic = processor.get_optimistic_header().slot;
+    let before_finalized = processor.finalized_header().slot;
+    let before_optimistic = processor.optimistic_header().slot;
 
     // TODO: Implement force_update in LightClientProcessor
     println!("   ⚠️ force_update not yet implemented");
 
-    let after_finalized = processor.get_finalized_header().slot;
-    let after_optimistic = processor.get_optimistic_header().slot;
+    let after_finalized = processor.finalized_header().slot;
+    let after_optimistic = processor.optimistic_header().slot;
 
     println!(
         "   Before: finalized={}, optimistic={}",
