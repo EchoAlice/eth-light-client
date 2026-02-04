@@ -61,7 +61,7 @@ impl SyncCommitteeTracker {
     /// - If slot is in current period, return current_committee
     /// - If slot is in next period, return next_committee (if available)
     /// - Otherwise, return an error
-    pub(crate) fn get_committee_for_slot(
+    pub(crate) fn committee_for_slot(
         &self,
         slot: Slot,
         chain_spec: &ChainSpec,
@@ -170,10 +170,10 @@ impl SyncCommitteeTracker {
         genesis_validators_root: Root,
         chain_spec: &ChainSpec,
     ) -> Result<bool> {
-        let committee = self.get_committee_for_slot(signature_slot, chain_spec)?;
+        let committee = self.committee_for_slot(signature_slot, chain_spec)?;
 
         // Get participating public keys
-        let participating_pubkeys = committee.get_participating_pubkeys(sync_committee_bits)?;
+        let participating_pubkeys = committee.participating_pubkeys(sync_committee_bits)?;
 
         if participating_pubkeys.is_empty() {
             return Ok(false);
@@ -444,11 +444,11 @@ mod tests {
         let tracker = SyncCommitteeTracker::new(committee.clone(), 0, fork_version).unwrap();
 
         // Should return current committee for period 0 slots (mainnet: 0-8191)
-        assert!(tracker.get_committee_for_slot(0, &chain_spec).is_ok());
-        assert!(tracker.get_committee_for_slot(8191, &chain_spec).is_ok());
+        assert!(tracker.committee_for_slot(0, &chain_spec).is_ok());
+        assert!(tracker.committee_for_slot(8191, &chain_spec).is_ok());
 
         // Should fail for next period without next committee
-        assert!(tracker.get_committee_for_slot(8192, &chain_spec).is_err());
+        assert!(tracker.committee_for_slot(8192, &chain_spec).is_err());
     }
 
     #[test]

@@ -91,10 +91,7 @@ impl SyncCommittee {
 
     /// Get participating public keys based on participation bits
     /// Filters out zero pubkeys to handle minimal preset (32 keys) vs mainnet (512 keys)
-    pub fn get_participating_pubkeys(
-        &self,
-        participation_bits: &[bool],
-    ) -> Result<Vec<BLSPublicKey>> {
+    pub fn participating_pubkeys(&self, participation_bits: &[bool]) -> Result<Vec<BLSPublicKey>> {
         if participation_bits.len() != Self::SYNC_COMMITTEE_SIZE {
             return Err(Error::InvalidInput(
                 "Participation bits length mismatch".to_string(),

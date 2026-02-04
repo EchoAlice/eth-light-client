@@ -239,9 +239,9 @@ impl LightClient {
     /// - Merkle proofs don't verify
     pub fn process_update(&mut self, update: LightClientUpdate) -> Result<UpdateOutcome> {
         // Snapshot current state to detect changes
-        let old_finalized_slot = self.inner.get_finalized_header().slot;
-        let old_optimistic_slot = self.inner.get_optimistic_header().slot;
-        let old_period = self.inner.get_current_period();
+        let old_finalized_slot = self.inner.finalized_header().slot;
+        let old_optimistic_slot = self.inner.optimistic_header().slot;
+        let old_period = self.inner.current_period();
 
         // Process the update (may mutate internal state)
         let state_changed = self.inner.process_update(update)?;
@@ -251,9 +251,9 @@ impl LightClient {
         }
 
         // Determine what specifically changed
-        let new_finalized_slot = self.inner.get_finalized_header().slot;
-        let new_optimistic_slot = self.inner.get_optimistic_header().slot;
-        let new_period = self.inner.get_current_period();
+        let new_finalized_slot = self.inner.finalized_header().slot;
+        let new_optimistic_slot = self.inner.optimistic_header().slot;
+        let new_period = self.inner.current_period();
 
         Ok(UpdateOutcome::StateAdvanced {
             finalized_updated: new_finalized_slot != old_finalized_slot,
@@ -289,9 +289,9 @@ impl LightClient {
         current_slot: Slot,
     ) -> Result<UpdateOutcome> {
         // Snapshot current state to detect changes
-        let old_finalized_slot = self.inner.get_finalized_header().slot;
-        let old_optimistic_slot = self.inner.get_optimistic_header().slot;
-        let old_period = self.inner.get_current_period();
+        let old_finalized_slot = self.inner.finalized_header().slot;
+        let old_optimistic_slot = self.inner.optimistic_header().slot;
+        let old_period = self.inner.current_period();
 
         // Process the update with explicit slot (may mutate internal state)
         let state_changed = self.inner.process_update_at_slot(update, current_slot)?;
@@ -301,9 +301,9 @@ impl LightClient {
         }
 
         // Determine what specifically changed
-        let new_finalized_slot = self.inner.get_finalized_header().slot;
-        let new_optimistic_slot = self.inner.get_optimistic_header().slot;
-        let new_period = self.inner.get_current_period();
+        let new_finalized_slot = self.inner.finalized_header().slot;
+        let new_optimistic_slot = self.inner.optimistic_header().slot;
+        let new_period = self.inner.current_period();
 
         Ok(UpdateOutcome::StateAdvanced {
             finalized_updated: new_finalized_slot != old_finalized_slot,
@@ -318,7 +318,7 @@ impl LightClient {
     /// finalized by the beacon chain (2/3+ of validators attested to it).
     #[inline]
     pub fn finalized_header(&self) -> &BeaconBlockHeader {
-        self.inner.get_finalized_header()
+        self.inner.finalized_header()
     }
 
     /// Returns the current optimistic beacon block header.
@@ -327,7 +327,7 @@ impl LightClient {
     /// than the finalized header but hasn't yet achieved finality.
     #[inline]
     pub fn optimistic_header(&self) -> &BeaconBlockHeader {
-        self.inner.get_optimistic_header()
+        self.inner.optimistic_header()
     }
 
     /// Returns the current sync committee.
@@ -336,7 +336,7 @@ impl LightClient {
     /// beacon block headers during the current period (~27 hours).
     #[inline]
     pub fn current_sync_committee(&self) -> &SyncCommittee {
-        self.inner.get_current_sync_committee()
+        self.inner.current_sync_committee()
     }
 
     /// Returns the next sync committee, if known.
@@ -345,7 +345,7 @@ impl LightClient {
     /// a `next_sync_committee` field. Returns `None` if not yet known.
     #[inline]
     pub fn next_sync_committee(&self) -> Option<&SyncCommittee> {
-        self.inner.get_next_sync_committee()
+        self.inner.next_sync_committee()
     }
 
     /// Returns `true` if the client is considered synced.
@@ -363,13 +363,13 @@ impl LightClient {
     /// The period determines which sync committee is active.
     #[inline]
     pub fn current_period(&self) -> u64 {
-        self.inner.get_current_period()
+        self.inner.current_period()
     }
 
     /// Returns the chain specification.
     #[inline]
     pub fn chain_spec(&self) -> &ChainSpec {
-        self.inner.get_chain_spec()
+        self.inner.chain_spec()
     }
 }
 
