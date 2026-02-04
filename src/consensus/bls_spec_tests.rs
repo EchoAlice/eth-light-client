@@ -108,7 +108,7 @@ impl TestStats {
 }
 
 /// Get the path to BLS test data, with environment variable fallback
-fn get_bls_test_path() -> PathBuf {
+fn bls_test_path() -> PathBuf {
     env::var("CONSENSUS_SPEC_TESTS_PATH")
         .map(PathBuf::from)
         .unwrap_or_else(|_| {
@@ -402,7 +402,7 @@ fn test_bls_spec_compliance() {
     println!("║     BLS SPECIFICATION COMPLIANCE TEST RUNNER         ║");
     println!("╚═══════════════════════════════════════════════════════╝");
 
-    let base_path = get_bls_test_path();
+    let base_path = bls_test_path();
 
     if !base_path.exists() {
         println!("❌ Test directory not found: {:?}", base_path);
@@ -472,7 +472,7 @@ fn test_bls_spec_compliance() {
 /// Test individual verify test case loading
 #[test]
 fn test_load_verify_case() {
-    let base_path = get_bls_test_path();
+    let base_path = bls_test_path();
     let test_path = base_path.join("verify/bls/verify_valid_case_195246ee3bd3b6ec/data.yaml");
 
     if test_path.exists() {
@@ -495,7 +495,7 @@ fn test_load_verify_case() {
 /// Test individual fast aggregate verify test case loading
 #[test]
 fn test_load_fast_aggregate_case() {
-    let base_path = get_bls_test_path();
+    let base_path = bls_test_path();
     let test_path = base_path
         .join("fast_aggregate_verify/bls/fast_aggregate_verify_valid_3d7576f3c0e3570a/data.yaml");
 
