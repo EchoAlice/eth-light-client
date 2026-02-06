@@ -271,9 +271,9 @@ impl LightClientProcessor {
         current_slot.saturating_sub(head_slot) <= 64
     }
 
-    /// Current sync committee period
+    /// Current sync committee period (derived from finalized header).
     pub(crate) fn current_period(&self) -> u64 {
-        self.sync_committee_tracker.current_period()
+        self.store.finalized_sync_committee_period(&self.chain_spec)
     }
 
     /// Chain specification

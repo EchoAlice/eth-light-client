@@ -155,11 +155,6 @@ impl SyncCommitteeTracker {
         current_slot_period > self.current_period && has_next
     }
 
-    /// Get current period
-    pub(crate) fn current_period(&self) -> u64 {
-        self.current_period
-    }
-
     /// Check if we have the next sync committee (test helper)
     #[cfg(test)]
     pub fn has_next_committee(&self) -> bool {
@@ -437,11 +432,14 @@ mod tests {
     fn test_sync_committee_tracker_creation() {
         let committee = create_test_sync_committee();
         let fork_version = [1u8; 4];
+        let chain_spec = ChainSpec::mainnet();
 
         let tracker = SyncCommitteeTracker::new(committee.clone(), 0, fork_version).unwrap();
 
-        assert_eq!(tracker.current_period(), 0);
+        // Tracker starts with no next committee
         assert!(!tracker.has_next_committee());
+        // Can retrieve committee for period 0 slots
+        assert!(tracker.committee_for_slot(0, &chain_spec).is_ok());
     }
 
     #[test]
@@ -477,8 +475,10 @@ mod tests {
 
         // Test actual advancement
         assert!(tracker.advance_to_next_period().is_ok());
-        assert_eq!(tracker.current_period(), 1);
+        // After advancement, next_committee is consumed
         assert!(!tracker.has_next_committee());
+        // Can now retrieve committee for period 1 slots
+        assert!(tracker.committee_for_slot(8192, &chain_spec).is_ok());
     }
 
     #[test]
