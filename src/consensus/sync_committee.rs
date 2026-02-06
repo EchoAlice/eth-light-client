@@ -109,6 +109,15 @@ impl SyncCommitteeTracker {
             )));
         }
 
+        // Spec: must attest to current period when next committee is unknown
+        if self.next_committee.is_none() && update_period != self.current_period {
+            return Err(Error::InvalidInput(format!(
+                "Cannot learn next sync committee from period {}; \
+                 next committee is unknown, so update must attest to current period {}",
+                update_period, self.current_period
+            )));
+        }
+
         // Verify the merkle branch proof that next_sync_committee is in the attested state
         verify_next_sync_committee(
             next_committee,
@@ -807,5 +816,38 @@ mod tests {
         assert_eq!(chain_spec.slot_to_epoch(0), 0); // slot 0 -> epoch 0
         assert_eq!(chain_spec.slot_to_epoch(7), 0); // slot 7 -> epoch 0
         assert_eq!(chain_spec.slot_to_epoch(8), 1); // slot 8 -> epoch 1
+    }
+
+    #[test]
+    fn test_rejects_next_period_update_when_next_committee_unknown() {
+        use crate::types::consensus::{BeaconBlockHeader, SyncAggregate};
+
+        let committee = create_test_sync_committee();
+        let fork_version = [1u8; 4];
+        let chain_spec = ChainSpec::mainnet();
+
+        // Create tracker at period 0 — next_committee starts as None
+        let mut tracker = SyncCommitteeTracker::new(committee.clone(), 0, fork_version).unwrap();
+        assert!(!tracker.has_next_committee());
+
+        // Create an update with attested_header in period 1 (slot 8192 on mainnet)
+        let attested_header = BeaconBlockHeader::new(
+            8192, // First slot of period 1
+            42, [1u8; 32], [2u8; 32], [3u8; 32],
+        );
+        let bits = Box::new([true; SyncCommittee::SYNC_COMMITTEE_SIZE]);
+        let sync_aggregate = SyncAggregate::new(bits, [0u8; 96]);
+        let update = LightClientUpdate::new(attested_header, sync_aggregate, 8193)
+            .with_next_sync_committee(committee.clone(), vec![[0u8; 32]; 5]);
+
+        // Should be rejected by the guard before merkle verification
+        let result = tracker.process_sync_committee_update(&update, &chain_spec);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("next committee is unknown"),
+            "Expected guard error, got: {}",
+            err_msg
+        );
     }
 }
