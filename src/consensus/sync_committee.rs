@@ -96,7 +96,7 @@ impl SyncCommitteeTracker {
         }
 
         let update_period = chain_spec.slot_to_sync_committee_period(update.attested_header.slot);
-        let next_committee = update.next_sync_committee.as_ref().unwrap();
+        let attested_next_committee = update.next_sync_committee.as_ref().unwrap();
 
         // Validate that the update is for current or next period
         // We accept updates for current period (replacing next) or next period (preparing for transition)
@@ -120,7 +120,7 @@ impl SyncCommitteeTracker {
 
         // Verify the merkle branch proof that next_sync_committee is in the attested state
         verify_next_sync_committee(
-            next_committee,
+            attested_next_committee,
             &update.next_sync_committee_branch,
             update.attested_header.slot,
             &update.attested_header.state_root,
@@ -128,9 +128,9 @@ impl SyncCommitteeTracker {
         )?;
 
         // Store the next committee
-        self.next_committee = Some(next_committee.clone());
+        self.next_committee = Some(attested_next_committee.clone());
         self.committee_history
-            .insert(self.current_period + 1, next_committee.clone());
+            .insert(self.current_period + 1, attested_next_committee.clone());
 
         Ok(true)
     }
