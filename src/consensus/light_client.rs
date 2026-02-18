@@ -175,11 +175,33 @@ impl LightClientProcessor {
     fn apply_light_client_update(&mut self, update: LightClientUpdate) -> Result<bool> {
         let mut state_changed = false;
 
-        // IMPORTANT: Advance period FIRST, before loading new sync committees
-        // This ensures newly loaded committees stay as next_committee
+        // Update finalized header FIRST so the rotation check below uses
+        // the most recent finalized period (spec-aligned: committees rotate
+        // on finalized boundary, not attested boundary).
+        if let Some(ref finalized_header) = update.finalized_header {
+            if finalized_header.slot > self.store.finalized_header.slot {
+                // Verify finality branch proof: the finalized_header.hash_tree_root()
+                // must be proven to exist at finalized_checkpoint.root in the attested state
+                let finalized_header_root = finalized_header.hash_tree_root()?;
+                verify_finality_branch(
+                    &finalized_header_root,
+                    &update.finality_branch,
+                    update.attested_header.slot,
+                    &update.attested_header.state_root,
+                    &self.chain_spec,
+                )?;
+
+                self.store.finalized_header = finalized_header.clone();
+                state_changed = true;
+            }
+        }
+
+        // Rotate committees when the FINALIZED period advances past the
+        // tracker's active committee period and next_committee is known.
+        // This replaces the old trigger which used update.attested_header.slot.
         let should_advance = self
             .sync_committee_tracker
-            .should_advance_period(update.attested_header.slot, &self.chain_spec);
+            .should_advance_period(self.store.finalized_header.slot, &self.chain_spec);
         if should_advance {
             self.sync_committee_tracker.advance_to_next_period()?;
             // Update the store's committees to match the tracker
@@ -204,25 +226,6 @@ impl LightClientProcessor {
         if update.attested_header.slot > self.store.optimistic_header.slot {
             self.store.optimistic_header = update.attested_header.clone();
             state_changed = true;
-        }
-
-        // Update finalized header if we have finality information
-        if let Some(ref finalized_header) = update.finalized_header {
-            if finalized_header.slot > self.store.finalized_header.slot {
-                // Verify finality branch proof: the finalized_header.hash_tree_root()
-                // must be proven to exist at finalized_checkpoint.root in the attested state
-                let finalized_header_root = finalized_header.hash_tree_root()?;
-                verify_finality_branch(
-                    &finalized_header_root,
-                    &update.finality_branch,
-                    update.attested_header.slot,
-                    &update.attested_header.state_root,
-                    &self.chain_spec,
-                )?;
-
-                self.store.finalized_header = finalized_header.clone();
-                state_changed = true;
-            }
         }
 
         // Update participation tracking

@@ -95,6 +95,13 @@ impl SyncCommitteeTracker {
             return Ok(false);
         }
 
+        // Spec-aligned: once next_sync_committee is known, it is only consumed
+        // during a finalized-boundary rotation.  Don't overwrite it from a
+        // later attested header that may refer to a different future period.
+        if self.next_committee.is_some() {
+            return Ok(false);
+        }
+
         let update_period = chain_spec.slot_to_sync_committee_period(update.attested_header.slot);
         let attested_next_committee = update.next_sync_committee.as_ref().unwrap();
 
@@ -110,7 +117,7 @@ impl SyncCommitteeTracker {
         }
 
         // Spec: must attest to current period when next committee is unknown
-        if self.next_committee.is_none() && update_period != self.current_period {
+        if update_period != self.current_period {
             return Err(Error::InvalidInput(format!(
                 "Cannot learn next sync committee from period {}; \
                  next committee is unknown, so update must attest to current period {}",
@@ -159,6 +166,12 @@ impl SyncCommitteeTracker {
     #[cfg(test)]
     pub fn has_next_committee(&self) -> bool {
         self.next_committee.is_some()
+    }
+
+    /// Get the tracker's active committee period (test helper).
+    #[cfg(test)]
+    pub fn active_period(&self) -> u64 {
+        self.current_period
     }
 
     /// Verify a sync aggregate signature against the appropriate committee.
@@ -816,6 +829,63 @@ mod tests {
         assert_eq!(chain_spec.slot_to_epoch(0), 0); // slot 0 -> epoch 0
         assert_eq!(chain_spec.slot_to_epoch(7), 0); // slot 7 -> epoch 0
         assert_eq!(chain_spec.slot_to_epoch(8), 1); // slot 8 -> epoch 1
+    }
+
+    /// Regression test: committees must NOT rotate when only the attested header
+    /// crosses a period boundary.  Rotation is keyed off the finalized period.
+    ///
+    /// Setup:
+    ///   - Tracker at period 0, next_committee is known
+    ///   - finalized_header.slot is still in period 0
+    ///   - attested_header.slot is in period 1
+    ///
+    /// Expectation:
+    ///   - `should_advance_period(finalized_slot)` returns false  → no rotation
+    ///   - `should_advance_period(attested_slot)` would return true (the old bug)
+    ///   - After "no rotation", tracker.active_period() == 0
+    #[test]
+    fn test_no_rotation_on_attested_period_alone() {
+        let chain_spec = ChainSpec::mainnet();
+        let committee = create_test_sync_committee();
+        let next_committee = create_test_sync_committee();
+        let fork_version = [1u8; 4];
+
+        let mut tracker = SyncCommitteeTracker::new(committee, 0, fork_version).unwrap();
+        // Simulate having learned the next committee
+        tracker.next_committee = Some(next_committee);
+        assert!(tracker.has_next_committee());
+
+        // Finalized slot still in period 0 (mainnet period boundary at slot 8192)
+        let finalized_slot: Slot = 100;
+        // Attested slot crosses into period 1
+        let attested_slot: Slot = 8192;
+
+        // Confirm the attested slot IS in the next period (this is what the old
+        // code used — it would have triggered rotation)
+        assert_eq!(
+            chain_spec.slot_to_sync_committee_period(attested_slot),
+            1,
+            "attested slot should be in period 1"
+        );
+
+        // The correct check: finalized slot is still in period 0 → no rotation
+        assert!(
+            !tracker.should_advance_period(finalized_slot, &chain_spec),
+            "must NOT rotate when finalized period has not advanced"
+        );
+
+        // Verify tracker stays at period 0
+        assert_eq!(tracker.active_period(), 0);
+
+        // Now simulate finalized advancing to period 1
+        let new_finalized_slot: Slot = 8192;
+        assert!(
+            tracker.should_advance_period(new_finalized_slot, &chain_spec),
+            "should rotate once finalized period advances"
+        );
+        tracker.advance_to_next_period().unwrap();
+        assert_eq!(tracker.active_period(), 1);
+        assert!(!tracker.has_next_committee());
     }
 
     #[test]
