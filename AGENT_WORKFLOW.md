@@ -20,17 +20,25 @@ This repo is typically worked on inside the OpenClaw gateway container:
 These are the *same underlying files* via Docker volume mounts.
 
 ## Hard safety boundaries (non-negotiable)
-The agent MUST:
-- Stay inside this repo directory (and its workspace). Do not read/write outside.
-- Never access secrets:
-  - No touching `~/.ssh`, private keys, tokens, password managers, etc.
-- Never change infrastructure unless explicitly instructed:
-  - No Docker / compose edits, no system package upgrades, no firewall changes.
-- Never run destructive / high-risk git operations without explicit approval:
-  - No `git reset --hard`, `git rebase`, `git push --force`, `git clean -fdx`
-  - No branch deletion, tag deletion, history rewrites.
 
-If something requires any of the above, STOP and ask.
+The agent MUST:
+- Stay inside this repo/workspace only (no read/write outside the repo path).
+- Make no infra/system changes unless explicitly instructed (Docker/compose, packages, networking, services).
+- Avoid destructive git ops unless explicitly approved:
+  - No `git reset --hard`, `git rebase`, `git push --force`, `git clean -fdx`
+  - No deleting branches/tags, no history rewrites.
+- Never access or expose secrets/credentials:
+  - Do not open/print/copy/modify `~/.ssh`, tokens, password managers, recovery phrases, etc.
+  - Never leak secrets into logs, commits, PR bodies, or terminal output.
+  - If a task would require handling secrets directly, STOP and ask.
+
+### Credential boundaries (narrow exceptions)
+
+Allowed only via pre-existing plumbing (no secret handling):
+- `git fetch/push` is OK if SSH auth already works; do not touch `~/.ssh` or `ssh-agent`.
+- Read-only GitHub API is OK via the existing readonly PAT file:
+  - never print the token; never paste it anywhere; don’t change/rotate credentials.
+
 
 ## Allowed actions (default permissions)
 The agent MAY (without asking) do the following inside this repo:
