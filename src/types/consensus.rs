@@ -328,18 +328,19 @@ impl LightClientStore {
         }
     }
 
-    // The following methods are reserved for future force_update implementation
-
-    /// Get the current sync committee period.
-    #[allow(dead_code)]
-    pub fn current_period(&self, spec: &ChainSpec) -> u64 {
+    /// Get the sync committee period derived from the finalized header.
+    ///
+    /// This is the canonical "store period" per consensus-specs.
+    pub(crate) fn finalized_sync_committee_period(&self, spec: &ChainSpec) -> u64 {
         spec.slot_to_sync_committee_period(self.finalized_header.slot)
     }
+
+    // The following methods are reserved for future force_update implementation
 
     /// Get the next sync committee period.
     #[allow(dead_code)]
     pub fn next_period(&self, spec: &ChainSpec) -> u64 {
-        self.current_period(spec) + 1
+        self.finalized_sync_committee_period(spec) + 1
     }
 
     /// Check if we should update the sync committee for the given period.
@@ -449,7 +450,8 @@ mod tests {
 
         let store =
             LightClientStore::new(finalized_header, sync_committee, genesis_validators_root);
-        assert_eq!(store.current_period(&spec), 0); // epoch 31 / 256 = 0
+        // slot 1000 -> epoch 31 -> period 0
+        assert_eq!(store.finalized_sync_committee_period(&spec), 0);
         assert_eq!(store.next_period(&spec), 1);
         assert_eq!(store.genesis_validators_root, genesis_validators_root);
     }
