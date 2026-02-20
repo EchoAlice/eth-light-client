@@ -121,3 +121,6 @@ The agent must stop and ask before:
 ---
 Owner: Echo
 Agent: Warner 🧭
+
+## Tickets workflow
+Tasks are defined in `tickets/`. Follow `tickets/README.md`.
