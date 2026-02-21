@@ -121,8 +121,15 @@ cargo test -- --ignored
 BLS signature verification is tested against official Ethereum consensus spec test vectors.
 See [tests/BLS_TESTING.md](tests/BLS_TESTING.md) for cryptographic verification details.
 
-## Acknowledgements
-This project was created with assistance from AI friends (Claude + ChatGPT).
+## Agent Workflow
+
+This repo supports an OpenClaw agent (“Warner”) that can implement PRs under my review.
+
+- Workflow + boundaries: `AGENT_WORKFLOW.md`
+- Local quality gates: `./scripts/warner-check.sh`
+- Task tickets: `tickets/`
+
+Nothing in the library requires the agent; these files exist to make development faster and safer.
 
 ## License
 
