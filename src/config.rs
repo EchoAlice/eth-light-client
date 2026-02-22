@@ -99,6 +99,7 @@ impl ForkSchedule {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) const fn altair_version(&self) -> [u8; 4] {
         self.altair.version()
     }
@@ -347,6 +348,7 @@ impl ChainSpec {
         self.sync_committee_size
     }
 
+    #[allow(dead_code)]
     pub(crate) const fn altair_fork_version(&self) -> [u8; 4] {
         self.fork_schedule.altair_version()
     }

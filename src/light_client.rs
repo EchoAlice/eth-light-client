@@ -198,15 +198,12 @@ impl LightClient {
     /// the `bootstrap.current_sync_committee_branch` cryptographically proves it matches
     /// the `bootstrap.header.state_root`.
     pub fn new(chain_spec: ChainSpec, bootstrap: LightClientBootstrap) -> Result<Self> {
-        let fork_version = chain_spec.altair_fork_version();
-
         let inner = LightClientProcessor::new(
             chain_spec,
             bootstrap.header,
             bootstrap.current_sync_committee,
             &bootstrap.current_sync_committee_branch,
             bootstrap.genesis_validators_root,
-            fork_version,
         )?;
 
         Ok(Self { inner })
