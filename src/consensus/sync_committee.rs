@@ -3,7 +3,6 @@ use crate::consensus::merkle::verify_next_sync_committee;
 use crate::error::{Error, Result};
 use crate::types::consensus::{LightClientUpdate, SyncCommittee};
 use crate::types::primitives::{BLSPublicKey, BLSSignature, Domain, ForkVersion, Root, Slot};
-use std::collections::HashMap;
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
 
@@ -15,106 +14,85 @@ pub(crate) const DOMAIN_SYNC_COMMITTEE: [u8; 4] = [7, 0, 0, 0];
 #[cfg(test)]
 const DOMAIN_BEACON_PROPOSER: [u8; 4] = [0, 0, 0, 0];
 
-/// Sync committee tracker for managing committee rotations
+/// Sync committee tracker for managing period state.
+///
+/// Does NOT own committee structs — `LightClientStore` is the single source
+/// of truth for `current_sync_committee` / `next_sync_committee`.  The tracker
+/// manages the active period counter and provides committee-selection,
+/// guard-validation, and signature-verification helpers that read committees
+/// via caller-supplied references.
 #[derive(Debug, Clone)]
 pub(crate) struct SyncCommitteeTracker {
-    /// Current trusted sync committee
-    current_committee: SyncCommittee,
-    /// Next sync committee (if known and verified)
-    next_committee: Option<SyncCommittee>,
     /// Current sync committee period
     current_period: u64,
-    /// Committee update history for verification
-    committee_history: HashMap<u64, SyncCommittee>,
-    /// Fork version from bootstrap (retained for API stability; domain computation
-    /// now uses chain_spec.fork_version_at_epoch())
-    #[allow(dead_code)]
-    fork_version: ForkVersion,
 }
 
 impl SyncCommitteeTracker {
-    /// Create new sync committee tracker with initial trusted committee
-    pub(crate) fn new(
-        initial_committee: SyncCommittee,
-        initial_period: u64,
-        fork_version: ForkVersion,
-    ) -> Result<Self> {
-        let mut tracker = Self {
-            current_committee: initial_committee.clone(),
-            next_committee: None,
+    /// Create a new sync committee tracker at the given period.
+    pub(crate) fn new(initial_period: u64) -> Self {
+        Self {
             current_period: initial_period,
-            committee_history: HashMap::new(),
-            fork_version,
-        };
-
-        // Store initial committee in history
-        tracker
-            .committee_history
-            .insert(initial_period, initial_committee);
-
-        Ok(tracker)
+        }
     }
 
-    /// Get the current active sync committee for a given slot
+    /// Select the appropriate sync committee for `signature_slot`.
     ///
-    /// Returns the appropriate committee based on the slot's sync committee period.
-    /// - If slot is in current period, return current_committee
-    /// - If slot is in next period, return next_committee (if available)
-    /// - Otherwise, return an error
-    pub(crate) fn committee_for_slot(
+    /// Keyed off the store's finalized slot (canonical period source).
+    /// - signature period == store_period → current committee
+    /// - signature period == store_period + 1, next known → next committee
+    /// - otherwise → error
+    pub(crate) fn committee_for_slot<'a>(
         &self,
-        slot: Slot,
+        signature_slot: Slot,
+        store_finalized_slot: Slot,
+        current_committee: &'a SyncCommittee,
+        next_committee: Option<&'a SyncCommittee>,
         chain_spec: &ChainSpec,
-    ) -> Result<&SyncCommittee> {
-        let period = chain_spec.slot_to_sync_committee_period(slot);
+    ) -> Result<&'a SyncCommittee> {
+        let sig_period = chain_spec.slot_to_sync_committee_period(signature_slot);
+        let store_period = chain_spec.slot_to_sync_committee_period(store_finalized_slot);
 
-        if period == self.current_period {
-            Ok(&self.current_committee)
-        } else if period == self.current_period + 1 {
-            self.next_committee
-                .as_ref()
+        if sig_period == store_period {
+            Ok(current_committee)
+        } else if sig_period == store_period + 1 {
+            next_committee
                 .ok_or_else(|| Error::InvalidInput("Next sync committee not available".to_string()))
         } else {
             Err(Error::InvalidInput(format!(
-                "Cannot get committee for period {}, current period is {}",
-                period, self.current_period
+                "Cannot get committee for period {}, store period is {}",
+                sig_period, store_period
             )))
         }
     }
 
-    /// Update with a new sync committee from a light client update
+    /// Validate and verify a next-sync-committee update.
     ///
-    /// This verifies the merkle branch proof that the next_sync_committee is properly
-    /// embedded in the attested header's state root before accepting the update.
+    /// Guards:
+    /// - update must carry a next_sync_committee
+    /// - store must not already have a next committee (no overwrite)
+    /// - attested header must be in the current period
+    ///
+    /// On success returns `Ok(Some(verified_committee))` for the caller to
+    /// set on the store.  Returns `Ok(None)` when the update is skipped
+    /// (no committee data, or next already known).
     pub(crate) fn process_sync_committee_update(
-        &mut self,
+        &self,
         update: &LightClientUpdate,
+        next_committee_known: bool,
         chain_spec: &ChainSpec,
-    ) -> Result<bool> {
+    ) -> Result<Option<SyncCommittee>> {
         if !update.has_sync_committee_update() {
-            return Ok(false);
+            return Ok(None);
         }
 
-        // Spec-aligned: once next_sync_committee is known, it is only consumed
-        // during a finalized-boundary rotation.  Don't overwrite it from a
-        // later attested header that may refer to a different future period.
-        if self.next_committee.is_some() {
-            return Ok(false);
+        // Once next_sync_committee is known it is only consumed during a
+        // finalized-boundary rotation.  Don't overwrite it.
+        if next_committee_known {
+            return Ok(None);
         }
 
         let update_period = chain_spec.slot_to_sync_committee_period(update.attested_header.slot);
         let attested_next_committee = update.next_sync_committee.as_ref().unwrap();
-
-        // Validate that the update is for current or next period
-        // We accept updates for current period (replacing next) or next period (preparing for transition)
-        if update_period != self.current_period && update_period != self.current_period + 1 {
-            return Err(Error::InvalidInput(format!(
-                "Sync committee update for wrong period: expected {} or {}, got {}",
-                self.current_period,
-                self.current_period + 1,
-                update_period
-            )));
-        }
 
         // Spec: must attest to current period when next committee is unknown
         if update_period != self.current_period {
@@ -125,7 +103,7 @@ impl SyncCommitteeTracker {
             )));
         }
 
-        // Verify the merkle branch proof that next_sync_committee is in the attested state
+        // Verify the merkle branch proof
         verify_next_sync_committee(
             attested_next_committee,
             &update.next_sync_committee_branch,
@@ -134,38 +112,31 @@ impl SyncCommitteeTracker {
             chain_spec,
         )?;
 
-        // Store the next committee
-        self.next_committee = Some(attested_next_committee.clone());
-        self.committee_history
-            .insert(self.current_period + 1, attested_next_committee.clone());
-
-        Ok(true)
+        Ok(Some(attested_next_committee.clone()))
     }
 
-    /// Advance to the next sync committee period
-    pub(crate) fn advance_to_next_period(&mut self) -> Result<()> {
-        if let Some(next_committee) = self.next_committee.take() {
-            self.current_committee = next_committee;
-            self.current_period += 1;
-            Ok(())
-        } else {
-            Err(Error::InvalidInput(
-                "No next sync committee available".to_string(),
-            ))
-        }
-    }
-
-    /// Check if we should advance to the next period based on current slot
-    pub(crate) fn should_advance_period(&self, current_slot: Slot, chain_spec: &ChainSpec) -> bool {
-        let current_slot_period = chain_spec.slot_to_sync_committee_period(current_slot);
-        let has_next = self.next_committee.is_some();
-        current_slot_period > self.current_period && has_next
-    }
-
-    /// Check if we have the next sync committee (test helper)
+    /// Check if we should advance to the next period (test helper).
+    ///
+    /// Returns true when the update's finalized period exceeds the tracker's
+    /// current period and the next committee is known.
     #[cfg(test)]
-    pub fn has_next_committee(&self) -> bool {
-        self.next_committee.is_some()
+    pub fn should_advance_period(
+        &self,
+        update_finalized_slot: Slot,
+        has_next_committee: bool,
+        chain_spec: &ChainSpec,
+    ) -> bool {
+        let update_finalized_period =
+            chain_spec.slot_to_sync_committee_period(update_finalized_slot);
+        update_finalized_period == self.current_period + 1 && has_next_committee
+    }
+
+    /// Increment the active period counter.
+    ///
+    /// The caller is responsible for rotating `store.next → store.current`
+    /// before or after calling this.
+    pub(crate) fn advance_to_next_period(&mut self) {
+        self.current_period += 1;
     }
 
     /// Get the tracker's active committee period (test helper).
@@ -174,12 +145,13 @@ impl SyncCommitteeTracker {
         self.current_period
     }
 
-    /// Verify a sync aggregate signature against the appropriate committee.
+    /// Verify a sync aggregate signature.
     ///
-    /// The `genesis_validators_root` is passed from the caller (LightClientStore)
-    /// to compute the signature domain.
+    /// The caller supplies the correct committee (via `committee_for_slot`)
+    /// and the `genesis_validators_root` from the store.
     pub(crate) fn verify_sync_aggregate(
         &self,
+        committee: &SyncCommittee,
         signature_slot: Slot,
         attested_header_root: Root,
         sync_committee_bits: &[bool; 512],
@@ -187,31 +159,24 @@ impl SyncCommitteeTracker {
         genesis_validators_root: Root,
         chain_spec: &ChainSpec,
     ) -> Result<bool> {
-        let committee = self.committee_for_slot(signature_slot, chain_spec)?;
-
-        // Get participating public keys
         let participating_pubkeys = committee.participating_pubkeys(sync_committee_bits)?;
 
         if participating_pubkeys.is_empty() {
             return Ok(false);
         }
 
-        // Compute domain using fork_version_slot = max(signature_slot, 1) - 1 (per spec)
         let domain = compute_sync_committee_domain_for_slot(
             signature_slot,
             genesis_validators_root,
             chain_spec,
         );
 
-        // Verify BLS aggregate signature
-        let result = verify_sync_committee_signature(
+        verify_sync_committee_signature(
             &participating_pubkeys,
             attested_header_root,
             sync_committee_signature,
             domain,
-        )?;
-
-        Ok(result)
+        )
     }
 }
 
@@ -443,55 +408,62 @@ mod tests {
 
     #[test]
     fn test_sync_committee_tracker_creation() {
-        let committee = create_test_sync_committee();
-        let fork_version = [1u8; 4];
-        let chain_spec = ChainSpec::mainnet();
-
-        let tracker = SyncCommitteeTracker::new(committee.clone(), 0, fork_version).unwrap();
-
-        // Tracker starts with no next committee
-        assert!(!tracker.has_next_committee());
-        // Can retrieve committee for period 0 slots
-        assert!(tracker.committee_for_slot(0, &chain_spec).is_ok());
+        let tracker = SyncCommitteeTracker::new(0);
+        assert_eq!(tracker.active_period(), 0);
     }
 
     #[test]
-    fn test_sync_committee_tracker_get_committee() {
-        let committee = create_test_sync_committee();
-        let fork_version = [1u8; 4];
+    fn test_committee_for_slot_selection() {
         let chain_spec = ChainSpec::mainnet();
+        let current = create_test_sync_committee();
+        let next = {
+            let mut c = create_test_sync_committee();
+            c.aggregate_pubkey = [3u8; 48]; // distinguishable
+            c
+        };
+        let tracker = SyncCommitteeTracker::new(0);
 
-        let tracker = SyncCommitteeTracker::new(committee.clone(), 0, fork_version).unwrap();
+        // Current period slots → current committee
+        let got = tracker
+            .committee_for_slot(0, 0, &current, Some(&next), &chain_spec)
+            .unwrap();
+        assert_eq!(got.aggregate_pubkey, current.aggregate_pubkey);
 
-        // Should return current committee for period 0 slots (mainnet: 0-8191)
-        assert!(tracker.committee_for_slot(0, &chain_spec).is_ok());
-        assert!(tracker.committee_for_slot(8191, &chain_spec).is_ok());
+        let got = tracker
+            .committee_for_slot(8191, 0, &current, Some(&next), &chain_spec)
+            .unwrap();
+        assert_eq!(got.aggregate_pubkey, current.aggregate_pubkey);
 
-        // Should fail for next period without next committee
-        assert!(tracker.committee_for_slot(8192, &chain_spec).is_err());
+        // Next period slots → next committee (when known)
+        let got = tracker
+            .committee_for_slot(8192, 0, &current, Some(&next), &chain_spec)
+            .unwrap();
+        assert_eq!(got.aggregate_pubkey, next.aggregate_pubkey);
+
+        // Next period slots → error when next is None
+        assert!(tracker
+            .committee_for_slot(8192, 0, &current, None, &chain_spec)
+            .is_err());
+
+        // Way-out-of-range period → error
+        assert!(tracker
+            .committee_for_slot(16384, 0, &current, Some(&next), &chain_spec)
+            .is_err());
     }
 
     #[test]
     fn test_sync_committee_tracker_period_advancement() {
-        let committee = create_test_sync_committee();
-        let fork_version = [1u8; 4];
         let chain_spec = ChainSpec::mainnet();
+        let mut tracker = SyncCommitteeTracker::new(0);
 
-        let mut tracker = SyncCommitteeTracker::new(committee.clone(), 0, fork_version).unwrap();
+        // Should not advance without next committee
+        assert!(!tracker.should_advance_period(8192, false, &chain_spec));
 
-        // Should not advance without next committee (mainnet period boundary: slot 8192)
-        assert!(!tracker.should_advance_period(8192, &chain_spec));
+        // Should advance when next is known and slot crosses boundary
+        assert!(tracker.should_advance_period(8192, true, &chain_spec));
 
-        // Add next committee and test advancement
-        tracker.next_committee = Some(committee.clone());
-        assert!(tracker.should_advance_period(8192, &chain_spec));
-
-        // Test actual advancement
-        assert!(tracker.advance_to_next_period().is_ok());
-        // After advancement, next_committee is consumed
-        assert!(!tracker.has_next_committee());
-        // Can now retrieve committee for period 1 slots
-        assert!(tracker.committee_for_slot(8192, &chain_spec).is_ok());
+        tracker.advance_to_next_period();
+        assert_eq!(tracker.active_period(), 1);
     }
 
     #[test]
@@ -831,61 +803,32 @@ mod tests {
         assert_eq!(chain_spec.slot_to_epoch(8), 1); // slot 8 -> epoch 1
     }
 
-    /// Regression test: committees must NOT rotate when only the attested header
-    /// crosses a period boundary.  Rotation is keyed off the finalized period.
-    ///
-    /// Setup:
-    ///   - Tracker at period 0, next_committee is known
-    ///   - finalized_header.slot is still in period 0
-    ///   - attested_header.slot is in period 1
-    ///
-    /// Expectation:
-    ///   - `should_advance_period(finalized_slot)` returns false  → no rotation
-    ///   - `should_advance_period(attested_slot)` would return true (the old bug)
-    ///   - After "no rotation", tracker.active_period() == 0
+    /// Regression: rotation must be gated by the finalized period, not the
+    /// attested period.  With `has_next = true` and finalized still in period 0,
+    /// `should_advance_period` must return false even when the attested slot
+    /// crosses into period 1.
     #[test]
     fn test_no_rotation_on_attested_period_alone() {
         let chain_spec = ChainSpec::mainnet();
-        let committee = create_test_sync_committee();
-        let next_committee = create_test_sync_committee();
-        let fork_version = [1u8; 4];
+        let tracker = SyncCommitteeTracker::new(0);
 
-        let mut tracker = SyncCommitteeTracker::new(committee, 0, fork_version).unwrap();
-        // Simulate having learned the next committee
-        tracker.next_committee = Some(next_committee);
-        assert!(tracker.has_next_committee());
-
-        // Finalized slot still in period 0 (mainnet period boundary at slot 8192)
+        // Finalized slot still in period 0
         let finalized_slot: Slot = 100;
         // Attested slot crosses into period 1
         let attested_slot: Slot = 8192;
 
-        // Confirm the attested slot IS in the next period (this is what the old
-        // code used — it would have triggered rotation)
         assert_eq!(
             chain_spec.slot_to_sync_committee_period(attested_slot),
             1,
             "attested slot should be in period 1"
         );
 
-        // The correct check: finalized slot is still in period 0 → no rotation
+        // Finalized hasn't advanced → no rotation (even though next is known)
         assert!(
-            !tracker.should_advance_period(finalized_slot, &chain_spec),
+            !tracker.should_advance_period(finalized_slot, true, &chain_spec),
             "must NOT rotate when finalized period has not advanced"
         );
-
-        // Verify tracker stays at period 0
         assert_eq!(tracker.active_period(), 0);
-
-        // Now simulate finalized advancing to period 1
-        let new_finalized_slot: Slot = 8192;
-        assert!(
-            tracker.should_advance_period(new_finalized_slot, &chain_spec),
-            "should rotate once finalized period advances"
-        );
-        tracker.advance_to_next_period().unwrap();
-        assert_eq!(tracker.active_period(), 1);
-        assert!(!tracker.has_next_committee());
     }
 
     #[test]
@@ -893,25 +836,18 @@ mod tests {
         use crate::types::consensus::{BeaconBlockHeader, SyncAggregate};
 
         let committee = create_test_sync_committee();
-        let fork_version = [1u8; 4];
         let chain_spec = ChainSpec::mainnet();
-
-        // Create tracker at period 0 — next_committee starts as None
-        let mut tracker = SyncCommitteeTracker::new(committee.clone(), 0, fork_version).unwrap();
-        assert!(!tracker.has_next_committee());
+        let tracker = SyncCommitteeTracker::new(0);
 
         // Create an update with attested_header in period 1 (slot 8192 on mainnet)
-        let attested_header = BeaconBlockHeader::new(
-            8192, // First slot of period 1
-            42, [1u8; 32], [2u8; 32], [3u8; 32],
-        );
+        let attested_header = BeaconBlockHeader::new(8192, 42, [1u8; 32], [2u8; 32], [3u8; 32]);
         let bits = Box::new([true; SyncCommittee::SYNC_COMMITTEE_SIZE]);
         let sync_aggregate = SyncAggregate::new(bits, [0u8; 96]);
         let update = LightClientUpdate::new(attested_header, sync_aggregate, 8193)
-            .with_next_sync_committee(committee.clone(), vec![[0u8; 32]; 5]);
+            .with_next_sync_committee(committee, vec![[0u8; 32]; 5]);
 
-        // Should be rejected by the guard before merkle verification
-        let result = tracker.process_sync_committee_update(&update, &chain_spec);
+        // next_committee_known = false, but update attests to period 1 → rejected
+        let result = tracker.process_sync_committee_update(&update, false, &chain_spec);
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
         assert!(

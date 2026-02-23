@@ -55,7 +55,6 @@ pub(crate) fn load_bootstrap_fixture() -> LightClientBootstrap {
 fn initialize_processor() -> LightClientProcessor {
     let bootstrap = load_bootstrap_fixture();
     let chain_spec = crate::config::ChainSpec::minimal();
-    let fork_version = chain_spec.altair_fork_version();
 
     LightClientProcessor::new(
         chain_spec,
@@ -63,7 +62,6 @@ fn initialize_processor() -> LightClientProcessor {
         bootstrap.current_sync_committee,
         &bootstrap.current_sync_committee_branch,
         bootstrap.genesis_validators_root,
-        fork_version,
     )
     .expect("Failed to initialize LightClientProcessor")
 }
