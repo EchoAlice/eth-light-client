@@ -1,6 +1,6 @@
 use crate::config::ChainSpec;
 use crate::consensus::merkle::{verify_bootstrap_sync_committee, verify_finality_branch};
-use crate::consensus::sync_committee::SyncCommitteeTracker;
+use crate::consensus::sync_committee;
 use crate::error::{Error, Result};
 use crate::types::consensus::{
     BeaconBlockHeader, LightClientStore, LightClientUpdate, SyncCommittee,
@@ -17,8 +17,6 @@ pub(crate) struct LightClientProcessor {
     chain_spec: ChainSpec,
     /// Current trusted state
     store: LightClientStore,
-    /// Sync committee tracker
-    sync_committee_tracker: SyncCommitteeTracker,
 }
 
 impl LightClientProcessor {
@@ -47,20 +45,13 @@ impl LightClientProcessor {
             &chain_spec,
         )?;
 
-        let initial_period = chain_spec.slot_to_sync_committee_period(trusted_header.slot);
-
         let store = LightClientStore::new(
             trusted_header,
             current_sync_committee,
             genesis_validators_root,
         );
-        let sync_committee_tracker = SyncCommitteeTracker::new(initial_period);
 
-        Ok(Self {
-            chain_spec,
-            store,
-            sync_committee_tracker,
-        })
+        Ok(Self { chain_spec, store })
     }
 
     /// Process a light client update using wall-clock time for slot validation.
@@ -139,7 +130,7 @@ impl LightClientProcessor {
         let attested_header_root = update.attested_header.hash_tree_root()?;
 
         // Look up the committee for the signature slot from the store
-        let committee = self.sync_committee_tracker.committee_for_slot(
+        let committee = sync_committee::committee_for_slot(
             update.signature_slot,
             self.store.finalized_header.slot,
             &self.store.current_sync_committee,
@@ -147,7 +138,7 @@ impl LightClientProcessor {
             &self.chain_spec,
         )?;
 
-        let is_valid = self.sync_committee_tracker.verify_sync_aggregate(
+        let is_valid = sync_committee::verify_sync_aggregate(
             committee,
             update.signature_slot,
             attested_header_root,
@@ -170,6 +161,7 @@ impl LightClientProcessor {
     fn apply_light_client_update(&mut self, update: LightClientUpdate) -> Result<bool> {
         let mut state_changed = false;
 
+        // Capture store period BEFORE any finalized-header mutation.
         let store_period = self.store.finalized_sync_committee_period(&self.chain_spec);
 
         // Update finalized header (verify finality proof first)
@@ -199,7 +191,6 @@ impl LightClientProcessor {
             if update_finalized_period == store_period + 1
                 && self.store.next_sync_committee.is_some()
             {
-                self.sync_committee_tracker.advance_to_next_period();
                 self.store.current_sync_committee = self
                     .store
                     .next_sync_committee
@@ -209,9 +200,20 @@ impl LightClientProcessor {
             }
         }
 
-        // Process sync committee updates AFTER rotation
-        if let Some(verified) = self.sync_committee_tracker.process_sync_committee_update(
+        // Process sync committee updates AFTER rotation.
+        // Use store_period (captured before finalized-header mutation) for the
+        // committee-learning guard.  After rotation the store's derived period
+        // has already advanced, but the guard needs the *pre-rotation* period
+        // when no rotation occurred, and `store_period + 1` when rotation did
+        // occur.  In both cases, the store's current derived period is correct
+        // because:
+        //   - no rotation: finalized header unchanged or same period → store_period
+        //   - rotation: finalized header is in store_period+1, committee rotated
+        // So we use the live derived period here.
+        let current_period = self.store.finalized_sync_committee_period(&self.chain_spec);
+        if let Some(verified) = sync_committee::process_sync_committee_update(
             &update,
+            current_period,
             self.store.next_sync_committee.is_some(),
             &self.chain_spec,
         )? {
@@ -378,21 +380,17 @@ mod tests {
 
     /// Drift-prevention regression test.
     ///
-    /// Under the old dual-ownership model, store and tracker each held
-    /// independent committee copies.  A rotation that advanced the tracker
-    /// but failed to update the store (or vice-versa) would silently cause
-    /// the two to diverge, leading to signature verification against the
-    /// wrong committee.
-    ///
-    /// This test verifies that after rotation:
+    /// Verifies that after a simulated rotation:
     ///   1. The store's current committee is what was previously next.
     ///   2. The store's next committee is consumed (None).
-    ///   3. The tracker's period matches the store's finalized period.
+    ///   3. The processor's period (store-derived) matches the expected
+    ///      post-rotation period.
     ///
-    /// Because the tracker no longer owns committee data, drift is
-    /// structurally impossible — this test documents that invariant.
+    /// Because there is no separate tracker, committee period is always
+    /// derived from `store.finalized_header.slot` — drift is structurally
+    /// impossible.
     #[test]
-    fn test_store_tracker_agree_after_rotation() {
+    fn test_store_period_correct_after_rotation() {
         use crate::types::consensus::SyncCommittee;
 
         let bootstrap = load_bootstrap_fixture();
@@ -409,10 +407,7 @@ mod tests {
         .unwrap();
 
         let initial_period = chain_spec.slot_to_sync_committee_period(bootstrap_slot);
-        assert_eq!(
-            processor.sync_committee_tracker.active_period(),
-            initial_period
-        );
+        assert_eq!(processor.current_period(), initial_period);
         assert!(processor.store.next_sync_committee.is_none());
 
         // Inject a distinguishable "next" committee directly on the store
@@ -431,7 +426,6 @@ mod tests {
         // BLS/merkle proofs would fail with synthetic data).
         let update_fin_period = chain_spec.slot_to_sync_committee_period(finalized.slot);
         if update_fin_period == store_period + 1 && processor.store.next_sync_committee.is_some() {
-            processor.sync_committee_tracker.advance_to_next_period();
             processor.store.current_sync_committee = processor
                 .store
                 .next_sync_committee
@@ -441,12 +435,7 @@ mod tests {
             processor.store.finalized_header = finalized;
         }
 
-        // Assertions: store and tracker agree
-        assert_eq!(
-            processor.sync_committee_tracker.active_period(),
-            initial_period + 1,
-            "tracker period should have advanced"
-        );
+        // Assertions: store state is correct after rotation
         assert_eq!(
             processor.store.current_sync_committee.aggregate_pubkey, [0xBB; 48],
             "store current committee should be what was next"
@@ -455,11 +444,11 @@ mod tests {
             processor.store.next_sync_committee.is_none(),
             "store next committee should be consumed"
         );
-        // Processor's public period (finalized-derived) matches tracker
+        // Period is derived from finalized header — automatically correct
         assert_eq!(
             processor.current_period(),
-            processor.sync_committee_tracker.active_period(),
-            "processor period and tracker period must agree"
+            initial_period + 1,
+            "period should reflect the new finalized header"
         );
     }
 }
