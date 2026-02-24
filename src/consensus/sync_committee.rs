@@ -55,17 +55,18 @@ pub(crate) fn committee_for_slot<'a>(
 /// Guards:
 /// - update must carry a next_sync_committee
 /// - store must not already have a next committee (no overwrite)
-/// - attested header must be in the store's current period
+/// - attested header must be in the store's finalized-derived period
 ///
-/// `store_period` is derived from `store.finalized_header.slot` by the caller
-/// (captured before any finalized-header mutation in `apply_light_client_update`).
+/// `finalized_period` should be `store.finalized_sync_committee_period(spec)`
+/// evaluated at the time the guard is applied (i.e. after the finalized header
+/// and rotation logic have already run in `apply_light_client_update`).
 ///
 /// On success returns `Ok(Some(verified_committee))` for the caller to
 /// set on the store.  Returns `Ok(None)` when the update is skipped
 /// (no committee data, or next already known).
 pub(crate) fn process_sync_committee_update(
     update: &LightClientUpdate,
-    store_period: u64,
+    finalized_period: u64,
     next_committee_known: bool,
     chain_spec: &ChainSpec,
 ) -> Result<Option<SyncCommittee>> {
@@ -82,12 +83,12 @@ pub(crate) fn process_sync_committee_update(
     let update_period = chain_spec.slot_to_sync_committee_period(update.attested_header.slot);
     let attested_next_committee = update.next_sync_committee.as_ref().unwrap();
 
-    // Spec: must attest to current period when next committee is unknown
-    if update_period != store_period {
+    // Spec: must attest to the store's finalized period when next committee is unknown
+    if update_period != finalized_period {
         return Err(Error::InvalidInput(format!(
             "Cannot learn next sync committee from period {}; \
-             next committee is unknown, so update must attest to current period {}",
-            update_period, store_period
+             next committee is unknown, so update must attest to finalized period {}",
+            update_period, finalized_period
         )));
     }
 
@@ -787,7 +788,7 @@ mod tests {
 
         let committee = create_test_sync_committee();
         let chain_spec = ChainSpec::mainnet();
-        let store_period = 0;
+        let finalized_period = 0;
 
         // Create an update with attested_header in period 1 (slot 8192 on mainnet)
         let attested_header = BeaconBlockHeader::new(8192, 42, [1u8; 32], [2u8; 32], [3u8; 32]);
@@ -796,8 +797,9 @@ mod tests {
         let update = LightClientUpdate::new(attested_header, sync_aggregate, 8193)
             .with_next_sync_committee(committee, vec![[0u8; 32]; 5]);
 
-        // next_committee_known = false, but update attests to period 1 → rejected
-        let result = process_sync_committee_update(&update, store_period, false, &chain_spec);
+        // next_committee_known = false, but update attests to period 1 while
+        // finalized period is 0 → rejected by period guard
+        let result = process_sync_committee_update(&update, finalized_period, false, &chain_spec);
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
         assert!(
@@ -805,5 +807,51 @@ mod tests {
             "Expected guard error, got: {}",
             err_msg
         );
+    }
+
+    /// When the finalized header advances to period P+1 but rotation does NOT
+    /// happen (because next_sync_committee is None), the committee-learning
+    /// guard should accept an update attesting to period P+1 — the new
+    /// finalized period — so we can learn the next committee for that period.
+    #[test]
+    fn test_accepts_committee_update_at_advanced_finalized_period() {
+        use crate::types::consensus::{BeaconBlockHeader, SyncAggregate};
+
+        let committee = create_test_sync_committee();
+        let chain_spec = ChainSpec::mainnet();
+
+        // Finalized header has advanced to period 1 (slot >= 8192) but
+        // rotation did not happen because next was unknown.
+        let finalized_period = 1;
+
+        // Update attests to period 1 — matches the new finalized period
+        let attested_header = BeaconBlockHeader::new(8192, 42, [1u8; 32], [2u8; 32], [3u8; 32]);
+        let bits = Box::new([true; SyncCommittee::SYNC_COMMITTEE_SIZE]);
+        let sync_aggregate = SyncAggregate::new(bits, [0u8; 96]);
+        let update = LightClientUpdate::new(attested_header, sync_aggregate, 8193)
+            .with_next_sync_committee(committee, vec![[0u8; 32]; 5]);
+
+        // The period guard (attested_period == finalized_period) should pass.
+        // The call will then fail on merkle verification (invalid branch), but
+        // that is expected — we only care that the period guard did not reject.
+        let result = process_sync_committee_update(&update, finalized_period, false, &chain_spec);
+        match result {
+            Ok(_) => panic!("expected merkle error with synthetic branch"),
+            Err(e) => {
+                let msg = e.to_string();
+                assert!(
+                    !msg.contains("must attest to finalized period"),
+                    "period guard should NOT reject when attested period matches \
+                     finalized period, got: {}",
+                    msg
+                );
+                // Should be a merkle verification error instead
+                assert!(
+                    msg.contains("merkle") || msg.contains("Branch length"),
+                    "expected merkle error, got: {}",
+                    msg
+                );
+            }
+        }
     }
 }

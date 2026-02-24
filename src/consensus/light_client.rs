@@ -200,20 +200,17 @@ impl LightClientProcessor {
             }
         }
 
-        // Process sync committee updates AFTER rotation.
-        // Use store_period (captured before finalized-header mutation) for the
-        // committee-learning guard.  After rotation the store's derived period
-        // has already advanced, but the guard needs the *pre-rotation* period
-        // when no rotation occurred, and `store_period + 1` when rotation did
-        // occur.  In both cases, the store's current derived period is correct
-        // because:
-        //   - no rotation: finalized header unchanged or same period → store_period
-        //   - rotation: finalized header is in store_period+1, committee rotated
-        // So we use the live derived period here.
-        let current_period = self.store.finalized_sync_committee_period(&self.chain_spec);
+        // Process sync committee updates AFTER finalized-header update and rotation.
+        // We derive the period from the store's (now-updated) finalized header so
+        // that:
+        //   - if finality advances but rotation can't happen (next unknown), we
+        //     learn next relative to the new finalized period;
+        //   - if rotation happened, we begin learning the subsequent period's
+        //     committee.
+        let finalized_period = self.store.finalized_sync_committee_period(&self.chain_spec);
         if let Some(verified) = sync_committee::process_sync_committee_update(
             &update,
-            current_period,
+            finalized_period,
             self.store.next_sync_committee.is_some(),
             &self.chain_spec,
         )? {
