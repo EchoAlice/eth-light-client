@@ -74,7 +74,7 @@ src/
 | `light_client.rs` (public) | `LightClient` wrapper | Thin facade; delegates to `LightClientProcessor`, computes `UpdateOutcome` |
 | `consensus/light_client.rs` | `LightClientProcessor` | Validation, signature check, apply-update; holds `LightClientStore` |
 | `types/consensus.rs` | `LightClientStore` | Single source of truth for `current_sync_committee`, `next_sync_committee`, `finalized_header`, `optimistic_header` |
-| `consensus/sync_committee.rs` | — (stateless) | `committee_for_slot`, `process_sync_committee_update`, `verify_sync_aggregate`, BLS domain computation |
+| `consensus/sync_committee.rs` | — (stateless) | `committee_for_slot`, `learn_next_sync_committee_from_update`, `verify_sync_aggregate`, BLS domain computation |
 | `consensus/merkle.rs` | — | `verify_bootstrap_sync_committee`, `verify_next_sync_committee`, `verify_finality_branch` |
 | `consensus/bls.rs` | — | `fast_aggregate_verify`, `verify_bls_aggregate_signature` via blst |
 | `config.rs` | `ChainSpec` | Slot/epoch/period arithmetic, fork schedule, generalized indices |
@@ -137,7 +137,7 @@ LightClientProcessor::process_update_at_slot(update, current_slot)
                    │            AND store.next_sync_committee.is_some():
                    │    ► store.current = store.next.take()
                    │
-                   ├─ COMMITTEE LEARNING: sync_committee::process_sync_committee_update(
+                   ├─ COMMITTEE LEARNING: sync_committee::learn_next_sync_committee_from_update(
                    │        update, current_period, next_known, spec)
                    │    guards: has committee data, next not already known,
                    │            attested period == current store period
@@ -198,7 +198,7 @@ A new `next_sync_committee` is accepted only when:
 3. `attested_period == store_period` (must attest to current period)
 4. Merkle proof verifies against `attested_header.state_root`
 
-See `sync_committee::process_sync_committee_update()` in
+See `sync_committee::learn_next_sync_committee_from_update()` in
 `src/consensus/sync_committee.rs`.
 
 ### I-5: Signature Domain Uses fork_version_slot

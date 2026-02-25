@@ -42,7 +42,7 @@ These are explicitly out of scope.  Do not introduce them:
 
 1. Read `src/consensus/light_client.rs` — `apply_light_client_update()`
 2. Read `src/consensus/sync_committee.rs` — `committee_for_slot()`,
-   `process_sync_committee_update()`
+   `learn_next_sync_committee_from_update()`
 3. Check invariants in `docs/architecture.md` (I-1 through I-6)
 4. Verify the rotation test still passes:
    `cargo test test_store_period_correct_after_rotation`

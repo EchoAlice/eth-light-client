@@ -50,7 +50,7 @@ pub(crate) fn committee_for_slot<'a>(
     }
 }
 
-/// Validate and verify a next-sync-committee update.
+/// Attempt to learn `next_sync_committee` from an update.
 ///
 /// Guards:
 /// - update must carry a next_sync_committee
@@ -64,7 +64,7 @@ pub(crate) fn committee_for_slot<'a>(
 /// On success returns `Ok(Some(verified_committee))` for the caller to
 /// set on the store.  Returns `Ok(None)` when the update is skipped
 /// (no committee data, or next already known).
-pub(crate) fn process_sync_committee_update(
+pub(crate) fn learn_next_sync_committee_from_update(
     update: &LightClientUpdate,
     finalized_period: u64,
     next_committee_known: bool,
@@ -799,7 +799,8 @@ mod tests {
 
         // next_committee_known = false, but update attests to period 1 while
         // finalized period is 0 → rejected by period guard
-        let result = process_sync_committee_update(&update, finalized_period, false, &chain_spec);
+        let result =
+            learn_next_sync_committee_from_update(&update, finalized_period, false, &chain_spec);
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
         assert!(

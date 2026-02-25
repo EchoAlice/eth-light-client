@@ -176,7 +176,7 @@ impl LightClientProcessor {
                     &self.chain_spec,
                 )?;
 
-                self.store.finalized_header = finalized_header.clone();
+                self.store.finalized_header = finalized_header.clone(); // <- why clone here?  seems much more intuitive to consume the update's finalized header no?
                 state_changed = true;
             }
         }
@@ -200,7 +200,7 @@ impl LightClientProcessor {
             }
         }
 
-        // Process sync committee updates AFTER finalized-header update and rotation.
+        // Learn next sync committee AFTER finalized-header update and rotation.
         // We derive the period from the store's (now-updated) finalized header so
         // that:
         //   - if finality advances but rotation can't happen (next unknown), we
@@ -208,7 +208,7 @@ impl LightClientProcessor {
         //   - if rotation happened, we begin learning the subsequent period's
         //     committee.
         let finalized_period = self.store.finalized_sync_committee_period(&self.chain_spec);
-        if let Some(verified) = sync_committee::process_sync_committee_update(
+        if let Some(verified) = sync_committee::learn_next_sync_committee_from_update(
             &update,
             finalized_period,
             self.store.next_sync_committee.is_some(),
