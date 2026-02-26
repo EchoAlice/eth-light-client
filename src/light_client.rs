@@ -6,26 +6,36 @@
 //!
 //! # Overview
 //!
+//! This library is **verification-only** — it does not fetch data from the network.
+//! The caller is responsible for supplying both:
+//!
+//! 1. A [`LightClientBootstrap`] to initialize the client (from a trusted source)
+//! 2. Continuous [`LightClientUpdate`]s to advance the client's view of the chain
+//!
 //! The light client maintains:
 //! - A **finalized header**: the most recent header known to be finalized
 //! - An **optimistic header**: the best known header (may not yet be finalized)
 //! - The **current sync committee**: 512 validators signing recent blocks
-//! - The **next sync committee**: for the upcoming period
+//! - The **next sync committee**: for the upcoming period (if known)
 //!
 //! # Example
 //!
 //! ```no_run
-//! use eth_light_client::{ChainSpec, LightClient, LightClientBootstrap};
+//! use eth_light_client::{ChainSpec, LightClient, LightClientBootstrap, LightClientUpdate};
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     // In production, fetch bootstrap data from a beacon API:
-//!     // GET /eth/v1/beacon/light_client/bootstrap/{block_root}
+//!     // 1. Bootstrap: fetch from a trusted source
+//!     //    GET /eth/v1/beacon/light_client/bootstrap/{block_root}
 //!     let bootstrap: LightClientBootstrap = todo!("fetch from beacon API");
+//!     let mut client = LightClient::new(ChainSpec::mainnet(), bootstrap)?;
 //!
-//!     // Create light client - merkle proof verification happens automatically
-//!     let client = LightClient::new(ChainSpec::mainnet(), bootstrap)?;
+//!     // 2. Continuously feed updates to advance the client
+//!     //    GET /eth/v1/beacon/light_client/updates?start_period=X&count=1
+//!     let update: LightClientUpdate = todo!("fetch from any source");
+//!     let outcome = client.process_update(update)?;
 //!
 //!     println!("Finalized slot: {}", client.finalized_header().slot);
+//!     println!("Update outcome: {}", outcome);
 //!     Ok(())
 //! }
 //! ```
@@ -160,11 +170,19 @@ impl std::fmt::Display for UpdateOutcome {
 
 /// Ethereum Beacon Chain Light Client.
 ///
-/// `LightClient` provides a minimal, stable interface for tracking the Ethereum beacon chain without running a full node. It verifies sync committee signatures and maintains finalized/optimistic headers.
+/// `LightClient` provides a minimal, stable interface for tracking the Ethereum
+/// beacon chain without running a full node. It verifies sync committee signatures and maintains finalized/optimistic headers.
+///
+/// The caller must supply a [`LightClientBootstrap`] via [`LightClient::new`] to
+/// initialize the client, then continuously feed [`LightClientUpdate`]s via
+/// [`process_update`](LightClient::process_update) to advance its view of the chain.
+/// This library does not fetch data from the network.
 ///
 /// # Internals
 ///
-/// This struct wraps internal consensus machinery and does not expose stores, trackers, or other implementation details. The internal representation may change between versions.
+/// This struct wraps internal consensus machinery and does not expose stores
+/// or other implementation details. The internal representation may change
+/// between versions.
 ///
 /// # Thread Safety
 ///
