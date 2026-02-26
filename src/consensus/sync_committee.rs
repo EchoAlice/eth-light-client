@@ -18,7 +18,7 @@ const DOMAIN_BEACON_PROPOSER: [u8; 4] = [0, 0, 0, 0];
 // Stateless sync-committee helpers
 //
 // All functions derive the current period from `store_finalized_slot`
-// (the canonical period source).  No tracker struct is needed.
+// (the canonical period source).
 // =============================================================================
 
 /// Select the appropriate sync committee for `signature_slot`.
@@ -83,7 +83,14 @@ pub(crate) fn learn_next_sync_committee_from_update(
     let update_period = chain_spec.slot_to_sync_committee_period(update.attested_header.slot);
     let attested_next_committee = update.next_sync_committee.as_ref().unwrap();
 
-    // Spec: must attest to the store's finalized period when next committee is unknown
+    // Defensive invariant: only learn `next_sync_committee` when             attested_period == store's finalized-derived period. Current validation should enforce this already; this guards future changes.
+    if update_period != finalized_period {
+        return Err(Error::InvalidInput(format!(
+            "Cannot learn next sync committee from period {}; \
+             next committee is unknown, so update must attest to finalized period {}",
+            update_period, finalized_period
+        )));
+    }
     if update_period != finalized_period {
         return Err(Error::InvalidInput(format!(
             "Cannot learn next sync committee from period {}; \
@@ -313,7 +320,6 @@ fn compute_signing_root(object_root: Root, domain: Domain) -> Result<Root> {
     Ok(signing_root)
 }
 
-// TODO: BLS implementation needs validation against official Ethereum consensus specification test vectors to ensure compatibility with real beacon chain signatures.
 #[cfg(test)]
 mod tests {
     use super::*;

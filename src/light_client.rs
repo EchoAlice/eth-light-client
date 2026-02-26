@@ -171,12 +171,11 @@ impl std::fmt::Display for UpdateOutcome {
 /// Ethereum Beacon Chain Light Client.
 ///
 /// `LightClient` provides a minimal, stable interface for tracking the Ethereum
-/// beacon chain without running a full node. It verifies sync committee signatures
-/// and maintains finalized/optimistic headers.
+/// beacon chain without running a full node. It verifies sync committee signatures and maintains finalized/optimistic headers.
 ///
 /// The caller must supply a [`LightClientBootstrap`] via [`LightClient::new`] to
 /// initialize the client, then continuously feed [`LightClientUpdate`]s via
-/// [`process_update`](Self::process_update) to advance its view of the chain.
+/// [`process_update`](LightClient::process_update) to advance its view of the chain.
 /// This library does not fetch data from the network.
 ///
 /// # Internals
