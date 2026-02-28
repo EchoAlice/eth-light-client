@@ -105,10 +105,11 @@ impl ForkSchedule {
     }
 }
 
-/// Configuration for creating a custom [`ChainSpec`].
+/// Configurations for creating a [`ChainSpec`].
 ///
-/// Use this to configure a light client for local testnets or devnets.
-/// For mainnet or standard test networks, use [`ChainSpec::mainnet()`] or [`ChainSpec::minimal()`].
+/// For mainnet, use [`ChainSpec::mainnet()`].
+/// For spec tests / minimal preset parameters, use [`ChainSpec::minimal()`].
+/// For other networks, build a custom spec with [`ChainSpec::try_from_config`].
 ///
 /// # Example
 ///
@@ -136,6 +137,7 @@ impl ForkSchedule {
 /// let spec = ChainSpec::try_from_config(config).unwrap();
 /// assert_eq!(spec.genesis_time(), 1700000000);
 /// ```
+
 #[derive(Debug, Clone, Copy)]
 pub struct ChainSpecConfig {
     pub genesis_time: u64,
