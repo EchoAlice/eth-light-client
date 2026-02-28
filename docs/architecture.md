@@ -12,7 +12,7 @@ the root `README.md`.
 src/
 ├── lib.rs                         # Crate root; re-exports public API
 ├── light_client.rs                # Public API: LightClient, UpdateOutcome
-├── config.rs                      # ChainSpec, ChainSpecConfig, ForkSchedule
+├── config.rs                      # Contains chain spec types + functionality 
 ├── error.rs                       # Error enum (thiserror)
 ├── types/
 │   ├── primitives.rs              # Type aliases: Slot, Root, BLSPublicKey, …
