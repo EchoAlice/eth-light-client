@@ -28,14 +28,9 @@ pub use crate::types::{
     primitives::{Root, Slot},
 };
 
-/// Prelude for convenient imports
-///
-/// Contains the minimal set of types needed for most light client usage.
-/// For additional types like [`SyncAggregate`], import them directly from [`crate::types`].
-///
-/// ```
-/// use eth_light_client::prelude::*;
-/// ```
+/// Contains the recommended set of types needed for most light client usage.
+/// For additional types (e.g. [`SyncAggregate`]), import them from the crate root
+/// (or from [`crate::types`] if you prefer the module path).
 pub mod prelude {
     pub use crate::config::ChainSpec;
     pub use crate::error::{Error, Result};
