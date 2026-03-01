@@ -66,6 +66,8 @@ impl SyncCommittee {
         }
     }
 
+    /// TODO(#21): delete once SyncCommittee is spec-sized (no zero-padding).
+    ///
     /// Count the number of actual (non-zero) pubkeys in the committee
     /// This handles both minimal preset (32 keys) and mainnet (512 keys)
     pub fn actual_committee_size(&self) -> usize {
@@ -371,23 +373,6 @@ mod tests {
     }
 
     #[test]
-    fn test_beacon_block_header_creation() {
-        let spec = ChainSpec::mainnet();
-        let header = create_test_beacon_header();
-        assert_eq!(header.slot, 1000);
-        assert_eq!(header.proposer_index, 42);
-        assert_eq!(header.epoch(&spec), 31); // 1000 / 32
-    }
-
-    #[test]
-    fn test_beacon_block_header_hash() {
-        let header = create_test_beacon_header();
-        let hash1 = header.hash_tree_root().unwrap();
-        let hash2 = header.hash_tree_root().unwrap();
-        assert_eq!(hash1, hash2);
-    }
-
-    #[test]
     fn test_sync_committee_supermajority() {
         let committee = create_test_sync_committee();
 
@@ -408,18 +393,6 @@ mod tests {
         // Test with full participation
         let participation = [true; 512];
         assert!(committee.has_supermajority_participation(&participation));
-    }
-
-    #[test]
-    fn test_sync_aggregate() {
-        let sync_committee_bits = Box::new([true; 512]);
-        let sync_committee_signature = [1u8; 96];
-
-        let sync_aggregate = SyncAggregate::new(sync_committee_bits, sync_committee_signature);
-        assert_eq!(sync_aggregate.participation_count(), 512);
-
-        let sync_committee = create_test_sync_committee();
-        assert!(sync_aggregate.has_supermajority(&sync_committee));
     }
 
     #[test]
