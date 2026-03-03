@@ -363,15 +363,6 @@ impl LightClient {
         self.inner.next_sync_committee()
     }
 
-    /// Returns `true` if the client is considered synced.
-    ///
-    /// A client is synced if it has recently processed updates and the optimistic
-    /// header is close to the current slot.
-    #[inline]
-    pub fn is_synced(&self) -> bool {
-        self.inner.is_synced()
-    }
-
     /// Returns the current sync committee period.
     ///
     /// Periods are ~27 hours long (8192 slots at 12 seconds each).
@@ -394,7 +385,6 @@ impl std::fmt::Debug for LightClient {
             .field("finalized_slot", &self.finalized_header().slot)
             .field("optimistic_slot", &self.optimistic_header().slot)
             .field("current_period", &self.current_period())
-            .field("is_synced", &self.is_synced())
             .field("has_next_committee", &self.next_sync_committee().is_some())
             .finish()
     }
@@ -549,7 +539,6 @@ mod tests {
 
         assert_eq!(client.finalized_header().slot, expected_slot);
         assert_eq!(client.optimistic_header().slot, expected_slot);
-        assert!(!client.is_synced());
     }
 
     #[test]
@@ -563,7 +552,6 @@ mod tests {
         let debug_str = format!("{:?}", client);
         assert!(debug_str.contains("LightClient"));
         assert!(debug_str.contains(&format!("finalized_slot: {}", expected_slot)));
-        assert!(debug_str.contains("is_synced: false"));
     }
 
     #[test]

@@ -254,22 +254,6 @@ impl LightClientProcessor {
         self.store.next_sync_committee.as_ref()
     }
 
-    /// Check if we're currently synced (optimistic head is recent)
-    pub(crate) fn is_synced(&self) -> bool {
-        let current_timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or(0);
-
-        // Use ChainSpec to compute current slot from wall clock
-        let current_slot = self.chain_spec.timestamp_to_slot(current_timestamp);
-        let head_slot = self.store.optimistic_header.slot;
-
-        // Consider synced if head is within 64 slots of current
-        // (mainnet: ~12.8 minutes, minimal: ~6.4 minutes)
-        current_slot.saturating_sub(head_slot) <= 64
-    }
-
     /// Current sync committee period (derived from finalized header).
     pub(crate) fn current_period(&self) -> u64 {
         self.store.finalized_sync_committee_period(&self.chain_spec)
