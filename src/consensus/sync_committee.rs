@@ -83,14 +83,9 @@ pub(crate) fn learn_next_sync_committee_from_update(
     let update_period = chain_spec.slot_to_sync_committee_period(update.attested_header.slot);
     let attested_next_committee = update.next_sync_committee.as_ref().unwrap();
 
-    // Defensive invariant: only learn `next_sync_committee` when             attested_period == store's finalized-derived period. Current validation should enforce this already; this guards future changes.
-    if update_period != finalized_period {
-        return Err(Error::InvalidInput(format!(
-            "Cannot learn next sync committee from period {}; \
-             next committee is unknown, so update must attest to finalized period {}",
-            update_period, finalized_period
-        )));
-    }
+    // Defensive invariant: only learn `next_sync_committee` when
+    // `attested_period == finalized_period` (store period). This should
+    // already be enforced by validation; keep as a guard against future changes.
     if update_period != finalized_period {
         return Err(Error::InvalidInput(format!(
             "Cannot learn next sync committee from period {}; \
@@ -115,6 +110,8 @@ pub(crate) fn learn_next_sync_committee_from_update(
 ///
 /// The caller supplies the correct committee (via `committee_for_slot`)
 /// and the `genesis_validators_root` from the store.
+///
+/// TODO(#21): make sync committee bits spec-sized (use ChainSpec::sync_committee_size()).
 pub(crate) fn verify_sync_aggregate(
     committee: &SyncCommittee,
     signature_slot: Slot,
@@ -376,7 +373,7 @@ mod tests {
     }
 
     fn create_test_sync_committee() -> SyncCommittee {
-        let pubkeys = Box::new([[1u8; 48]; 512]);
+        let pubkeys = Box::new([[1u8; 48]; SyncCommittee::SYNC_COMMITTEE_SIZE]);
         let aggregate_pubkey = [2u8; 48];
         SyncCommittee::new(pubkeys, aggregate_pubkey)
     }
