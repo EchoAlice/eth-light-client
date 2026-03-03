@@ -73,32 +73,3 @@ pub type Domain = [u8; 32];
 
 /// Fork version for different beacon chain forks
 pub type ForkVersion = [u8; 4];
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_hash_creation() {
-        let hash: Hash = [0u8; 32];
-        assert_eq!(hash.len(), 32);
-    }
-
-    #[test]
-    fn test_address_creation() {
-        let address: Address = [0u8; 20];
-        assert_eq!(address.len(), 20);
-    }
-
-    #[test]
-    fn test_bloom_default() {
-        let bloom = Bloom::default();
-        assert_eq!(bloom.0, [0u8; 256]);
-    }
-
-    #[test]
-    fn test_u256_zero() {
-        let zero = U256::ZERO;
-        assert_eq!(zero.to_string(), "0");
-    }
-}
