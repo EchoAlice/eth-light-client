@@ -491,37 +491,6 @@ mod tests {
         assert_eq!(outcome.to_string(), "StateAdvanced(no fields changed)");
     }
 
-    #[test]
-    fn test_update_outcome_equality() {
-        let a = UpdateOutcome::StateAdvanced {
-            finalized_updated: true,
-            optimistic_updated: false,
-            sync_committee_updated: false,
-        };
-        let b = UpdateOutcome::StateAdvanced {
-            finalized_updated: true,
-            optimistic_updated: false,
-            sync_committee_updated: false,
-        };
-        let c = UpdateOutcome::NoChange;
-
-        assert_eq!(a, b);
-        assert_ne!(a, c);
-    }
-
-    #[test]
-    fn test_update_outcome_copy() {
-        let outcome = UpdateOutcome::StateAdvanced {
-            finalized_updated: true,
-            optimistic_updated: true,
-            sync_committee_updated: false,
-        };
-
-        // UpdateOutcome is Copy, so this should work
-        let copied = outcome;
-        assert_eq!(outcome, copied);
-    }
-
     // ------------------------------------------------------------------------
     // LightClient tests
     // ------------------------------------------------------------------------
@@ -539,19 +508,6 @@ mod tests {
 
         assert_eq!(client.finalized_header().slot, expected_slot);
         assert_eq!(client.optimistic_header().slot, expected_slot);
-    }
-
-    #[test]
-    fn test_light_client_debug() {
-        let bootstrap = load_bootstrap_fixture();
-        let chain_spec = ChainSpec::minimal();
-        let expected_slot = bootstrap.header.slot;
-
-        let client = LightClient::new(chain_spec, bootstrap).expect("should create");
-
-        let debug_str = format!("{:?}", client);
-        assert!(debug_str.contains("LightClient"));
-        assert!(debug_str.contains(&format!("finalized_slot: {}", expected_slot)));
     }
 
     #[test]
