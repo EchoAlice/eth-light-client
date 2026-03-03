@@ -254,22 +254,6 @@ impl LightClientProcessor {
         self.store.next_sync_committee.as_ref()
     }
 
-    /// Check if we're currently synced (optimistic head is recent)
-    pub(crate) fn is_synced(&self) -> bool {
-        let current_timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or(0);
-
-        // Use ChainSpec to compute current slot from wall clock
-        let current_slot = self.chain_spec.timestamp_to_slot(current_timestamp);
-        let head_slot = self.store.optimistic_header.slot;
-
-        // Consider synced if head is within 64 slots of current
-        // (mainnet: ~12.8 minutes, minimal: ~6.4 minutes)
-        current_slot.saturating_sub(head_slot) <= 64
-    }
-
     /// Current sync committee period (derived from finalized header).
     pub(crate) fn current_period(&self) -> u64 {
         self.store.finalized_sync_committee_period(&self.chain_spec)
@@ -297,9 +281,8 @@ mod tests {
     }
 
     fn create_test_sync_aggregate() -> SyncAggregate {
-        let sync_committee_bits = Box::new([true; 512]); // Full participation
-        let sync_committee_signature = [1u8; 96];
-        SyncAggregate::new(sync_committee_bits, sync_committee_signature)
+        let sync_committee_bits = Box::new([true; SyncCommittee::SYNC_COMMITTEE_SIZE]);
+        SyncAggregate::new(sync_committee_bits, [1u8; 96])
     }
 
     #[test]
@@ -388,8 +371,6 @@ mod tests {
     /// impossible.
     #[test]
     fn test_store_period_correct_after_rotation() {
-        use crate::types::consensus::SyncCommittee;
-
         let bootstrap = load_bootstrap_fixture();
         let chain_spec = crate::config::ChainSpec::minimal();
         let bootstrap_slot = bootstrap.header.slot;
@@ -408,7 +389,10 @@ mod tests {
         assert!(processor.store.next_sync_committee.is_none());
 
         // Inject a distinguishable "next" committee directly on the store
-        let next = SyncCommittee::new(Box::new([[0xAA; 48]; 512]), [0xBB; 48]);
+        let next = SyncCommittee::new(
+            Box::new([[0xAA; 48]; SyncCommittee::SYNC_COMMITTEE_SIZE]),
+            [0xBB; 48],
+        );
         processor.store.next_sync_committee = Some(next.clone());
 
         // Store period is still initial_period (finalized header not yet updated)

@@ -71,7 +71,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 **API Notes:**
 - Injectable time is available: If you want to supply your own notion of time (tests, embedded devices, custom clocks), use `process_update_at_slot(update, current_slot)`
 - Getters: `finalized_header()`, `optimistic_header()`, `current_sync_committee()`,
-  `next_sync_committee()`, `current_period()`, `is_synced()`, `chain_spec()`
+  `next_sync_committee()`, `current_period()`, `chain_spec()`
 
 **Custom/Devnet Configuration:**
 
