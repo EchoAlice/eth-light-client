@@ -18,14 +18,14 @@ Cargo.toml and tests/ remain untouched.
 ## Milestones (commit after each)
 
 - [x] M0: Create this plan, commit
-- [ ] M1: Scaffold crate modules (lib.rs, error.rs, module stubs) — compiles
-- [ ] M2: Implement ChainSpec/ChainSpecConfig with fork schedule + gindices — config tests pass
-- [ ] M3: Implement core types (types/primitives.rs, types/consensus.rs) — type tests pass
-- [ ] M4: Implement consensus/merkle.rs — merkle unit tests pass
-- [ ] M5: Implement consensus/bls.rs — BLS unit tests + spec tests pass
-- [ ] M6: Implement consensus/sync_committee.rs — domain/signing root + sig verification tests pass
-- [ ] M7: Implement consensus/light_client.rs processor pipeline — processor tests pass
-- [ ] M8: Wire public API (light_client.rs, test_utils.rs) — all tests pass including integration
+- [x] M1: Scaffold crate modules (lib.rs, error.rs, module stubs) — compiles
+- [x] M2: Implement ChainSpec/ChainSpecConfig with fork schedule + gindices — 25 config tests pass
+- [x] M3: Implement core types (types/primitives.rs, types/consensus.rs) — 28 tests pass
+- [x] M4: Implement consensus/merkle.rs + test_utils.rs — 37 tests pass
+- [x] M5: Implement consensus/bls.rs + spec test runner — 44 tests pass (40 spec vectors)
+- [x] M6: Implement consensus/sync_committee.rs — 58 tests pass
+- [x] M7: Implement consensus/light_client.rs processor pipeline — 63 tests pass
+- [x] M8: Wire public API (light_client.rs, re-exports) — 72 unit + 1 integration + 3 doc tests
 
 ## File Plan for src/
 
