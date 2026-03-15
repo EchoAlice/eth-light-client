@@ -53,7 +53,7 @@ pub use ruint::aliases::U256;
 /// Beacon chain slot number
 pub type Slot = u64;
 
-/// Beacon chain epoch number  
+/// Beacon chain epoch number
 pub type Epoch = u64;
 
 /// Validator index in the beacon state
