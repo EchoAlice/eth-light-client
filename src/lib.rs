@@ -10,3 +10,7 @@ pub mod types;
 
 // Private implementation modules
 mod consensus;
+
+// Test utilities (unstable, not part of public API)
+#[cfg(any(test, feature = "test-utils"))]
+pub mod test_utils;
