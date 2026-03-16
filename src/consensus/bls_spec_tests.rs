@@ -1,3 +1,4 @@
+#![cfg(test)]
 //! BLS Integration Test Suite
 //!
 //! Validates our BLS wrapper layer (src/consensus/bls.rs) against official
@@ -25,8 +26,6 @@
 //!
 //! Status: 40/40 tests passing
 
-#![cfg(test)]
-
 use serde::Deserialize;
 use std::env;
 use std::fs;
@@ -34,7 +33,7 @@ use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 // Import our BLS verification functions (crate-internal access)
-use crate::consensus::bls::{verify_bls_aggregate_signature, verify_bls_signature};
+use crate::consensus::bls::{fast_aggregate_verify, verify_bls_signature};
 
 /// Test case structure for single signature verification
 #[derive(Debug, Deserialize)]
@@ -360,7 +359,7 @@ fn run_single_fast_aggregate_test(
     signature.copy_from_slice(&signature_bytes);
 
     // Run verification
-    let actual = verify_bls_aggregate_signature(&pubkeys, &message_bytes, &signature);
+    let actual = fast_aggregate_verify(&pubkeys, &message_bytes, &signature);
     let expected = test_case.output;
 
     if actual == expected {
