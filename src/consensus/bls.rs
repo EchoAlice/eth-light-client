@@ -1,11 +1,9 @@
-#[cfg(test)]
-use blst::min_pk::AggregateSignature;
-/// BLS Signature Verification Module
-///
-/// Provides BLS signature verification functions for Ethereum consensus layer.
-/// Uses the blst library for efficient BLS12-381 operations.
-///
-/// This module is designed to be compliant with Ethereum consensus spec tests.
+//! BLS Signature Verification Module
+//!
+//! Provides BLS signature verification functions for Ethereum consensus layer.
+//! Uses the blst library for efficient BLS12-381 operations.
+//!
+//! This module is designed to be compliant with Ethereum consensus spec tests.
 use blst::{
     min_pk::{AggregatePublicKey, PublicKey, Signature},
     BLST_ERROR,
@@ -14,57 +12,10 @@ use blst::{
 // Ethereum consensus DST (domain separation tag)
 const DST: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
 
-/// Verify a single BLS signature
-///
-/// # Arguments
-/// * `pubkey` - 48-byte BLS public key
-/// * `message` - Message bytes to verify
-/// * `signature` - 96-byte BLS signature
-///
-/// # Returns
-/// * `true` if signature is valid, `false` otherwise
-#[cfg(test)]
-pub fn verify_bls_signature(pubkey: &[u8; 48], message: &[u8], signature: &[u8; 96]) -> bool {
-    // Handle infinity/identity pubkey (all zeros)
-    if pubkey.iter().all(|&b| b == 0) {
-        // Infinity pubkey with infinity signature is considered valid
-        // per Ethereum consensus specs
-        return signature.iter().all(|&b| b == 0);
-    }
-
-    // Parse public key
-    let pk = match PublicKey::from_bytes(pubkey) {
-        Ok(pk) => pk,
-        Err(_) => return false,
-    };
-
-    // Validate public key
-    if pk.validate().is_err() {
-        return false;
-    }
-
-    // Parse signature
-    let sig = match Signature::from_bytes(signature) {
-        Ok(sig) => sig,
-        Err(_) => return false,
-    };
-
-    // Validate signature
-    if sig.validate(false).is_err() {
-        return false;
-    }
-
-    // Verify signature
-    matches!(
-        sig.verify(false, message, DST, &[], &pk, false),
-        BLST_ERROR::BLST_SUCCESS
-    )
-}
-
 /// Verify an aggregate BLS signature from multiple signers
 ///
 /// # Arguments
-/// * `pubkeys` - Vector of 48-byte BLS public keys
+/// * `pubkeys` - Slice of 48-byte BLS public keys
 /// * `message` - Message bytes that was signed
 /// * `signature` - 96-byte aggregate BLS signature
 ///
@@ -191,6 +142,11 @@ fn fast_aggregate_verify_native(
     let pk_refs: Vec<&PublicKey> = pks.iter().collect();
 
     // Use blst's native fast_aggregate_verify
+    //
+    // Note: we intentionally don't call `pk.validate()` here.
+    // blst's `fast_aggregate_verify` performs the necessary checks internally.
+    // If it returns an unexpected error, we fall back to the slower path which
+    // validates pubkeys explicitly.
     match sig.fast_aggregate_verify(true, message, DST, &pk_refs) {
         BLST_ERROR::BLST_SUCCESS => Some(true),
         BLST_ERROR::BLST_VERIFY_FAIL => Some(false),
@@ -217,9 +173,58 @@ fn aggregate_pubkeys(pubkeys: &[PublicKey]) -> Option<PublicKey> {
     Some(aggregate.to_public_key())
 }
 
+/// Verify a single BLS signature
+///
+/// # Arguments
+/// * `pubkey` - 48-byte BLS public key
+/// * `message` - Message bytes to verify
+/// * `signature` - 96-byte BLS signature
+///
+/// # Returns
+/// * `true` if signature is valid, `false` otherwise
+#[cfg(test)]
+pub fn verify_bls_signature(pubkey: &[u8; 48], message: &[u8], signature: &[u8; 96]) -> bool {
+    // Handle infinity/identity pubkey (all zeros)
+    if pubkey.iter().all(|&b| b == 0) {
+        // Infinity pubkey with infinity signature is considered valid
+        // per Ethereum consensus specs
+        return signature.iter().all(|&b| b == 0);
+    }
+
+    // Parse public key
+    let pk = match PublicKey::from_bytes(pubkey) {
+        Ok(pk) => pk,
+        Err(_) => return false,
+    };
+
+    // Validate public key
+    if pk.validate().is_err() {
+        return false;
+    }
+
+    // Parse signature
+    let sig = match Signature::from_bytes(signature) {
+        Ok(sig) => sig,
+        Err(_) => return false,
+    };
+
+    // Validate signature
+    if sig.validate(false).is_err() {
+        return false;
+    }
+
+    // Verify signature
+    matches!(
+        sig.verify(false, message, DST, &[], &pk, false),
+        BLST_ERROR::BLST_SUCCESS
+    )
+}
+
 /// Aggregate multiple BLS signatures
 #[cfg(test)]
 pub fn aggregate_signatures(signatures: &[[u8; 96]]) -> Result<[u8; 96], String> {
+    use blst::min_pk::AggregateSignature;
+
     if signatures.is_empty() {
         return Err("No signatures to aggregate".to_string());
     }
