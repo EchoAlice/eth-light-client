@@ -270,7 +270,10 @@ mod tests {
     #[test]
     fn test_sync_committee_root_deterministic() {
         let spec = ChainSpec::minimal();
-        let committee = SyncCommittee::new(Box::new([[1u8; 48]; 512]), [2u8; 48]);
+        let committee = SyncCommittee::new(
+            Box::new([[1u8; 48]; SyncCommittee::SYNC_COMMITTEE_SIZE]),
+            [2u8; 48],
+        );
 
         let root1 = compute_sync_committee_root(&spec, &committee);
         let root2 = compute_sync_committee_root(&spec, &committee);
@@ -281,12 +284,15 @@ mod tests {
 
     #[test]
     fn test_sync_committee_root_uses_declared_n() {
-        // Minimal uses N=32, mainnet uses N=512
+        // Minimal uses N=32, mainnet uses N=SYNC_COMMITTEE_SIZE (512)
         // Even with same data, roots should differ due to different N
         let minimal_spec = ChainSpec::minimal();
         let mainnet_spec = ChainSpec::mainnet();
 
-        let committee = SyncCommittee::new(Box::new([[1u8; 48]; 512]), [2u8; 48]);
+        let committee = SyncCommittee::new(
+            Box::new([[1u8; 48]; SyncCommittee::SYNC_COMMITTEE_SIZE]),
+            [2u8; 48],
+        );
 
         let minimal_root = compute_sync_committee_root(&minimal_spec, &committee);
         let mainnet_root = compute_sync_committee_root(&mainnet_spec, &committee);
@@ -298,7 +304,10 @@ mod tests {
     #[test]
     fn test_bootstrap_verification_structure() {
         let spec = ChainSpec::minimal();
-        let sync_committee = SyncCommittee::new(Box::new([[0u8; 48]; 512]), [0u8; 48]);
+        let sync_committee = SyncCommittee::new(
+            Box::new([[0u8; 48]; SyncCommittee::SYNC_COMMITTEE_SIZE]),
+            [0u8; 48],
+        );
 
         let empty_branch: Vec<Root> = vec![];
         let slot = 1000;
@@ -318,7 +327,10 @@ mod tests {
     #[test]
     fn test_next_sync_committee_verification_structure() {
         let spec = ChainSpec::minimal();
-        let sync_committee = SyncCommittee::new(Box::new([[1u8; 48]; 512]), [2u8; 48]);
+        let sync_committee = SyncCommittee::new(
+            Box::new([[1u8; 48]; SyncCommittee::SYNC_COMMITTEE_SIZE]),
+            [2u8; 48],
+        );
 
         let empty_branch: Vec<Root> = vec![];
         let slot = 1000;
