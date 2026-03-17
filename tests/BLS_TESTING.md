@@ -84,9 +84,8 @@ Our BLS implementation uses the `blst` library for BLS12-381 operations with:
 
 The BLS verification functions tested here are used throughout the light client:
 
-- **Sync Committee Verification**: `verify_bls_aggregate_signature()`
-- **Individual Signature Checks**: `verify_bls_signature()`
-- **Fast Aggregate Verify**: Optimized for sync committee use cases
+- **Sync Committee Verification**: `fast_aggregate_verify()` (primary entry point)
+- **Individual Signature Checks**: `verify_bls_signature()` (test-only)
 
 ## File Structure
 

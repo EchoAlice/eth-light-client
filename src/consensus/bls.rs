@@ -12,16 +12,15 @@ use blst::{
 // Ethereum consensus DST (domain separation tag)
 const DST: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
 
-/// Verify an aggregate BLS signature from multiple signers
+/// Manual aggregate-then-verify fallback.
 ///
-/// # Arguments
-/// * `pubkeys` - Slice of 48-byte BLS public keys
-/// * `message` - Message bytes that was signed
-/// * `signature` - 96-byte aggregate BLS signature
+/// Parses and validates each public key, aggregates them into a single
+/// `AggregatePublicKey`, then verifies the signature with `sig.verify()`.
 ///
-/// # Returns
-/// * `true` if aggregate signature is valid, `false` otherwise
-pub(crate) fn verify_bls_aggregate_signature(
+/// This is the slow path — used only when `fast_aggregate_verify_native`
+/// returns `None` (e.g. a parse error that blst surfaces as a non-success,
+/// non-verify-fail status).
+fn aggregate_then_verify_fallback(
     pubkeys: &[[u8; 48]],
     message: &[u8],
     signature: &[u8; 96],
@@ -80,18 +79,12 @@ pub(crate) fn verify_bls_aggregate_signature(
     )
 }
 
-/// Fast aggregate verify for sync committee
+/// Primary entry point for same-message aggregate signature verification.
 ///
-/// This is optimized for the case where all signers sign the same message.
-/// Used primarily for sync committee aggregate signatures.
-///
-/// # Arguments
-/// * `pubkeys` - Vector of 48-byte BLS public keys
-/// * `message` - Message bytes that was signed by all
-/// * `signature` - 96-byte aggregate BLS signature
-///
-/// # Returns
-/// * `true` if aggregate signature is valid, `false` otherwise
+/// All sync committee BLS checks go through this function.  It first
+/// attempts blst's native `fast_aggregate_verify` (optimal single-message
+/// path).  If that returns an unexpected error, it falls back to the
+/// manual `aggregate_then_verify_fallback`.
 pub(crate) fn fast_aggregate_verify(
     pubkeys: &[[u8; 48]],
     message: &[u8],
@@ -102,11 +95,11 @@ pub(crate) fn fast_aggregate_verify(
         return result;
     }
 
-    // Fallback to aggregate-then-verify approach
-    verify_bls_aggregate_signature(pubkeys, message, signature)
+    // Fallback to manual aggregate-then-verify approach
+    aggregate_then_verify_fallback(pubkeys, message, signature)
 }
 
-/// Use blst's native fast_aggregate_verify function
+/// Native blst fast path — calls `sig.fast_aggregate_verify()` directly.
 fn fast_aggregate_verify_native(
     pubkeys: &[[u8; 48]],
     message: &[u8],
@@ -306,10 +299,10 @@ mod tests {
         let agg_sig = aggregate_signatures(&sigs).unwrap();
 
         // Verify aggregate
-        assert!(verify_bls_aggregate_signature(&pubkeys, message, &agg_sig));
+        assert!(aggregate_then_verify_fallback(&pubkeys, message, &agg_sig));
 
         // Verify with wrong message should fail
-        assert!(!verify_bls_aggregate_signature(
+        assert!(!aggregate_then_verify_fallback(
             &pubkeys, b"wrong", &agg_sig
         ));
     }
