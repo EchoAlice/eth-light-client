@@ -13,7 +13,6 @@ Experimental.  Do not use for mainnet security-critical decisions!
 This is a Rust library that implements Ethereum’s consensus-layer [light client sync protocol](https://ethereum.github.io/consensus-specs/specs/altair/light-client/sync-protocol/).  It exposes the **consensus-layer verification logic** required for light clients to independently verify the legitimacy of the latest (i) finalized and (ii) optimistic beacon block headers, **without having to run a full node**.
 
 For protocol details and library design, see `docs/architecture.md`.
-For contributor guidelines and change checklists, see `docs/agent_context.md`.
 
 **Who Can Benefit?**
 - Wallets: “Is this transaction actually finalized?”
