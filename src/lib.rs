@@ -23,7 +23,8 @@ pub use crate::error::{Error, Result};
 pub use crate::light_client::{LightClient, UpdateOutcome};
 pub use crate::types::{
     consensus::{
-        BeaconBlockHeader, LightClientBootstrap, LightClientUpdate, SyncAggregate, SyncCommittee,
+        BeaconBlockHeader, LightClientBootstrap, LightClientHeader, LightClientUpdate,
+        SyncAggregate, SyncCommittee,
     },
     primitives::{Root, Slot},
 };
@@ -36,7 +37,10 @@ pub mod prelude {
     pub use crate::error::{Error, Result};
     pub use crate::light_client::{LightClient, UpdateOutcome};
     pub use crate::types::{
-        consensus::{BeaconBlockHeader, LightClientBootstrap, LightClientUpdate, SyncCommittee},
+        consensus::{
+            BeaconBlockHeader, LightClientBootstrap, LightClientHeader, LightClientUpdate,
+            SyncCommittee,
+        },
         primitives::{Root, Slot},
     };
 }

@@ -218,7 +218,7 @@ impl LightClient {
     pub fn new(chain_spec: ChainSpec, bootstrap: LightClientBootstrap) -> Result<Self> {
         let inner = LightClientProcessor::new(
             chain_spec,
-            bootstrap.header,
+            bootstrap.header.beacon().clone(),
             bootstrap.current_sync_committee,
             &bootstrap.current_sync_committee_branch,
             bootstrap.genesis_validators_root,
@@ -502,7 +502,7 @@ mod tests {
     fn test_light_client_creation() {
         let bootstrap = load_bootstrap_fixture();
         let chain_spec = ChainSpec::minimal();
-        let expected_slot = bootstrap.header.slot;
+        let expected_slot = bootstrap.header.slot();
 
         let client = LightClient::new(chain_spec, bootstrap).expect("should create light client");
 

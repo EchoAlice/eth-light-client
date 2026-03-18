@@ -47,6 +47,88 @@ impl BeaconBlockHeader {
     }
 }
 
+// =============================================================================
+// LightClientHeader (fork-aware)
+// =============================================================================
+
+/// Fork-aware light client header.
+///
+/// Each consensus fork defines its own `LightClientHeader` shape.
+/// In Altair and Bellatrix the header contains only a `BeaconBlockHeader`.
+/// Later forks (Capella onward) add execution payload header fields;
+/// those variants will be added here as the library gains support.
+///
+/// Verification logic accesses the inner `BeaconBlockHeader` through
+/// [`beacon()`](Self::beacon), keeping the pipeline fork-agnostic.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LightClientHeader {
+    Altair(AltairLightClientHeader),
+    Bellatrix(BellatrixLightClientHeader),
+    // *** Future variants (require execution payload header types): ***
+    // Capella(CapellaLightClientHeader),
+    // Deneb(DenebLightClientHeader),
+    // Electra(ElectraLightClientHeader),
+    // Fulu(FuluLightClientHeader),
+}
+
+/// Altair light client header — beacon header only.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AltairLightClientHeader {
+    pub beacon: BeaconBlockHeader,
+}
+
+/// Bellatrix light client header — same shape as Altair.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BellatrixLightClientHeader {
+    pub beacon: BeaconBlockHeader,
+}
+
+impl LightClientHeader {
+    /// Wrap a `BeaconBlockHeader` as an Altair-era header.
+    pub fn altair(beacon: BeaconBlockHeader) -> Self {
+        Self::Altair(AltairLightClientHeader { beacon })
+    }
+
+    /// Wrap a `BeaconBlockHeader` as a Bellatrix-era header.
+    #[allow(dead_code)]
+    pub fn bellatrix(beacon: BeaconBlockHeader) -> Self {
+        Self::Bellatrix(BellatrixLightClientHeader { beacon })
+    }
+
+    /// The inner `BeaconBlockHeader` (available for all forks).
+    pub fn beacon(&self) -> &BeaconBlockHeader {
+        match self {
+            Self::Altair(h) => &h.beacon,
+            Self::Bellatrix(h) => &h.beacon,
+        }
+    }
+
+    /// The header's slot.
+    pub fn slot(&self) -> Slot {
+        self.beacon().slot
+    }
+
+    /// The header's state root.
+    pub fn state_root(&self) -> &Root {
+        &self.beacon().state_root
+    }
+
+    /// Compute the hash tree root of this header.
+    ///
+    /// For Altair/Bellatrix this is `hash_tree_root(beacon)`.
+    /// Later forks will hash the full container (beacon + execution).
+    pub fn hash_tree_root(&self) -> Result<Root> {
+        match self {
+            Self::Altair(h) => h.beacon.hash_tree_root(),
+            Self::Bellatrix(h) => h.beacon.hash_tree_root(),
+        }
+    }
+}
+
+// =============================================================================
+// SyncCommittee
+// =============================================================================
+
 /// Sync committee with 512 validators
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyncCommittee {
@@ -147,17 +229,18 @@ impl SyncAggregate {
     }
 }
 
-/// Light client update containing all data needed for verification
-/// Note: SSZ deserialization requires special handling for next_sync_committee due to fixed arrays
+/// Light client update containing all data needed for verification.
+///
+/// Headers are fork-aware [`LightClientHeader`] values.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LightClientUpdate {
-    /// The beacon block header being attested to
-    pub attested_header: BeaconBlockHeader,
-    /// The finalized beacon block header
-    pub finalized_header: Option<BeaconBlockHeader>,
+    /// The header being attested to (fork-aware).
+    pub attested_header: LightClientHeader,
+    /// The finalized header (fork-aware), if present.
+    pub finalized_header: Option<LightClientHeader>,
     /// Merkle proof for finalized header
     pub finality_branch: Vec<Root>,
-    /// Current sync committee (if committee changes)
+    /// Next sync committee (if committee changes)
     pub next_sync_committee: Option<SyncCommittee>,
     /// Merkle proof for next sync committee
     pub next_sync_committee_branch: Vec<Root>,
@@ -168,13 +251,14 @@ pub struct LightClientUpdate {
 }
 
 impl LightClientUpdate {
+    /// Create a new update wrapping a `BeaconBlockHeader` as Altair.
     pub fn new(
         attested_header: BeaconBlockHeader,
         sync_aggregate: SyncAggregate,
         signature_slot: Slot,
     ) -> Self {
         Self {
-            attested_header,
+            attested_header: LightClientHeader::altair(attested_header),
             finalized_header: None,
             finality_branch: Vec::new(),
             next_sync_committee: None,
@@ -189,7 +273,7 @@ impl LightClientUpdate {
         finalized_header: BeaconBlockHeader,
         finality_branch: Vec<Root>,
     ) -> Self {
-        self.finalized_header = Some(finalized_header);
+        self.finalized_header = Some(LightClientHeader::altair(finalized_header));
         self.finality_branch = finality_branch;
         self
     }
@@ -209,18 +293,13 @@ impl LightClientUpdate {
     /// Enforces:
     /// - `signature_slot > attested_header.slot`
     /// - supermajority participation
-    ///
-    /// Note: The spec also requires `signature_slot <= current_slot`, but that check
-    /// requires wall-clock context and is done in the processor's validation.
     pub fn validate_basic(&self, sync_committee: &SyncCommittee) -> Result<()> {
-        // Signature slot should be after attested header slot
-        if self.signature_slot <= self.attested_header.slot {
+        if self.signature_slot <= self.attested_header.slot() {
             return Err(Error::InvalidInput(
                 "Signature slot must be after attested header slot".to_string(),
             ));
         }
 
-        // Must have supermajority participation (checks against actual committee size)
         if !self.sync_aggregate.has_supermajority(sync_committee) {
             return Err(Error::InvalidInput(
                 "Insufficient sync committee participation".to_string(),
@@ -242,7 +321,7 @@ impl LightClientUpdate {
 
     /// Get the period of the attested header.
     pub fn attested_period(&self, spec: &ChainSpec) -> u64 {
-        spec.slot_to_sync_committee_period(self.attested_header.slot)
+        spec.slot_to_sync_committee_period(self.attested_header.slot())
     }
 
     /// Get the period of the signature slot.
@@ -254,7 +333,7 @@ impl LightClientUpdate {
 /// Bootstrap data for initializing a light client.
 ///
 /// This is the trusted anchor from which light client sync begins. It contains:
-/// - A trusted beacon block header (typically a finalized checkpoint)
+/// - A trusted light client header (fork-aware, typically a finalized checkpoint)
 /// - The sync committee active at that header's slot
 /// - A merkle proof that the sync committee is embedded in the header's state root
 /// - The genesis validators root for the chain (used in signature domain computation)
@@ -262,8 +341,8 @@ impl LightClientUpdate {
 /// Corresponds to the `LightClientBootstrap` object in the Ethereum consensus specs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LightClientBootstrap {
-    /// The trusted beacon block header (checkpoint header).
-    pub header: BeaconBlockHeader,
+    /// The trusted header (fork-aware).
+    pub header: LightClientHeader,
     /// The current sync committee at the header's slot.
     pub current_sync_committee: SyncCommittee,
     /// Merkle branch proving `current_sync_committee` is in `header.state_root`.
@@ -274,7 +353,7 @@ pub struct LightClientBootstrap {
 }
 
 impl LightClientBootstrap {
-    /// Create a new bootstrap package.
+    /// Create a new bootstrap package from a `BeaconBlockHeader` (Altair).
     pub fn new(
         header: BeaconBlockHeader,
         current_sync_committee: SyncCommittee,
@@ -282,7 +361,7 @@ impl LightClientBootstrap {
         genesis_validators_root: Root,
     ) -> Self {
         Self {
-            header,
+            header: LightClientHeader::altair(header),
             current_sync_committee,
             current_sync_committee_branch,
             genesis_validators_root,
@@ -294,16 +373,17 @@ impl LightClientBootstrap {
 ///
 /// This is the persistent state that a light client maintains across updates.
 /// It includes the trusted headers, sync committees, and chain identity.
+/// Headers are fork-aware [`LightClientHeader`] values.
 #[derive(Debug, Clone)]
 pub(crate) struct LightClientStore {
-    /// Best finalized header we've seen
-    pub finalized_header: BeaconBlockHeader,
+    /// Best finalized header we've seen (fork-aware).
+    pub finalized_header: LightClientHeader,
     /// Current sync committee
     pub current_sync_committee: SyncCommittee,
     /// Next sync committee (if known)
     pub next_sync_committee: Option<SyncCommittee>,
-    /// Optimistic header (may not be finalized)
-    pub optimistic_header: BeaconBlockHeader,
+    /// Optimistic header (may not be finalized, fork-aware).
+    pub optimistic_header: LightClientHeader,
     /// Genesis validators root (chain identity for signature domains)
     pub genesis_validators_root: Root,
     /// Previous max active participants (used by force_update - not yet implemented)
@@ -315,7 +395,7 @@ pub(crate) struct LightClientStore {
 
 impl LightClientStore {
     pub fn new(
-        finalized_header: BeaconBlockHeader,
+        finalized_header: LightClientHeader,
         current_sync_committee: SyncCommittee,
         genesis_validators_root: Root,
     ) -> Self {
@@ -334,7 +414,7 @@ impl LightClientStore {
     ///
     /// This is the canonical "store period" per consensus-specs.
     pub(crate) fn finalized_sync_committee_period(&self, spec: &ChainSpec) -> u64 {
-        spec.slot_to_sync_committee_period(self.finalized_header.slot)
+        spec.slot_to_sync_committee_period(self.finalized_header.slot())
     }
 
     // The following methods are reserved for future force_update implementation
@@ -421,8 +501,11 @@ mod tests {
         let sync_committee = create_test_sync_committee();
         let genesis_validators_root = [0u8; 32];
 
-        let store =
-            LightClientStore::new(finalized_header, sync_committee, genesis_validators_root);
+        let store = LightClientStore::new(
+            LightClientHeader::altair(finalized_header),
+            sync_committee,
+            genesis_validators_root,
+        );
         // slot 1000 -> epoch 31 -> period 0
         assert_eq!(store.finalized_sync_committee_period(&spec), 0);
         assert_eq!(store.next_period(&spec), 1);

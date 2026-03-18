@@ -57,7 +57,7 @@ fn initialize_processor() -> LightClientProcessor {
 
     LightClientProcessor::new(
         chain_spec,
-        bootstrap.header,
+        bootstrap.header.beacon().clone(),
         bootstrap.current_sync_committee,
         &bootstrap.current_sync_committee_branch,
         bootstrap.genesis_validators_root,
@@ -88,7 +88,7 @@ fn execute_process_update_step(
         "  step {}: {} (attested={}, sig={}, current_slot={})",
         step_num,
         update_type,
-        update.attested_header.slot,
+        update.attested_header.slot(),
         update.signature_slot,
         step.current_slot,
     );

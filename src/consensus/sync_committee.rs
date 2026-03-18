@@ -80,7 +80,7 @@ pub(crate) fn learn_next_sync_committee_from_update(
         return Ok(None);
     }
 
-    let update_period = chain_spec.slot_to_sync_committee_period(update.attested_header.slot);
+    let update_period = chain_spec.slot_to_sync_committee_period(update.attested_header.slot());
     let attested_next_committee = update.next_sync_committee.as_ref().unwrap();
 
     // Defensive invariant: only learn `next_sync_committee` when
@@ -98,8 +98,8 @@ pub(crate) fn learn_next_sync_committee_from_update(
     verify_next_sync_committee(
         attested_next_committee,
         &update.next_sync_committee_branch,
-        update.attested_header.slot,
-        &update.attested_header.state_root,
+        update.attested_header.slot(),
+        update.attested_header.state_root(),
         chain_spec,
     )?;
 

@@ -3,7 +3,7 @@ use crate::consensus::merkle::{verify_bootstrap_sync_committee, verify_finality_
 use crate::consensus::sync_committee;
 use crate::error::{Error, Result};
 use crate::types::consensus::{
-    BeaconBlockHeader, LightClientStore, LightClientUpdate, SyncCommittee,
+    BeaconBlockHeader, LightClientHeader, LightClientStore, LightClientUpdate, SyncCommittee,
 };
 use crate::types::primitives::Root;
 use crate::types::primitives::Slot;
@@ -46,7 +46,7 @@ impl LightClientProcessor {
         )?;
 
         let store = LightClientStore::new(
-            trusted_header,
+            LightClientHeader::altair(trusted_header),
             current_sync_committee,
             genesis_validators_root,
         );
@@ -110,10 +110,10 @@ impl LightClientProcessor {
         let has_sync_committee = update.has_sync_committee_update();
         let is_slot_acceptable = if has_sync_committee {
             // Allow equal slots if update contains sync committee (useful for bootstrapping)
-            update.attested_header.slot >= self.store.finalized_header.slot
+            update.attested_header.slot() >= self.store.finalized_header.slot()
         } else {
             // Regular updates must be strictly newer
-            update.attested_header.slot > self.store.finalized_header.slot
+            update.attested_header.slot() > self.store.finalized_header.slot()
         };
 
         if !is_slot_acceptable {
@@ -132,7 +132,7 @@ impl LightClientProcessor {
         // Look up the committee for the signature slot from the store
         let committee = sync_committee::committee_for_slot(
             update.signature_slot,
-            self.store.finalized_header.slot,
+            self.store.finalized_header.slot(),
             &self.store.current_sync_committee,
             self.store.next_sync_committee.as_ref(),
             &self.chain_spec,
@@ -166,17 +166,17 @@ impl LightClientProcessor {
 
         // Update finalized header (verify finality proof first)
         if let Some(ref finalized_header) = update.finalized_header {
-            if finalized_header.slot > self.store.finalized_header.slot {
+            if finalized_header.slot() > self.store.finalized_header.slot() {
                 let finalized_header_root = finalized_header.hash_tree_root()?;
                 verify_finality_branch(
                     &finalized_header_root,
                     &update.finality_branch,
-                    update.attested_header.slot,
-                    &update.attested_header.state_root,
+                    update.attested_header.slot(),
+                    update.attested_header.state_root(),
                     &self.chain_spec,
                 )?;
 
-                self.store.finalized_header = finalized_header.clone(); // <- why clone here?  seems much more intuitive to consume the update's finalized header no?
+                self.store.finalized_header = finalized_header.clone();
                 state_changed = true;
             }
         }
@@ -186,7 +186,7 @@ impl LightClientProcessor {
         if let Some(ref finalized_header) = update.finalized_header {
             let update_finalized_period = self
                 .chain_spec
-                .slot_to_sync_committee_period(finalized_header.slot);
+                .slot_to_sync_committee_period(finalized_header.slot());
 
             if update_finalized_period == store_period + 1
                 && self.store.next_sync_committee.is_some()
@@ -219,7 +219,7 @@ impl LightClientProcessor {
         }
 
         // Update optimistic header if this is better
-        if update.attested_header.slot > self.store.optimistic_header.slot {
+        if update.attested_header.slot() > self.store.optimistic_header.slot() {
             self.store.optimistic_header = update.attested_header.clone();
             state_changed = true;
         }
@@ -234,14 +234,14 @@ impl LightClientProcessor {
         Ok(state_changed)
     }
 
-    /// Current finalized header
+    /// Current finalized header (beacon block header, regardless of fork).
     pub(crate) fn finalized_header(&self) -> &BeaconBlockHeader {
-        &self.store.finalized_header
+        self.store.finalized_header.beacon()
     }
 
-    /// Current optimistic header (may be ahead of finalized)
+    /// Current optimistic header (may be ahead of finalized).
     pub(crate) fn optimistic_header(&self) -> &BeaconBlockHeader {
-        &self.store.optimistic_header
+        self.store.optimistic_header.beacon()
     }
 
     /// Current sync committee
@@ -289,11 +289,11 @@ mod tests {
     fn test_light_client_processor_creation() {
         let bootstrap = load_bootstrap_fixture();
         let chain_spec = crate::config::ChainSpec::minimal();
-        let expected_slot = bootstrap.header.slot;
+        let expected_slot = bootstrap.header.slot();
 
         let processor = LightClientProcessor::new(
             chain_spec,
-            bootstrap.header,
+            bootstrap.header.beacon().clone(),
             bootstrap.current_sync_committee,
             &bootstrap.current_sync_committee_branch,
             bootstrap.genesis_validators_root,
@@ -313,7 +313,7 @@ mod tests {
 
         let result = LightClientProcessor::new(
             chain_spec,
-            bootstrap.header,
+            bootstrap.header.beacon().clone(),
             bootstrap.current_sync_committee,
             &empty_branch,
             bootstrap.genesis_validators_root,
@@ -326,11 +326,11 @@ mod tests {
     fn test_light_client_update_validation() {
         let bootstrap = load_bootstrap_fixture();
         let chain_spec = crate::config::ChainSpec::minimal();
-        let bootstrap_slot = bootstrap.header.slot;
+        let bootstrap_slot = bootstrap.header.slot();
 
         let processor = LightClientProcessor::new(
             chain_spec,
-            bootstrap.header,
+            bootstrap.header.beacon().clone(),
             bootstrap.current_sync_committee,
             &bootstrap.current_sync_committee_branch,
             bootstrap.genesis_validators_root,
@@ -373,11 +373,11 @@ mod tests {
     fn test_store_period_correct_after_rotation() {
         let bootstrap = load_bootstrap_fixture();
         let chain_spec = crate::config::ChainSpec::minimal();
-        let bootstrap_slot = bootstrap.header.slot;
+        let bootstrap_slot = bootstrap.header.slot();
 
         let mut processor = LightClientProcessor::new(
             chain_spec.clone(),
-            bootstrap.header,
+            bootstrap.header.beacon().clone(),
             bootstrap.current_sync_committee.clone(),
             &bootstrap.current_sync_committee_branch,
             bootstrap.genesis_validators_root,
@@ -413,7 +413,7 @@ mod tests {
                 .take()
                 .expect("checked is_some");
             // Advance finalized header to match (as apply_light_client_update does)
-            processor.store.finalized_header = finalized;
+            processor.store.finalized_header = LightClientHeader::altair(finalized);
         }
 
         // Assertions: store state is correct after rotation

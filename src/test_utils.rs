@@ -13,7 +13,8 @@
 //! ```
 
 use crate::types::consensus::{
-    BeaconBlockHeader, LightClientBootstrap, LightClientUpdate, SyncAggregate, SyncCommittee,
+    BeaconBlockHeader, LightClientBootstrap, LightClientHeader as PubLightClientHeader,
+    LightClientUpdate, SyncAggregate, SyncCommittee,
 };
 use crate::types::primitives::Root;
 use ssz_rs::prelude::*;
@@ -155,8 +156,12 @@ impl RawLightClientUpdate {
             .collect();
 
         Ok(LightClientUpdate {
-            attested_header: self.attested_header.beacon.into_beacon_block_header(),
-            finalized_header: Some(self.finalized_header.beacon.into_beacon_block_header()),
+            attested_header: PubLightClientHeader::altair(
+                self.attested_header.beacon.into_beacon_block_header(),
+            ),
+            finalized_header: Some(PubLightClientHeader::altair(
+                self.finalized_header.beacon.into_beacon_block_header(),
+            )),
             finality_branch,
             next_sync_committee: if has_sync_committee {
                 Some(sync_committee)
