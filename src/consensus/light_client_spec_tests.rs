@@ -57,7 +57,7 @@ fn initialize_processor() -> LightClientProcessor {
 
     LightClientProcessor::new(
         chain_spec,
-        bootstrap.header.beacon().clone(),
+        bootstrap.header.clone(),
         bootstrap.current_sync_committee,
         &bootstrap.current_sync_committee_branch,
         bootstrap.genesis_validators_root,

@@ -31,7 +31,7 @@ impl LightClientProcessor {
     /// Returns an error if the sync committee branch proof fails verification.
     pub(crate) fn new(
         chain_spec: ChainSpec,
-        trusted_header: BeaconBlockHeader,
+        trusted_header: LightClientHeader,
         current_sync_committee: SyncCommittee,
         current_sync_committee_branch: &[Root],
         genesis_validators_root: Root,
@@ -40,13 +40,13 @@ impl LightClientProcessor {
         verify_bootstrap_sync_committee(
             &current_sync_committee,
             current_sync_committee_branch,
-            trusted_header.slot,
-            &trusted_header.state_root,
+            trusted_header.slot(),
+            trusted_header.state_root(),
             &chain_spec,
         )?;
 
         let store = LightClientStore::new(
-            LightClientHeader::altair(trusted_header),
+            trusted_header,
             current_sync_committee,
             genesis_validators_root,
         );
@@ -293,7 +293,7 @@ mod tests {
 
         let processor = LightClientProcessor::new(
             chain_spec,
-            bootstrap.header.beacon().clone(),
+            bootstrap.header.clone(),
             bootstrap.current_sync_committee,
             &bootstrap.current_sync_committee_branch,
             bootstrap.genesis_validators_root,
@@ -313,7 +313,7 @@ mod tests {
 
         let result = LightClientProcessor::new(
             chain_spec,
-            bootstrap.header.beacon().clone(),
+            bootstrap.header.clone(),
             bootstrap.current_sync_committee,
             &empty_branch,
             bootstrap.genesis_validators_root,
@@ -330,7 +330,7 @@ mod tests {
 
         let processor = LightClientProcessor::new(
             chain_spec,
-            bootstrap.header.beacon().clone(),
+            bootstrap.header.clone(),
             bootstrap.current_sync_committee,
             &bootstrap.current_sync_committee_branch,
             bootstrap.genesis_validators_root,
@@ -377,7 +377,7 @@ mod tests {
 
         let mut processor = LightClientProcessor::new(
             chain_spec.clone(),
-            bootstrap.header.beacon().clone(),
+            bootstrap.header.clone(),
             bootstrap.current_sync_committee.clone(),
             &bootstrap.current_sync_committee_branch,
             bootstrap.genesis_validators_root,

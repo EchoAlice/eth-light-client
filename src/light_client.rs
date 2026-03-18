@@ -218,7 +218,7 @@ impl LightClient {
     pub fn new(chain_spec: ChainSpec, bootstrap: LightClientBootstrap) -> Result<Self> {
         let inner = LightClientProcessor::new(
             chain_spec,
-            bootstrap.header.beacon().clone(),
+            bootstrap.header,
             bootstrap.current_sync_committee,
             &bootstrap.current_sync_committee_branch,
             bootstrap.genesis_validators_root,
