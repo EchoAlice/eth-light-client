@@ -51,14 +51,6 @@ pub(crate) fn load_altair_bootstrap() -> LightClientBootstrap {
     bootstrap.into_bootstrap()
 }
 
-/// Load Bellatrix bootstrap data from test fixtures.
-#[allow(dead_code)]
-pub(crate) fn load_bellatrix_bootstrap() -> LightClientBootstrap {
-    let loader = SpecTestLoader::minimal_bellatrix_sync();
-    let bootstrap = loader.load_bootstrap().expect("Failed to load bootstrap");
-    bootstrap.into_bootstrap()
-}
-
 fn initialize_processor_from(loader: &SpecTestLoader) -> LightClientProcessor {
     let bootstrap = loader
         .load_bootstrap()
