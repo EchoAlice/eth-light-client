@@ -21,6 +21,54 @@ use ssz_rs::prelude::*;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// Fork tag used by the fixture loader to wrap deserialized headers
+/// into the correct [`LightClientHeader`](PubLightClientHeader) variant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TestFork {
+    Altair,
+    Bellatrix,
+}
+
+impl TestFork {
+    /// Wrap a `BeaconBlockHeader` into the corresponding `LightClientHeader` variant.
+    fn wrap_header(&self, beacon: BeaconBlockHeader) -> PubLightClientHeader {
+        match self {
+            TestFork::Altair => PubLightClientHeader::altair(beacon),
+            TestFork::Bellatrix => PubLightClientHeader::bellatrix(beacon),
+        }
+    }
+
+    /// Return a `ChainSpec` whose fork schedule matches the spec-test fixtures
+    /// for this fork. Bellatrix fixtures expect `BELLATRIX_FORK_EPOCH: 0`.
+    pub fn chain_spec(&self) -> crate::config::ChainSpec {
+        use crate::config::{ChainSpec, ChainSpecConfig};
+        match self {
+            TestFork::Altair => ChainSpec::minimal(),
+            TestFork::Bellatrix => {
+                // Matches the fixture config.yaml: both Altair and Bellatrix at epoch 0.
+                ChainSpec::try_from_config(ChainSpecConfig {
+                    genesis_time: 1578009600,
+                    seconds_per_slot: 6,
+                    slots_per_epoch: 8,
+                    epochs_per_sync_committee_period: 8,
+                    sync_committee_size: 32,
+                    altair_fork_version: [0x01, 0x00, 0x00, 0x01],
+                    altair_fork_epoch: 0,
+                    bellatrix_fork_version: [0x02, 0x00, 0x00, 0x01],
+                    bellatrix_fork_epoch: 0,
+                    capella_fork_version: [0x03, 0x00, 0x00, 0x01],
+                    capella_fork_epoch: u64::MAX,
+                    deneb_fork_version: [0x04, 0x00, 0x00, 0x01],
+                    deneb_fork_epoch: u64::MAX,
+                    electra_fork_version: [0x05, 0x00, 0x00, 0x01],
+                    electra_fork_epoch: u64::MAX,
+                })
+                .expect("bellatrix minimal config is valid")
+            }
+        }
+    }
+}
+
 // ============================================================================
 // SSZ Deserialization Types (internal)
 // ============================================================================
@@ -126,7 +174,7 @@ struct RawLightClientUpdate {
 }
 
 impl RawLightClientUpdate {
-    fn into_light_client_update(self) -> Result<LightClientUpdate, String> {
+    fn into_light_client_update(self, fork: TestFork) -> Result<LightClientUpdate, String> {
         let sync_committee = self.next_sync_committee.to_sync_committee()?;
         let sync_aggregate = self.sync_aggregate.into_sync_aggregate()?;
 
@@ -156,12 +204,11 @@ impl RawLightClientUpdate {
             .collect();
 
         Ok(LightClientUpdate {
-            attested_header: PubLightClientHeader::altair(
-                self.attested_header.beacon.into_beacon_block_header(),
+            attested_header: fork
+                .wrap_header(self.attested_header.beacon.into_beacon_block_header()),
+            finalized_header: Some(
+                fork.wrap_header(self.finalized_header.beacon.into_beacon_block_header()),
             ),
-            finalized_header: Some(PubLightClientHeader::altair(
-                self.finalized_header.beacon.into_beacon_block_header(),
-            )),
             finality_branch,
             next_sync_committee: if has_sync_committee {
                 Some(sync_committee)
@@ -259,8 +306,8 @@ pub struct ForceUpdateStep {
 /// Bootstrap data loaded from spec test fixtures.
 #[derive(Debug, Clone)]
 pub struct BootstrapData {
-    /// The trusted beacon block header.
-    pub header: BeaconBlockHeader,
+    /// The trusted header (fork-aware).
+    pub header: PubLightClientHeader,
     /// The current sync committee.
     pub sync_committee: SyncCommittee,
     /// Merkle branch proving sync committee in state.
@@ -272,7 +319,7 @@ pub struct BootstrapData {
 impl BootstrapData {
     /// Convert to the public [`LightClientBootstrap`] type.
     pub fn into_bootstrap(self) -> LightClientBootstrap {
-        LightClientBootstrap::new(
+        LightClientBootstrap::from_header(
             self.header,
             self.sync_committee,
             self.branch,
@@ -286,6 +333,7 @@ impl BootstrapData {
 /// **Unstable:** This API may change without notice.
 pub struct SpecTestLoader {
     test_dir: PathBuf,
+    fork: TestFork,
 }
 
 impl SpecTestLoader {
@@ -296,14 +344,37 @@ impl SpecTestLoader {
     pub fn minimal_altair_sync() -> Self {
         let test_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/minimal/altair/light_client/sync/light_client_sync");
-        Self { test_dir }
+        Self {
+            test_dir,
+            fork: TestFork::Altair,
+        }
     }
 
-    /// Create a loader for a custom test directory.
-    pub fn from_path(path: impl Into<PathBuf>) -> Self {
+    /// Create a loader for the minimal/bellatrix sync test.
+    ///
+    /// Uses real Bellatrix spec fixtures (same `LightClientHeader` shape as
+    /// Altair — no execution payload header yet — but independently generated
+    /// BLS signatures, merkle proofs, and header data).
+    pub fn minimal_bellatrix_sync() -> Self {
+        let test_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/minimal/bellatrix/light_client/sync/light_client_sync");
+        Self {
+            test_dir,
+            fork: TestFork::Bellatrix,
+        }
+    }
+
+    /// Create a loader for a custom test directory with an explicit fork tag.
+    pub fn from_path(path: impl Into<PathBuf>, fork: TestFork) -> Self {
         Self {
             test_dir: path.into(),
+            fork,
         }
+    }
+
+    /// Return a `ChainSpec` matching this loader's fork.
+    pub fn chain_spec(&self) -> crate::config::ChainSpec {
+        self.fork.chain_spec()
     }
 
     /// Load bootstrap data from the test fixtures.
@@ -327,7 +398,9 @@ impl SpecTestLoader {
         let genesis_validators_root = hex_to_root(&meta.genesis_validators_root)?;
 
         Ok(BootstrapData {
-            header: bootstrap.header.beacon.into_beacon_block_header(),
+            header: self
+                .fork
+                .wrap_header(bootstrap.header.beacon.into_beacon_block_header()),
             sync_committee,
             branch,
             genesis_validators_root,
@@ -340,7 +413,9 @@ impl SpecTestLoader {
     pub fn load_update(&self, name: &str) -> Result<LightClientUpdate, Box<dyn std::error::Error>> {
         let update_path = self.test_dir.join(format!("{}.ssz_snappy", name));
         let raw_update: RawLightClientUpdate = load_ssz_snappy(&update_path)?;
-        raw_update.into_light_client_update().map_err(|e| e.into())
+        raw_update
+            .into_light_client_update(self.fork)
+            .map_err(|e| e.into())
     }
 
     /// Load test metadata from meta.yaml.

@@ -52,8 +52,15 @@ pub(crate) fn load_bootstrap_fixture() -> LightClientBootstrap {
 }
 
 fn initialize_processor() -> LightClientProcessor {
-    let bootstrap = load_bootstrap_fixture();
-    let chain_spec = crate::config::ChainSpec::minimal();
+    initialize_processor_from(&SpecTestLoader::minimal_altair_sync())
+}
+
+fn initialize_processor_from(loader: &SpecTestLoader) -> LightClientProcessor {
+    let bootstrap = loader
+        .load_bootstrap()
+        .expect("Failed to load bootstrap")
+        .into_bootstrap();
+    let chain_spec = loader.chain_spec();
 
     LightClientProcessor::new(
         chain_spec,
@@ -183,6 +190,41 @@ fn test_altair_light_client_sync() {
     let mut failed = 0;
 
     println!("altair light client sync (steps 1-5):");
+
+    for (i, step) in steps.iter().enumerate().take(5) {
+        match step {
+            TestStep::ProcessUpdate { process_update } => {
+                let result =
+                    execute_process_update_step(i + 1, process_update, &mut processor, &loader);
+                if result.passed {
+                    passed += 1;
+                } else {
+                    failed += 1;
+                }
+            }
+            TestStep::ForceUpdate { .. } => {
+                println!("  step {}: force_update (skipped)", i + 1);
+            }
+        }
+    }
+
+    println!("  result: {}/{} passed", passed, passed + failed);
+    assert_eq!(failed, 0, "{} step(s) failed", failed);
+}
+
+/// Bellatrix happy path: same fixtures as Altair (identical header shape),
+/// but headers are tagged as `LightClientHeader::Bellatrix`.
+/// Proves the Bellatrix variant works end-to-end through the verifier.
+#[test]
+fn test_bellatrix_light_client_sync() {
+    let loader = SpecTestLoader::minimal_bellatrix_sync();
+    let steps = loader.load_steps().expect("Failed to load steps");
+    let mut processor = initialize_processor_from(&loader);
+
+    let mut passed = 0;
+    let mut failed = 0;
+
+    println!("bellatrix light client sync (steps 1-5):");
 
     for (i, step) in steps.iter().enumerate().take(5) {
         match step {

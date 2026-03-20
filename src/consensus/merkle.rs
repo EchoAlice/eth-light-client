@@ -375,12 +375,12 @@ mod tests {
         let computed_root = compute_sync_committee_root(&spec, &bootstrap.sync_committee);
 
         // Verify against the state root using the branch
-        let gindex = spec.current_sync_committee_gindex(bootstrap.header.slot);
+        let gindex = spec.current_sync_committee_gindex(bootstrap.header.slot());
         let is_valid = is_valid_merkle_branch(
             &computed_root,
             &bootstrap.branch,
             gindex,
-            &bootstrap.header.state_root,
+            bootstrap.header.state_root(),
         )
         .expect("Branch verification should not error");
 
