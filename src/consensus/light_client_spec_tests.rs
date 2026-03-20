@@ -44,15 +44,11 @@ fn detect_update_type(update: &LightClientUpdate) -> &'static str {
     }
 }
 
-/// Load bootstrap data from test fixtures.
-pub(crate) fn load_bootstrap_fixture() -> LightClientBootstrap {
+/// Load Altair bootstrap data from test fixtures.
+pub(crate) fn load_altair_bootstrap() -> LightClientBootstrap {
     let loader = SpecTestLoader::minimal_altair_sync();
     let bootstrap = loader.load_bootstrap().expect("Failed to load bootstrap");
     bootstrap.into_bootstrap()
-}
-
-fn initialize_processor() -> LightClientProcessor {
-    initialize_processor_from(&SpecTestLoader::minimal_altair_sync())
 }
 
 fn initialize_processor_from(loader: &SpecTestLoader) -> LightClientProcessor {
@@ -184,7 +180,7 @@ fn execute_force_update_step(
 fn test_altair_light_client_sync() {
     let loader = SpecTestLoader::minimal_altair_sync();
     let steps = loader.load_steps().expect("Failed to load steps");
-    let mut processor = initialize_processor();
+    let mut processor = initialize_processor_from(&loader);
 
     let mut passed = 0;
     let mut failed = 0;
@@ -254,7 +250,7 @@ fn test_bellatrix_light_client_sync() {
 fn test_altair_light_client_sync_with_force_update() {
     let loader = SpecTestLoader::minimal_altair_sync();
     let steps = loader.load_steps().expect("Failed to load steps");
-    let mut processor = initialize_processor();
+    let mut processor = initialize_processor_from(&loader);
 
     let mut passed = 0;
     let mut failed = 0;

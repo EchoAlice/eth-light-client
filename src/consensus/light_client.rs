@@ -268,7 +268,7 @@ impl LightClientProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::consensus::light_client_spec_tests::load_bootstrap_fixture;
+    use crate::consensus::light_client_spec_tests::load_altair_bootstrap;
     use crate::types::consensus::SyncAggregate;
 
     fn create_test_beacon_header(slot: Slot) -> BeaconBlockHeader {
@@ -287,7 +287,7 @@ mod tests {
 
     #[test]
     fn test_light_client_processor_creation() {
-        let bootstrap = load_bootstrap_fixture();
+        let bootstrap = load_altair_bootstrap();
         let chain_spec = crate::config::ChainSpec::minimal();
         let expected_slot = bootstrap.header.slot();
 
@@ -306,7 +306,7 @@ mod tests {
 
     #[test]
     fn test_light_client_processor_rejects_invalid_branch() {
-        let bootstrap = load_bootstrap_fixture();
+        let bootstrap = load_altair_bootstrap();
         let chain_spec = crate::config::ChainSpec::minimal();
 
         let empty_branch: Vec<Root> = vec![];
@@ -324,7 +324,7 @@ mod tests {
 
     #[test]
     fn test_light_client_update_validation() {
-        let bootstrap = load_bootstrap_fixture();
+        let bootstrap = load_altair_bootstrap();
         let chain_spec = crate::config::ChainSpec::minimal();
         let bootstrap_slot = bootstrap.header.slot();
 
@@ -371,7 +371,7 @@ mod tests {
     /// impossible.
     #[test]
     fn test_store_period_correct_after_rotation() {
-        let bootstrap = load_bootstrap_fixture();
+        let bootstrap = load_altair_bootstrap();
         let chain_spec = crate::config::ChainSpec::minimal();
         let bootstrap_slot = bootstrap.header.slot();
 
