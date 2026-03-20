@@ -1,16 +1,16 @@
 #![cfg(test)]
 //! # Light Client Sync Specification Tests
 //!
-//! Validates the Ethereum Altair light client sync protocol against official
+//! Validates the Ethereum light client sync protocol against official
 //! consensus-spec test vectors from https://github.com/ethereum/consensus-spec-tests
 //!
 //! ## Test Organization
 //!
-//! - `test_altair_light_client_sync` - Happy path test running steps 1-5 only
-//!   (skips `force_update` steps and steps 6-10 that depend on them). Must always pass.
-//!
-//! - `test_altair_light_client_sync_with_force_update` - Full spec test including
-//!   all 10 steps. Currently `#[ignore]` until `force_update` is implemented.
+//! - `test_altair_light_client_sync` — Altair happy path (steps 1-5).
+//! - `test_bellatrix_light_client_sync` — Bellatrix happy path (steps 1-5),
+//!   using real Bellatrix spec fixtures.
+//! - `test_altair_light_client_sync_with_force_update` — Full Altair spec test
+//!   including all 10 steps. Currently `#[ignore]` until `force_update` is implemented.
 //!
 //! ## Step Summary
 //!
@@ -27,43 +27,6 @@ use crate::test_utils::{
     hex_to_root, ForceUpdateStep, ProcessUpdateStep, SpecTestLoader, TestStep,
 };
 use crate::types::consensus::{LightClientBootstrap, LightClientUpdate};
-
-// ============================================================================
-// Shared Helper Functions
-// ============================================================================
-
-fn detect_update_type(update: &LightClientUpdate) -> &'static str {
-    match (
-        update.finalized_header.is_some(),
-        update.next_sync_committee.is_some(),
-    ) {
-        (false, false) => "Optimistic",
-        (true, false) => "Finality",
-        (false, true) => "Committee",
-        (true, true) => "Combined",
-    }
-}
-
-/// Load bootstrap data from test fixtures.
-pub(crate) fn load_bootstrap_fixture() -> LightClientBootstrap {
-    let loader = SpecTestLoader::minimal_altair_sync();
-    let bootstrap = loader.load_bootstrap().expect("Failed to load bootstrap");
-    bootstrap.into_bootstrap()
-}
-
-fn initialize_processor() -> LightClientProcessor {
-    let bootstrap = load_bootstrap_fixture();
-    let chain_spec = crate::config::ChainSpec::minimal();
-
-    LightClientProcessor::new(
-        chain_spec,
-        bootstrap.header.clone(),
-        bootstrap.current_sync_committee,
-        &bootstrap.current_sync_committee_branch,
-        bootstrap.genesis_validators_root,
-    )
-    .expect("Failed to initialize LightClientProcessor")
-}
 
 struct StepResult {
     passed: bool,
@@ -168,6 +131,46 @@ fn execute_force_update_step(
 }
 
 // ============================================================================
+// Shared Helper Functions
+// ============================================================================
+
+fn detect_update_type(update: &LightClientUpdate) -> &'static str {
+    match (
+        update.finalized_header.is_some(),
+        update.next_sync_committee.is_some(),
+    ) {
+        (false, false) => "Optimistic",
+        (true, false) => "Finality",
+        (false, true) => "Committee",
+        (true, true) => "Combined",
+    }
+}
+
+/// Load Altair bootstrap data from test fixtures.
+pub(crate) fn load_altair_bootstrap() -> LightClientBootstrap {
+    let loader = SpecTestLoader::minimal_altair_sync();
+    let bootstrap = loader.load_bootstrap().expect("Failed to load bootstrap");
+    bootstrap.into_bootstrap()
+}
+
+fn initialize_processor_from(loader: &SpecTestLoader) -> LightClientProcessor {
+    let bootstrap = loader
+        .load_bootstrap()
+        .expect("Failed to load bootstrap")
+        .into_bootstrap();
+    let chain_spec = loader.chain_spec();
+
+    LightClientProcessor::new(
+        chain_spec,
+        bootstrap.header.clone(),
+        bootstrap.current_sync_committee,
+        &bootstrap.current_sync_committee_branch,
+        bootstrap.genesis_validators_root,
+    )
+    .expect("Failed to initialize LightClientProcessor")
+}
+
+// ============================================================================
 // Tests
 // ============================================================================
 
@@ -177,12 +180,47 @@ fn execute_force_update_step(
 fn test_altair_light_client_sync() {
     let loader = SpecTestLoader::minimal_altair_sync();
     let steps = loader.load_steps().expect("Failed to load steps");
-    let mut processor = initialize_processor();
+    let mut processor = initialize_processor_from(&loader);
 
     let mut passed = 0;
     let mut failed = 0;
 
     println!("altair light client sync (steps 1-5):");
+
+    for (i, step) in steps.iter().enumerate().take(5) {
+        match step {
+            TestStep::ProcessUpdate { process_update } => {
+                let result =
+                    execute_process_update_step(i + 1, process_update, &mut processor, &loader);
+                if result.passed {
+                    passed += 1;
+                } else {
+                    failed += 1;
+                }
+            }
+            TestStep::ForceUpdate { .. } => {
+                println!("  step {}: force_update (skipped)", i + 1);
+            }
+        }
+    }
+
+    println!("  result: {}/{} passed", passed, passed + failed);
+    assert_eq!(failed, 0, "{} step(s) failed", failed);
+}
+
+/// Bellatrix happy path using real Bellatrix spec fixtures.
+/// Headers are tagged as `LightClientHeader::Bellatrix` and verified
+/// with a Bellatrix-compatible `ChainSpec` (BELLATRIX_FORK_EPOCH=0).
+#[test]
+fn test_bellatrix_light_client_sync() {
+    let loader = SpecTestLoader::minimal_bellatrix_sync();
+    let steps = loader.load_steps().expect("Failed to load steps");
+    let mut processor = initialize_processor_from(&loader);
+
+    let mut passed = 0;
+    let mut failed = 0;
+
+    println!("bellatrix light client sync (steps 1-5):");
 
     for (i, step) in steps.iter().enumerate().take(5) {
         match step {
@@ -212,7 +250,7 @@ fn test_altair_light_client_sync() {
 fn test_altair_light_client_sync_with_force_update() {
     let loader = SpecTestLoader::minimal_altair_sync();
     let steps = loader.load_steps().expect("Failed to load steps");
-    let mut processor = initialize_processor();
+    let mut processor = initialize_processor_from(&loader);
 
     let mut passed = 0;
     let mut failed = 0;

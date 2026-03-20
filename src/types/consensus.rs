@@ -353,15 +353,30 @@ pub struct LightClientBootstrap {
 }
 
 impl LightClientBootstrap {
-    /// Create a new bootstrap package from a `BeaconBlockHeader` (Altair).
+    /// Create a new bootstrap package from a `BeaconBlockHeader` (convenience, wraps as Altair).
     pub fn new(
         header: BeaconBlockHeader,
         current_sync_committee: SyncCommittee,
         current_sync_committee_branch: Vec<Root>,
         genesis_validators_root: Root,
     ) -> Self {
+        Self::from_header(
+            LightClientHeader::altair(header),
+            current_sync_committee,
+            current_sync_committee_branch,
+            genesis_validators_root,
+        )
+    }
+
+    /// Create a new bootstrap package from a fork-aware [`LightClientHeader`].
+    pub fn from_header(
+        header: LightClientHeader,
+        current_sync_committee: SyncCommittee,
+        current_sync_committee_branch: Vec<Root>,
+        genesis_validators_root: Root,
+    ) -> Self {
         Self {
-            header: LightClientHeader::altair(header),
+            header,
             current_sync_committee,
             current_sync_committee_branch,
             genesis_validators_root,

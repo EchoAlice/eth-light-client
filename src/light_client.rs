@@ -496,11 +496,11 @@ mod tests {
     // ------------------------------------------------------------------------
 
     // Import the spec test fixture loader
-    use crate::consensus::light_client_spec_tests::load_bootstrap_fixture;
+    use crate::consensus::light_client_spec_tests::load_altair_bootstrap;
 
     #[test]
     fn test_light_client_creation() {
-        let bootstrap = load_bootstrap_fixture();
+        let bootstrap = load_altair_bootstrap();
         let chain_spec = ChainSpec::minimal();
         let expected_slot = bootstrap.header.slot();
 
@@ -512,7 +512,7 @@ mod tests {
 
     #[test]
     fn test_light_client_chain_spec() {
-        let bootstrap = load_bootstrap_fixture();
+        let bootstrap = load_altair_bootstrap();
         let chain_spec = ChainSpec::minimal();
 
         let client = LightClient::new(chain_spec, bootstrap).expect("should create");
@@ -524,7 +524,7 @@ mod tests {
 
     #[test]
     fn test_light_client_sync_committee_access() {
-        let bootstrap = load_bootstrap_fixture();
+        let bootstrap = load_altair_bootstrap();
         let chain_spec = ChainSpec::minimal();
 
         let client = LightClient::new(chain_spec, bootstrap).expect("should create");
