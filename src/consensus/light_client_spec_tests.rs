@@ -28,46 +28,6 @@ use crate::test_utils::{
 };
 use crate::types::consensus::{LightClientBootstrap, LightClientUpdate};
 
-// ============================================================================
-// Shared Helper Functions
-// ============================================================================
-
-fn detect_update_type(update: &LightClientUpdate) -> &'static str {
-    match (
-        update.finalized_header.is_some(),
-        update.next_sync_committee.is_some(),
-    ) {
-        (false, false) => "Optimistic",
-        (true, false) => "Finality",
-        (false, true) => "Committee",
-        (true, true) => "Combined",
-    }
-}
-
-/// Load Altair bootstrap data from test fixtures.
-pub(crate) fn load_altair_bootstrap() -> LightClientBootstrap {
-    let loader = SpecTestLoader::minimal_altair_sync();
-    let bootstrap = loader.load_bootstrap().expect("Failed to load bootstrap");
-    bootstrap.into_bootstrap()
-}
-
-fn initialize_processor_from(loader: &SpecTestLoader) -> LightClientProcessor {
-    let bootstrap = loader
-        .load_bootstrap()
-        .expect("Failed to load bootstrap")
-        .into_bootstrap();
-    let chain_spec = loader.chain_spec();
-
-    LightClientProcessor::new(
-        chain_spec,
-        bootstrap.header.clone(),
-        bootstrap.current_sync_committee,
-        &bootstrap.current_sync_committee_branch,
-        bootstrap.genesis_validators_root,
-    )
-    .expect("Failed to initialize LightClientProcessor")
-}
-
 struct StepResult {
     passed: bool,
 }
@@ -168,6 +128,46 @@ fn execute_force_update_step(
     }
 
     step_passed
+}
+
+// ============================================================================
+// Shared Helper Functions
+// ============================================================================
+
+fn detect_update_type(update: &LightClientUpdate) -> &'static str {
+    match (
+        update.finalized_header.is_some(),
+        update.next_sync_committee.is_some(),
+    ) {
+        (false, false) => "Optimistic",
+        (true, false) => "Finality",
+        (false, true) => "Committee",
+        (true, true) => "Combined",
+    }
+}
+
+/// Load Altair bootstrap data from test fixtures.
+pub(crate) fn load_altair_bootstrap() -> LightClientBootstrap {
+    let loader = SpecTestLoader::minimal_altair_sync();
+    let bootstrap = loader.load_bootstrap().expect("Failed to load bootstrap");
+    bootstrap.into_bootstrap()
+}
+
+fn initialize_processor_from(loader: &SpecTestLoader) -> LightClientProcessor {
+    let bootstrap = loader
+        .load_bootstrap()
+        .expect("Failed to load bootstrap")
+        .into_bootstrap();
+    let chain_spec = loader.chain_spec();
+
+    LightClientProcessor::new(
+        chain_spec,
+        bootstrap.header.clone(),
+        bootstrap.current_sync_committee,
+        &bootstrap.current_sync_committee_branch,
+        bootstrap.genesis_validators_root,
+    )
+    .expect("Failed to initialize LightClientProcessor")
 }
 
 // ============================================================================
