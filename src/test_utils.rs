@@ -337,7 +337,7 @@ pub struct SpecTestLoader {
 }
 
 impl SpecTestLoader {
-    /// Create a loader for the default minimal/altair sync test.
+    /// Create a loader for the minimal/altair sync test.
     ///
     /// Looks for fixtures at `tests/fixtures/minimal/altair/light_client/sync/light_client_sync`
     /// relative to `CARGO_MANIFEST_DIR`.

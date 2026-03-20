@@ -1,16 +1,16 @@
 #![cfg(test)]
 //! # Light Client Sync Specification Tests
 //!
-//! Validates the Ethereum Altair light client sync protocol against official
+//! Validates the Ethereum light client sync protocol against official
 //! consensus-spec test vectors from https://github.com/ethereum/consensus-spec-tests
 //!
 //! ## Test Organization
 //!
-//! - `test_altair_light_client_sync` - Happy path test running steps 1-5 only
-//!   (skips `force_update` steps and steps 6-10 that depend on them). Must always pass.
-//!
-//! - `test_altair_light_client_sync_with_force_update` - Full spec test including
-//!   all 10 steps. Currently `#[ignore]` until `force_update` is implemented.
+//! - `test_altair_light_client_sync` — Altair happy path (steps 1-5).
+//! - `test_bellatrix_light_client_sync` — Bellatrix happy path (steps 1-5),
+//!   using real Bellatrix spec fixtures.
+//! - `test_altair_light_client_sync_with_force_update` — Full Altair spec test
+//!   including all 10 steps. Currently `#[ignore]` until `force_update` is implemented.
 //!
 //! ## Step Summary
 //!
@@ -47,6 +47,14 @@ fn detect_update_type(update: &LightClientUpdate) -> &'static str {
 /// Load Altair bootstrap data from test fixtures.
 pub(crate) fn load_altair_bootstrap() -> LightClientBootstrap {
     let loader = SpecTestLoader::minimal_altair_sync();
+    let bootstrap = loader.load_bootstrap().expect("Failed to load bootstrap");
+    bootstrap.into_bootstrap()
+}
+
+/// Load Bellatrix bootstrap data from test fixtures.
+#[allow(dead_code)]
+pub(crate) fn load_bellatrix_bootstrap() -> LightClientBootstrap {
+    let loader = SpecTestLoader::minimal_bellatrix_sync();
     let bootstrap = loader.load_bootstrap().expect("Failed to load bootstrap");
     bootstrap.into_bootstrap()
 }
@@ -208,9 +216,9 @@ fn test_altair_light_client_sync() {
     assert_eq!(failed, 0, "{} step(s) failed", failed);
 }
 
-/// Bellatrix happy path: same fixtures as Altair (identical header shape),
-/// but headers are tagged as `LightClientHeader::Bellatrix`.
-/// Proves the Bellatrix variant works end-to-end through the verifier.
+/// Bellatrix happy path using real Bellatrix spec fixtures.
+/// Headers are tagged as `LightClientHeader::Bellatrix` and verified
+/// with a Bellatrix-compatible `ChainSpec` (BELLATRIX_FORK_EPOCH=0).
 #[test]
 fn test_bellatrix_light_client_sync() {
     let loader = SpecTestLoader::minimal_bellatrix_sync();
