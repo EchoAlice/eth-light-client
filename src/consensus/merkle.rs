@@ -10,7 +10,7 @@
 
 use crate::config::ChainSpec;
 use crate::error::{Error, Result};
-use crate::types::consensus::SyncCommittee;
+use crate::types::consensus::{LightClientHeader, SyncCommittee};
 use crate::types::primitives::Root;
 use crate::types::primitives::Slot;
 use tree_hash::TreeHash;
@@ -128,6 +128,62 @@ pub(crate) fn verify_finality_branch(
     if !is_valid {
         return Err(Error::InvalidInput(
             "Finality branch merkle verification failed".to_string(),
+        ));
+    }
+
+    Ok(())
+}
+
+/// Validate that a `LightClientHeader` is internally consistent.
+///
+/// Per the consensus spec's `is_valid_light_client_header`:
+/// - Altair/Bellatrix: no execution payload (nothing to verify).
+/// - Capella+: the `execution_branch` must prove that `execution` is at
+///   `EXECUTION_PAYLOAD_GINDEX` within `beacon.body_root`.
+pub(crate) fn validate_light_client_header(header: &LightClientHeader) -> Result<()> {
+    match header {
+        LightClientHeader::Altair(_) | LightClientHeader::Bellatrix(_) => Ok(()),
+        LightClientHeader::Capella(h) => {
+            let execution_root = h.execution.hash_tree_root();
+            verify_execution_payload_inclusion(
+                &execution_root,
+                &h.execution_branch,
+                &h.beacon.body_root,
+            )
+        }
+    }
+}
+
+/// Generalized index for the execution payload within BeaconBlockBody.
+///
+/// This is constant across all forks that include execution payloads
+/// (Capella, Deneb, Electra). Used to verify that the execution payload
+/// header in a `LightClientHeader` is genuinely embedded in `beacon.body_root`.
+const EXECUTION_PAYLOAD_GINDEX: u64 = 25;
+
+/// Verify that an execution payload header is embedded in the beacon block body.
+///
+/// For Capella and later forks, the `LightClientHeader` includes an execution
+/// payload header and a merkle branch proving it is at `EXECUTION_PAYLOAD_GINDEX`
+/// (25) within the beacon block body tree.
+///
+/// This is a header-local check: it only uses fields from the header itself
+/// (execution hash, execution_branch, beacon.body_root).
+pub(crate) fn verify_execution_payload_inclusion(
+    execution_root: &Root,
+    execution_branch: &[Root],
+    body_root: &Root,
+) -> Result<()> {
+    let is_valid = is_valid_merkle_branch(
+        execution_root,
+        execution_branch,
+        EXECUTION_PAYLOAD_GINDEX,
+        body_root,
+    )?;
+
+    if !is_valid {
+        return Err(Error::InvalidInput(
+            "Execution payload merkle branch verification failed".to_string(),
         ));
     }
 

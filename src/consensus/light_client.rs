@@ -1,5 +1,7 @@
 use crate::config::ChainSpec;
-use crate::consensus::merkle::{verify_bootstrap_sync_committee, verify_finality_branch};
+use crate::consensus::merkle::{
+    validate_light_client_header, verify_bootstrap_sync_committee, verify_finality_branch,
+};
 use crate::consensus::sync_committee;
 use crate::error::{Error, Result};
 use crate::types::consensus::{
@@ -97,6 +99,12 @@ impl LightClientProcessor {
     ) -> Result<()> {
         // Basic validation: signature_slot > attested_header.slot, supermajority participation
         update.validate_basic(&self.store.current_sync_committee)?;
+
+        // Validate header-local consistency (execution branch for Capella+).
+        validate_light_client_header(&update.attested_header)?;
+        if let Some(ref finalized) = update.finalized_header {
+            validate_light_client_header(finalized)?;
+        }
 
         // Spec: current_slot >= signature_slot (strict, no tolerance)
         if update.signature_slot > current_slot {
