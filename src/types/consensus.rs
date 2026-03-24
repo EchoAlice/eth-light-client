@@ -115,6 +115,7 @@ pub struct ExecutionPayloadHeaderCapella {
     pub gas_limit: u64,
     pub gas_used: u64,
     pub timestamp: u64,
+    /// Variable-length extra data. Spec-bounded to [`MAX_EXTRA_DATA_BYTES`](Self::MAX_EXTRA_DATA_BYTES) (32) bytes.
     pub extra_data: Vec<u8>,
     pub base_fee_per_gas: U256,
     pub block_hash: Root,
@@ -123,6 +124,9 @@ pub struct ExecutionPayloadHeaderCapella {
 }
 
 impl ExecutionPayloadHeaderCapella {
+    /// Maximum length of `extra_data` per the consensus spec (`MAX_EXTRA_DATA_BYTES`).
+    pub const MAX_EXTRA_DATA_BYTES: usize = 32;
+
     /// Compute the SSZ `hash_tree_root` of this 15-field container.
     ///
     /// Uses `tree_hash::TreeHash::tree_hash_root()` for fields that implement
@@ -134,9 +138,19 @@ impl ExecutionPayloadHeaderCapella {
     /// - `Bloom`: ByteVector[256] → merkleize 8 chunks of 32 bytes
     /// - `ruint::U256`: 32-byte little-endian value (single chunk)
     ///
-    /// `extra_data` (`Vec<u8>`) uses `tree_hash`'s built-in list semantics.
-    pub fn hash_tree_root(&self) -> Root {
+    /// # Errors
+    ///
+    /// Returns an error if `extra_data` exceeds [`MAX_EXTRA_DATA_BYTES`](Self::MAX_EXTRA_DATA_BYTES).
+    pub fn hash_tree_root(&self) -> Result<Root> {
         use tree_hash::TreeHash;
+
+        if self.extra_data.len() > Self::MAX_EXTRA_DATA_BYTES {
+            return Err(Error::InvalidInput(format!(
+                "extra_data length {} exceeds MAX_EXTRA_DATA_BYTES ({})",
+                self.extra_data.len(),
+                Self::MAX_EXTRA_DATA_BYTES,
+            )));
+        }
 
         // Convert a tree_hash Hash256 to our Root type.
         fn to_root(h: tree_hash::Hash256) -> Root {
@@ -163,12 +177,12 @@ impl ExecutionPayloadHeaderCapella {
         }
 
         // extra_data: ByteList[MAX_EXTRA_DATA_BYTES=32].
-        // Pack into 1 chunk (max 32 bytes), then mix_in_length: hash(chunk || len).
+        // Pack into 1 chunk (≤32 bytes), then mix_in_length: hash(chunk || len).
         // tree_hash 0.5 lacks a Vec<u8> impl, so this is done manually.
+        // Caller must validate length before calling this.
         fn bytelist_root(data: &[u8]) -> Root {
             let mut chunk = [0u8; 32];
-            let len = data.len().min(32);
-            chunk[..len].copy_from_slice(&data[..len]);
+            chunk[..data.len()].copy_from_slice(data);
             let mut mix = [0u8; 64];
             mix[..32].copy_from_slice(&chunk);
             mix[32..40].copy_from_slice(&(data.len() as u64).to_le_bytes());
@@ -200,7 +214,7 @@ impl ExecutionPayloadHeaderCapella {
             leaf_bytes[i * 32..(i + 1) * 32].copy_from_slice(root);
         }
 
-        to_root(tree_hash::merkle_root(&leaf_bytes, 16))
+        Ok(to_root(tree_hash::merkle_root(&leaf_bytes, 16)))
     }
 }
 
@@ -260,7 +274,7 @@ impl LightClientHeader {
             Self::Bellatrix(h) => h.beacon.hash_tree_root(),
             Self::Capella(h) => {
                 let beacon_root = h.beacon.hash_tree_root()?;
-                let execution_root = h.execution.hash_tree_root();
+                let execution_root = h.execution.hash_tree_root()?;
 
                 // execution_branch: Vector[Bytes32, 4] → merkleize 4 × 32-byte leaves.
                 let mut branch_bytes = [0u8; 32 * 4];
