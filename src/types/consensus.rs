@@ -95,8 +95,8 @@ pub struct CapellaLightClientHeader {
     pub beacon: BeaconBlockHeader,
     pub execution: ExecutionPayloadHeaderCapella,
     /// Merkle branch proving `execution` is at gindex 25 in `beacon.body_root`.
-    /// Length = floorlog2(25) = 4.
-    pub execution_branch: Vec<Root>,
+    /// Fixed length = floorlog2(EXECUTION_PAYLOAD_GINDEX) = floorlog2(25) = 4.
+    pub execution_branch: [Root; 4],
 }
 
 /// Execution payload header for Capella (15 fields).
@@ -125,88 +125,82 @@ pub struct ExecutionPayloadHeaderCapella {
 impl ExecutionPayloadHeaderCapella {
     /// Compute the SSZ `hash_tree_root` of this 15-field container.
     ///
-    /// Manually implemented because the field types (Bloom, ByteList,
-    /// U256) don't all derive `TreeHash` from the `tree_hash` crate.
+    /// Uses `tree_hash::TreeHash::tree_hash_root()` for fields that implement
+    /// it (`u64`, `[u8; 32]`). Three field types need custom hashing because
+    /// `tree_hash` lacks impls for `[u8; 20]`, `Bloom` ([u8; 256]), and
+    /// `ruint::U256`:
+    ///
+    /// - `[u8; 20]` (Address): right-padded to 32 bytes
+    /// - `Bloom`: ByteVector[256] → merkleize 8 chunks of 32 bytes
+    /// - `ruint::U256`: 32-byte little-endian value (single chunk)
+    ///
+    /// `extra_data` (`Vec<u8>`) uses `tree_hash`'s built-in list semantics.
     pub fn hash_tree_root(&self) -> Root {
-        // Helper: hash a u64 as a 32-byte LE-padded chunk.
-        fn u64_root(v: u64) -> [u8; 32] {
-            let mut buf = [0u8; 32];
-            buf[..8].copy_from_slice(&v.to_le_bytes());
-            buf
+        use tree_hash::TreeHash;
+
+        // Convert a tree_hash Hash256 to our Root type.
+        fn to_root(h: tree_hash::Hash256) -> Root {
+            let mut r = [0u8; 32];
+            r.copy_from_slice(h.as_bytes());
+            r
         }
 
-        // Helper: hash a [u8; 20] address, right-padded to 32 bytes.
-        fn address_root(addr: &[u8; 20]) -> [u8; 32] {
+        // [u8; 20]: right-padded to 32 bytes (no tree_hash impl exists).
+        fn address_root(addr: &[u8; 20]) -> Root {
             let mut buf = [0u8; 32];
             buf[..20].copy_from_slice(addr);
             buf
         }
 
-        // logs_bloom: ByteVector[256] → merkleize 8 chunks of 32 bytes.
-        fn bloom_root(bloom: &Bloom) -> [u8; 32] {
-            let hash = tree_hash::merkle_root(&bloom.0, 8);
-            let mut r = [0u8; 32];
-            r.copy_from_slice(hash.as_bytes());
-            r
+        // Bloom: ByteVector[256] → merkleize 8 chunks of 32 bytes.
+        fn bloom_root(bloom: &Bloom) -> Root {
+            to_root(tree_hash::merkle_root(&bloom.0, 8))
         }
 
-        // extra_data: ByteList[MAX_EXTRA_DATA_BYTES=32] → mix_in_length.
-        // pack into 1 chunk (max 32 bytes), merkleize with limit=1, then
-        // hash(root || length).
-        fn bytelist_root(data: &[u8]) -> [u8; 32] {
+        // ruint::U256: 32-byte little-endian value (single chunk).
+        fn u256_root(v: &U256) -> Root {
+            v.to_le_bytes()
+        }
+
+        // extra_data: ByteList[MAX_EXTRA_DATA_BYTES=32].
+        // Pack into 1 chunk (max 32 bytes), then mix_in_length: hash(chunk || len).
+        // tree_hash 0.5 lacks a Vec<u8> impl, so this is done manually.
+        fn bytelist_root(data: &[u8]) -> Root {
             let mut chunk = [0u8; 32];
             let len = data.len().min(32);
             chunk[..len].copy_from_slice(&data[..len]);
-            // merkleize with limit=1 is just the chunk itself.
-            // mix_in_length: hash(chunk || le_bytes(length))
             let mut mix = [0u8; 64];
             mix[..32].copy_from_slice(&chunk);
             mix[32..40].copy_from_slice(&(data.len() as u64).to_le_bytes());
-            let hash = tree_hash::merkle_root(&mix, 2);
-            let mut r = [0u8; 32];
-            r.copy_from_slice(hash.as_bytes());
-            r
+            to_root(tree_hash::merkle_root(&mix, 2))
         }
 
-        // U256: 32-byte little-endian value (single chunk).
-        fn u256_root(v: &U256) -> [u8; 32] {
-            let mut buf = [0u8; 32];
-            let le_bytes: [u8; 32] = v.to_le_bytes();
-            buf.copy_from_slice(&le_bytes);
-            buf
-        }
-
-        // Collect the 15 field roots.
+        // Collect the 15 field roots using library impls where possible.
         let field_roots: [Root; 15] = [
-            self.parent_hash,                  // 0
-            address_root(&self.fee_recipient), // 1
-            self.state_root,                   // 2
-            self.receipts_root,                // 3
-            bloom_root(&self.logs_bloom),      // 4
-            self.prev_randao,                  // 5
-            u64_root(self.block_number),       // 6
-            u64_root(self.gas_limit),          // 7
-            u64_root(self.gas_used),           // 8
-            u64_root(self.timestamp),          // 9
-            bytelist_root(&self.extra_data),   // 10
-            u256_root(&self.base_fee_per_gas), // 11
-            self.block_hash,                   // 12
-            self.transactions_root,            // 13
-            self.withdrawals_root,             // 14
+            self.parent_hash,                            // 0: [u8; 32]
+            address_root(&self.fee_recipient),           // 1: [u8; 20]
+            self.state_root,                             // 2: [u8; 32]
+            self.receipts_root,                          // 3: [u8; 32]
+            bloom_root(&self.logs_bloom),                // 4: Bloom
+            self.prev_randao,                            // 5: [u8; 32]
+            to_root(self.block_number.tree_hash_root()), // 6: u64
+            to_root(self.gas_limit.tree_hash_root()),    // 7: u64
+            to_root(self.gas_used.tree_hash_root()),     // 8: u64
+            to_root(self.timestamp.tree_hash_root()),    // 9: u64
+            bytelist_root(&self.extra_data),             // 10: Vec<u8> (ByteList)
+            u256_root(&self.base_fee_per_gas),           // 11: U256
+            self.block_hash,                             // 12: [u8; 32]
+            self.transactions_root,                      // 13: [u8; 32]
+            self.withdrawals_root,                       // 14: [u8; 32]
         ];
 
         // 15-field container → pad to 16 leaves and merkleize.
-        let mut leaf_bytes = Vec::with_capacity(32 * 16);
-        for root in &field_roots {
-            leaf_bytes.extend_from_slice(root);
+        let mut leaf_bytes = [0u8; 32 * 16];
+        for (i, root) in field_roots.iter().enumerate() {
+            leaf_bytes[i * 32..(i + 1) * 32].copy_from_slice(root);
         }
-        // Pad the 16th leaf with zeros.
-        leaf_bytes.extend_from_slice(&[0u8; 32]);
 
-        let hash = tree_hash::merkle_root(&leaf_bytes, 16);
-        let mut result = [0u8; 32];
-        result.copy_from_slice(hash.as_bytes());
-        result
+        to_root(tree_hash::merkle_root(&leaf_bytes, 16))
     }
 }
 
@@ -227,7 +221,7 @@ impl LightClientHeader {
     pub fn capella(
         beacon: BeaconBlockHeader,
         execution: ExecutionPayloadHeaderCapella,
-        execution_branch: Vec<Root>,
+        execution_branch: [Root; 4],
     ) -> Self {
         Self::Capella(CapellaLightClientHeader {
             beacon,
@@ -268,28 +262,22 @@ impl LightClientHeader {
                 let beacon_root = h.beacon.hash_tree_root()?;
                 let execution_root = h.execution.hash_tree_root();
 
-                // execution_branch: Vector[Bytes32, 4] → merkleize 4 leaves.
-                let mut branch_bytes = Vec::with_capacity(32 * 4);
-                for node in &h.execution_branch {
-                    branch_bytes.extend_from_slice(node);
+                // execution_branch: Vector[Bytes32, 4] → merkleize 4 × 32-byte leaves.
+                let mut branch_bytes = [0u8; 32 * 4];
+                for (i, node) in h.execution_branch.iter().enumerate() {
+                    branch_bytes[i * 32..(i + 1) * 32].copy_from_slice(node);
                 }
-                // Pad to 4 leaves if branch is shorter (shouldn't happen with valid data).
-                while branch_bytes.len() < 32 * 4 {
-                    branch_bytes.extend_from_slice(&[0u8; 32]);
-                }
-                let branch_hash = tree_hash::merkle_root(&branch_bytes, 4);
                 let mut branch_root = [0u8; 32];
-                branch_root.copy_from_slice(branch_hash.as_bytes());
+                branch_root.copy_from_slice(tree_hash::merkle_root(&branch_bytes, 4).as_bytes());
 
                 // 3-field container → pad to 4 leaves and merkleize.
-                let mut container = Vec::with_capacity(32 * 4);
-                container.extend_from_slice(&beacon_root);
-                container.extend_from_slice(&execution_root);
-                container.extend_from_slice(&branch_root);
-                container.extend_from_slice(&[0u8; 32]); // padding to 4
-                let hash = tree_hash::merkle_root(&container, 4);
+                let mut container = [0u8; 32 * 4];
+                container[0..32].copy_from_slice(&beacon_root);
+                container[32..64].copy_from_slice(&execution_root);
+                container[64..96].copy_from_slice(&branch_root);
+                // container[96..128] is already zero (padding).
                 let mut result = [0u8; 32];
-                result.copy_from_slice(hash.as_bytes());
+                result.copy_from_slice(tree_hash::merkle_root(&container, 4).as_bytes());
                 Ok(result)
             }
         }

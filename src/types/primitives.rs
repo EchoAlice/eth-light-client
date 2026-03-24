@@ -6,8 +6,6 @@ pub type Hash = [u8; 32];
 /// Ethereum address (20 bytes)
 pub type Address = [u8; 20];
 
-/// TODO: Remove bloom type
-///
 /// 256-byte bloom filter for logs
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Bloom(pub [u8; 256]);
