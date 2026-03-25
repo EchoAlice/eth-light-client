@@ -1,5 +1,7 @@
 use crate::config::ChainSpec;
-use crate::consensus::merkle::{verify_bootstrap_sync_committee, verify_finality_branch};
+use crate::consensus::merkle::{
+    validate_light_client_header, verify_bootstrap_sync_committee, verify_finality_branch,
+};
 use crate::consensus::sync_committee;
 use crate::error::{Error, Result};
 use crate::types::consensus::{
@@ -98,6 +100,12 @@ impl LightClientProcessor {
         // Basic validation: signature_slot > attested_header.slot, supermajority participation
         update.validate_basic(&self.store.current_sync_committee)?;
 
+        // Validate header-local consistency (execution branch for Capella+).
+        validate_light_client_header(&update.attested_header)?;
+        if let Some(ref finalized) = update.finalized_header {
+            validate_light_client_header(finalized)?;
+        }
+
         // Spec: current_slot >= signature_slot (strict, no tolerance)
         if update.signature_slot > current_slot {
             return Err(Error::InvalidInput(
@@ -125,9 +133,13 @@ impl LightClientProcessor {
         Ok(())
     }
 
-    /// Verify BLS signature on the light client update
+    /// Verify BLS signature on the light client update.
+    ///
+    /// The sync committee signs `hash_tree_root(attested_header.beacon)` — the
+    /// beacon block root, not the full `LightClientHeader` root (which includes
+    /// execution payload fields starting at Capella).
     fn verify_update_signature(&self, update: &LightClientUpdate) -> Result<()> {
-        let attested_header_root = update.attested_header.hash_tree_root()?;
+        let attested_header_root = update.attested_header.beacon().hash_tree_root()?;
 
         // Look up the committee for the signature slot from the store
         let committee = sync_committee::committee_for_slot(
@@ -167,7 +179,10 @@ impl LightClientProcessor {
         // Update finalized header (verify finality proof first)
         if let Some(ref finalized_header) = update.finalized_header {
             if finalized_header.slot() > self.store.finalized_header.slot() {
-                let finalized_header_root = finalized_header.hash_tree_root()?;
+                // The finality branch proves that beacon.hash_tree_root() matches
+                // finalized_checkpoint.root in the attested state — use the beacon
+                // root, not the full LightClientHeader root.
+                let finalized_header_root = finalized_header.beacon().hash_tree_root()?;
                 verify_finality_branch(
                     &finalized_header_root,
                     &update.finality_branch,

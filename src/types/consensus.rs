@@ -1,6 +1,8 @@
 use crate::config::ChainSpec;
 use crate::error::{Error, Result};
-use crate::types::primitives::{BLSPublicKey, BLSSignature, Epoch, Root, Slot, ValidatorIndex};
+use crate::types::primitives::{
+    Address, BLSPublicKey, BLSSignature, Bloom, Epoch, ExtraData, Root, Slot, ValidatorIndex, U256,
+};
 use ssz_derive::{Decode, Encode};
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
@@ -64,8 +66,8 @@ impl BeaconBlockHeader {
 pub enum LightClientHeader {
     Altair(AltairLightClientHeader),
     Bellatrix(BellatrixLightClientHeader),
-    // *** Future variants (require execution payload header types): ***
-    // Capella(CapellaLightClientHeader),
+    Capella(CapellaLightClientHeader),
+    // Future variants:
     // Deneb(DenebLightClientHeader),
     // Electra(ElectraLightClientHeader),
     // Fulu(FuluLightClientHeader),
@@ -83,6 +85,102 @@ pub struct BellatrixLightClientHeader {
     pub beacon: BeaconBlockHeader,
 }
 
+/// Capella light client header — adds execution payload.
+///
+/// Starting at Capella, the `LightClientHeader` includes an execution
+/// payload header and a merkle branch proving it is embedded in
+/// `beacon.body_root` at `EXECUTION_PAYLOAD_GINDEX` (25).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CapellaLightClientHeader {
+    pub beacon: BeaconBlockHeader,
+    pub execution: ExecutionPayloadHeaderCapella,
+    /// Merkle branch proving `execution` is at gindex 25 in `beacon.body_root`.
+    /// Fixed length = floorlog2(EXECUTION_PAYLOAD_GINDEX) = floorlog2(25) = 4.
+    pub execution_branch: [Root; 4],
+}
+
+/// Execution payload header for Capella (15 fields).
+///
+/// This is the execution-layer block header embedded in the beacon block.
+/// Capella adds `withdrawals_root` compared to Bellatrix.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutionPayloadHeaderCapella {
+    pub parent_hash: Root,
+    pub fee_recipient: Address,
+    pub state_root: Root,
+    pub receipts_root: Root,
+    pub logs_bloom: Bloom,
+    pub prev_randao: Root,
+    pub block_number: u64,
+    pub gas_limit: u64,
+    pub gas_used: u64,
+    pub timestamp: u64,
+    /// Variable-length extra data (`ByteList[32]`). Bound-enforced at construction.
+    pub extra_data: ExtraData,
+    pub base_fee_per_gas: U256,
+    pub block_hash: Root,
+    pub transactions_root: Root,
+    pub withdrawals_root: Root,
+}
+
+impl ExecutionPayloadHeaderCapella {
+    /// Compute the SSZ `hash_tree_root` of this 15-field container.
+    ///
+    /// Uses `TreeHash::tree_hash_root()` for fields that implement it
+    /// (`u64`, `[u8; 32]`, `Bloom`, `ExtraData`). Two field types still
+    /// need custom hashing because `tree_hash` lacks impls:
+    ///
+    /// - `[u8; 20]` (Address): right-padded to 32 bytes
+    /// - `ruint::U256`: 32-byte little-endian value (single chunk)
+    pub fn hash_tree_root(&self) -> Root {
+        use tree_hash::TreeHash;
+
+        fn to_root(h: tree_hash::Hash256) -> Root {
+            let mut r = [0u8; 32];
+            r.copy_from_slice(h.as_bytes());
+            r
+        }
+
+        // [u8; 20]: right-padded to 32 bytes (no tree_hash impl exists).
+        fn address_root(addr: &[u8; 20]) -> Root {
+            let mut buf = [0u8; 32];
+            buf[..20].copy_from_slice(addr);
+            buf
+        }
+
+        // ruint::U256: 32-byte little-endian value (single chunk).
+        fn u256_root(v: &U256) -> Root {
+            v.to_le_bytes()
+        }
+
+        let field_roots: [Root; 15] = [
+            self.parent_hash,                            // 0: [u8; 32]
+            address_root(&self.fee_recipient),           // 1: [u8; 20]
+            self.state_root,                             // 2: [u8; 32]
+            self.receipts_root,                          // 3: [u8; 32]
+            to_root(self.logs_bloom.tree_hash_root()),   // 4: Bloom (TreeHash)
+            self.prev_randao,                            // 5: [u8; 32]
+            to_root(self.block_number.tree_hash_root()), // 6: u64
+            to_root(self.gas_limit.tree_hash_root()),    // 7: u64
+            to_root(self.gas_used.tree_hash_root()),     // 8: u64
+            to_root(self.timestamp.tree_hash_root()),    // 9: u64
+            to_root(self.extra_data.tree_hash_root()),   // 10: ExtraData (TreeHash)
+            u256_root(&self.base_fee_per_gas),           // 11: U256
+            self.block_hash,                             // 12: [u8; 32]
+            self.transactions_root,                      // 13: [u8; 32]
+            self.withdrawals_root,                       // 14: [u8; 32]
+        ];
+
+        // 15-field container → pad to 16 leaves and merkleize.
+        let mut leaf_bytes = [0u8; 32 * 16];
+        for (i, root) in field_roots.iter().enumerate() {
+            leaf_bytes[i * 32..(i + 1) * 32].copy_from_slice(root);
+        }
+
+        to_root(tree_hash::merkle_root(&leaf_bytes, 16))
+    }
+}
+
 impl LightClientHeader {
     /// Wrap a `BeaconBlockHeader` as an Altair-era header.
     pub fn altair(beacon: BeaconBlockHeader) -> Self {
@@ -95,11 +193,26 @@ impl LightClientHeader {
         Self::Bellatrix(BellatrixLightClientHeader { beacon })
     }
 
+    /// Construct a Capella header with execution payload and inclusion proof.
+    #[allow(dead_code)]
+    pub fn capella(
+        beacon: BeaconBlockHeader,
+        execution: ExecutionPayloadHeaderCapella,
+        execution_branch: [Root; 4],
+    ) -> Self {
+        Self::Capella(CapellaLightClientHeader {
+            beacon,
+            execution,
+            execution_branch,
+        })
+    }
+
     /// The inner `BeaconBlockHeader` (available for all forks).
     pub fn beacon(&self) -> &BeaconBlockHeader {
         match self {
             Self::Altair(h) => &h.beacon,
             Self::Bellatrix(h) => &h.beacon,
+            Self::Capella(h) => &h.beacon,
         }
     }
 
@@ -115,12 +228,35 @@ impl LightClientHeader {
 
     /// Compute the hash tree root of this header.
     ///
-    /// For Altair/Bellatrix this is `hash_tree_root(beacon)`.
-    /// Later forks will hash the full container (beacon + execution).
+    /// - Altair/Bellatrix: `hash_tree_root(beacon)` (1-field container).
+    /// - Capella: `hash_tree_root({beacon, execution, execution_branch})`
+    ///   (3-field container).
     pub fn hash_tree_root(&self) -> Result<Root> {
         match self {
             Self::Altair(h) => h.beacon.hash_tree_root(),
             Self::Bellatrix(h) => h.beacon.hash_tree_root(),
+            Self::Capella(h) => {
+                let beacon_root = h.beacon.hash_tree_root()?;
+                let execution_root = h.execution.hash_tree_root();
+
+                // execution_branch: Vector[Bytes32, 4] → merkleize 4 × 32-byte leaves.
+                let mut branch_bytes = [0u8; 32 * 4];
+                for (i, node) in h.execution_branch.iter().enumerate() {
+                    branch_bytes[i * 32..(i + 1) * 32].copy_from_slice(node);
+                }
+                let mut branch_root = [0u8; 32];
+                branch_root.copy_from_slice(tree_hash::merkle_root(&branch_bytes, 4).as_bytes());
+
+                // 3-field container → pad to 4 leaves and merkleize.
+                let mut container = [0u8; 32 * 4];
+                container[0..32].copy_from_slice(&beacon_root);
+                container[32..64].copy_from_slice(&execution_root);
+                container[64..96].copy_from_slice(&branch_root);
+                // container[96..128] is already zero (padding).
+                let mut result = [0u8; 32];
+                result.copy_from_slice(tree_hash::merkle_root(&container, 4).as_bytes());
+                Ok(result)
+            }
         }
     }
 }
