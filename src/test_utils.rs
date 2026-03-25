@@ -13,10 +13,11 @@
 //! ```
 
 use crate::types::consensus::{
-    BeaconBlockHeader, LightClientBootstrap, LightClientHeader as PubLightClientHeader,
-    LightClientUpdate, SyncAggregate, SyncCommittee,
+    BeaconBlockHeader, ExecutionPayloadHeaderCapella, LightClientBootstrap,
+    LightClientHeader as PubLightClientHeader, LightClientUpdate, SyncAggregate, SyncCommittee,
 };
 use crate::types::primitives::Root;
+use crate::types::primitives::{Bloom, ExtraData};
 use ssz_rs::prelude::*;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -27,45 +28,57 @@ use std::path::{Path, PathBuf};
 pub enum TestFork {
     Altair,
     Bellatrix,
+    Capella,
 }
 
 impl TestFork {
     /// Wrap a `BeaconBlockHeader` into the corresponding `LightClientHeader` variant.
+    /// Only valid for Altair/Bellatrix (no execution payload).
     fn wrap_header(&self, beacon: BeaconBlockHeader) -> PubLightClientHeader {
         match self {
             TestFork::Altair => PubLightClientHeader::altair(beacon),
             TestFork::Bellatrix => PubLightClientHeader::bellatrix(beacon),
+            TestFork::Capella => {
+                panic!("Capella headers require execution payload; use Capella-specific load path")
+            }
         }
     }
 
     /// Return a `ChainSpec` whose fork schedule matches the spec-test fixtures
-    /// for this fork. Bellatrix fixtures expect `BELLATRIX_FORK_EPOCH: 0`.
+    /// for this fork.
     pub fn chain_spec(&self) -> crate::config::ChainSpec {
         use crate::config::{ChainSpec, ChainSpecConfig};
+
+        let mut config = ChainSpecConfig {
+            genesis_time: 1578009600,
+            seconds_per_slot: 6,
+            slots_per_epoch: 8,
+            epochs_per_sync_committee_period: 8,
+            sync_committee_size: 32,
+            altair_fork_version: [0x01, 0x00, 0x00, 0x01],
+            altair_fork_epoch: 0,
+            bellatrix_fork_version: [0x02, 0x00, 0x00, 0x01],
+            bellatrix_fork_epoch: u64::MAX,
+            capella_fork_version: [0x03, 0x00, 0x00, 0x01],
+            capella_fork_epoch: u64::MAX,
+            deneb_fork_version: [0x04, 0x00, 0x00, 0x01],
+            deneb_fork_epoch: u64::MAX,
+            electra_fork_version: [0x05, 0x00, 0x00, 0x01],
+            electra_fork_epoch: u64::MAX,
+        };
+
         match self {
-            TestFork::Altair => ChainSpec::minimal(),
+            TestFork::Altair => {} // defaults are correct
             TestFork::Bellatrix => {
-                // Matches the fixture config.yaml: both Altair and Bellatrix at epoch 0.
-                ChainSpec::try_from_config(ChainSpecConfig {
-                    genesis_time: 1578009600,
-                    seconds_per_slot: 6,
-                    slots_per_epoch: 8,
-                    epochs_per_sync_committee_period: 8,
-                    sync_committee_size: 32,
-                    altair_fork_version: [0x01, 0x00, 0x00, 0x01],
-                    altair_fork_epoch: 0,
-                    bellatrix_fork_version: [0x02, 0x00, 0x00, 0x01],
-                    bellatrix_fork_epoch: 0,
-                    capella_fork_version: [0x03, 0x00, 0x00, 0x01],
-                    capella_fork_epoch: u64::MAX,
-                    deneb_fork_version: [0x04, 0x00, 0x00, 0x01],
-                    deneb_fork_epoch: u64::MAX,
-                    electra_fork_version: [0x05, 0x00, 0x00, 0x01],
-                    electra_fork_epoch: u64::MAX,
-                })
-                .expect("bellatrix minimal config is valid")
+                config.bellatrix_fork_epoch = 0;
+            }
+            TestFork::Capella => {
+                config.bellatrix_fork_epoch = 0;
+                config.capella_fork_epoch = 0;
             }
         }
+
+        ChainSpec::try_from_config(config).expect("minimal fixture config is valid")
     }
 }
 
@@ -162,6 +175,7 @@ impl RawSyncAggregate {
     }
 }
 
+// Altair/Bellatrix update (beacon-only headers)
 #[derive(Debug, Clone, Default, SimpleSerialize)]
 struct RawLightClientUpdate {
     attested_header: LightClientHeader,
@@ -171,6 +185,176 @@ struct RawLightClientUpdate {
     finality_branch: Vector<Node, 6>,
     sync_aggregate: RawSyncAggregate,
     signature_slot: u64,
+}
+
+// ============================================================================
+// Capella SSZ Types (execution payload in headers)
+// ============================================================================
+
+#[derive(Debug, Clone, Default, SimpleSerialize)]
+struct RawExecutionPayloadHeader {
+    parent_hash: Node,
+    fee_recipient: Vector<u8, 20>,
+    state_root: Node,
+    receipts_root: Node,
+    logs_bloom: Vector<u8, 256>,
+    prev_randao: Node,
+    block_number: u64,
+    gas_limit: u64,
+    gas_used: u64,
+    timestamp: u64,
+    extra_data: List<u8, 32>,
+    base_fee_per_gas: ssz_rs::U256,
+    block_hash: Node,
+    transactions_root: Node,
+    withdrawals_root: Node,
+}
+
+impl RawExecutionPayloadHeader {
+    fn into_execution_payload_header(self) -> Result<ExecutionPayloadHeaderCapella, String> {
+        fn node_to_root(n: &Node) -> [u8; 32] {
+            let mut r = [0u8; 32];
+            r.copy_from_slice(n.as_ref());
+            r
+        }
+
+        let mut fee_recipient = [0u8; 20];
+        fee_recipient.copy_from_slice(self.fee_recipient.as_ref());
+
+        let mut bloom_bytes = [0u8; 256];
+        bloom_bytes.copy_from_slice(self.logs_bloom.as_ref());
+
+        // Convert ssz_rs::U256 to ruint::U256 via LE bytes
+        let le_bytes = self.base_fee_per_gas.to_bytes_le();
+        let mut u256_bytes = [0u8; 32];
+        let len = le_bytes.len().min(32);
+        u256_bytes[..len].copy_from_slice(&le_bytes[..len]);
+        let base_fee = ruint::aliases::U256::from_le_bytes(u256_bytes);
+
+        let extra_data_vec: Vec<u8> = self.extra_data.to_vec();
+        let extra_data = ExtraData::try_new(extra_data_vec).map_err(|e| e.to_string())?;
+
+        Ok(ExecutionPayloadHeaderCapella {
+            parent_hash: node_to_root(&self.parent_hash),
+            fee_recipient,
+            state_root: node_to_root(&self.state_root),
+            receipts_root: node_to_root(&self.receipts_root),
+            logs_bloom: Bloom(bloom_bytes),
+            prev_randao: node_to_root(&self.prev_randao),
+            block_number: self.block_number,
+            gas_limit: self.gas_limit,
+            gas_used: self.gas_used,
+            timestamp: self.timestamp,
+            extra_data,
+            base_fee_per_gas: base_fee,
+            block_hash: node_to_root(&self.block_hash),
+            transactions_root: node_to_root(&self.transactions_root),
+            withdrawals_root: node_to_root(&self.withdrawals_root),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Default, SimpleSerialize)]
+struct RawCapellaLightClientHeader {
+    beacon: RawBeaconBlockHeader,
+    execution: RawExecutionPayloadHeader,
+    execution_branch: Vector<Node, 4>,
+}
+
+#[derive(Debug, Clone, Default, SimpleSerialize)]
+struct RawCapellaLightClientBootstrap {
+    header: RawCapellaLightClientHeader,
+    current_sync_committee: RawSyncCommittee,
+    current_sync_committee_branch: Vector<Node, 5>,
+}
+
+#[derive(Debug, Clone, Default, SimpleSerialize)]
+struct RawCapellaLightClientUpdate {
+    attested_header: RawCapellaLightClientHeader,
+    next_sync_committee: RawSyncCommittee,
+    next_sync_committee_branch: Vector<Node, 5>,
+    finalized_header: RawCapellaLightClientHeader,
+    finality_branch: Vector<Node, 6>,
+    sync_aggregate: RawSyncAggregate,
+    signature_slot: u64,
+}
+
+fn raw_capella_header_to_pub(
+    raw: &RawCapellaLightClientHeader,
+) -> Result<PubLightClientHeader, String> {
+    let beacon = raw.beacon.clone().into_beacon_block_header();
+    let execution = raw.execution.clone().into_execution_payload_header()?;
+    let mut execution_branch = [[0u8; 32]; 4];
+    for (i, node) in raw.execution_branch.iter().enumerate() {
+        execution_branch[i].copy_from_slice(node.as_ref());
+    }
+    Ok(PubLightClientHeader::capella(
+        beacon,
+        execution,
+        execution_branch,
+    ))
+}
+
+fn raw_capella_update_to_pub(
+    raw: RawCapellaLightClientUpdate,
+) -> Result<LightClientUpdate, String> {
+    let sync_committee = raw.next_sync_committee.to_sync_committee()?;
+    let sync_aggregate = raw.sync_aggregate.into_sync_aggregate()?;
+
+    let has_sync_committee = !sync_committee
+        .pubkeys
+        .iter()
+        .all(|pk| pk.iter().all(|&b| b == 0));
+
+    let finality_branch: Vec<[u8; 32]> = raw
+        .finality_branch
+        .iter()
+        .map(|node| {
+            let mut root = [0u8; 32];
+            root.copy_from_slice(node.as_ref());
+            root
+        })
+        .collect();
+
+    let next_sync_committee_branch: Vec<[u8; 32]> = raw
+        .next_sync_committee_branch
+        .iter()
+        .map(|node| {
+            let mut root = [0u8; 32];
+            root.copy_from_slice(node.as_ref());
+            root
+        })
+        .collect();
+
+    // A default finalized header (slot=0) means no finality update.
+    let has_finality = raw.finalized_header.beacon.slot != 0;
+    let finalized_header = if has_finality {
+        Some(raw_capella_header_to_pub(&raw.finalized_header)?)
+    } else {
+        None
+    };
+
+    Ok(LightClientUpdate {
+        attested_header: raw_capella_header_to_pub(&raw.attested_header)?,
+        finalized_header,
+        finality_branch: if has_finality {
+            finality_branch
+        } else {
+            Vec::new()
+        },
+        next_sync_committee: if has_sync_committee {
+            Some(sync_committee)
+        } else {
+            None
+        },
+        next_sync_committee_branch: if has_sync_committee {
+            next_sync_committee_branch
+        } else {
+            Vec::new()
+        },
+        sync_aggregate,
+        signature_slot: raw.signature_slot,
+    })
 }
 
 impl RawLightClientUpdate {
@@ -259,6 +443,9 @@ pub struct HeaderCheck {
     pub slot: u64,
     /// Expected beacon block root as hex string.
     pub beacon_root: String,
+    /// Expected execution payload root as hex string (Capella+, absent for Altair/Bellatrix).
+    #[serde(default)]
+    pub execution_root: Option<String>,
 }
 
 /// A single test step from steps.yaml.
@@ -364,6 +551,18 @@ impl SpecTestLoader {
         }
     }
 
+    /// Create a loader for the minimal/capella sync test.
+    ///
+    /// Uses real Capella spec fixtures with execution payload headers.
+    pub fn minimal_capella_sync() -> Self {
+        let test_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/minimal/capella/light_client/sync/light_client_sync");
+        Self {
+            test_dir,
+            fork: TestFork::Capella,
+        }
+    }
+
     /// Create a loader for a custom test directory with an explicit fork tag.
     pub fn from_path(path: impl Into<PathBuf>, fork: TestFork) -> Self {
         Self {
@@ -380,31 +579,38 @@ impl SpecTestLoader {
     /// Load bootstrap data from the test fixtures.
     pub fn load_bootstrap(&self) -> Result<BootstrapData, Box<dyn std::error::Error>> {
         let meta = self.load_meta()?;
-        let bootstrap_path = self.test_dir.join("bootstrap.ssz_snappy");
-        let bootstrap: RawLightClientBootstrap = load_ssz_snappy(&bootstrap_path)?;
-
-        let sync_committee = bootstrap.current_sync_committee.to_sync_committee()?;
-
-        let branch: Vec<Root> = bootstrap
-            .current_sync_committee_branch
-            .iter()
-            .map(|node| {
-                let mut root = [0u8; 32];
-                root.copy_from_slice(node.as_ref());
-                root
-            })
-            .collect();
-
         let genesis_validators_root = hex_to_root(&meta.genesis_validators_root)?;
+        let bootstrap_path = self.test_dir.join("bootstrap.ssz_snappy");
 
-        Ok(BootstrapData {
-            header: self
-                .fork
-                .wrap_header(bootstrap.header.beacon.into_beacon_block_header()),
-            sync_committee,
-            branch,
-            genesis_validators_root,
-        })
+        match self.fork {
+            TestFork::Altair | TestFork::Bellatrix => {
+                let bootstrap: RawLightClientBootstrap = load_ssz_snappy(&bootstrap_path)?;
+                let sync_committee = bootstrap.current_sync_committee.to_sync_committee()?;
+                let branch = nodes_to_roots(&bootstrap.current_sync_committee_branch);
+
+                Ok(BootstrapData {
+                    header: self
+                        .fork
+                        .wrap_header(bootstrap.header.beacon.into_beacon_block_header()),
+                    sync_committee,
+                    branch,
+                    genesis_validators_root,
+                })
+            }
+            TestFork::Capella => {
+                let bootstrap: RawCapellaLightClientBootstrap = load_ssz_snappy(&bootstrap_path)?;
+                let sync_committee = bootstrap.current_sync_committee.to_sync_committee()?;
+                let branch = nodes_to_roots(&bootstrap.current_sync_committee_branch);
+                let header = raw_capella_header_to_pub(&bootstrap.header)?;
+
+                Ok(BootstrapData {
+                    header,
+                    sync_committee,
+                    branch,
+                    genesis_validators_root,
+                })
+            }
+        }
     }
 
     /// Load a specific update by name.
@@ -412,10 +618,18 @@ impl SpecTestLoader {
     /// The name should not include the `.ssz_snappy` extension.
     pub fn load_update(&self, name: &str) -> Result<LightClientUpdate, Box<dyn std::error::Error>> {
         let update_path = self.test_dir.join(format!("{}.ssz_snappy", name));
-        let raw_update: RawLightClientUpdate = load_ssz_snappy(&update_path)?;
-        raw_update
-            .into_light_client_update(self.fork)
-            .map_err(|e| e.into())
+
+        match self.fork {
+            TestFork::Altair | TestFork::Bellatrix => {
+                let raw: RawLightClientUpdate = load_ssz_snappy(&update_path)?;
+                raw.into_light_client_update(self.fork)
+                    .map_err(|e| e.into())
+            }
+            TestFork::Capella => {
+                let raw: RawCapellaLightClientUpdate = load_ssz_snappy(&update_path)?;
+                raw_capella_update_to_pub(raw).map_err(|e| e.into())
+            }
+        }
     }
 
     /// Load test metadata from meta.yaml.
@@ -438,6 +652,17 @@ impl SpecTestLoader {
 // ============================================================================
 // Internal Helpers
 // ============================================================================
+
+fn nodes_to_roots(nodes: &[Node]) -> Vec<Root> {
+    nodes
+        .iter()
+        .map(|node| {
+            let mut root = [0u8; 32];
+            root.copy_from_slice(node.as_ref());
+            root
+        })
+        .collect()
+}
 
 fn load_ssz_snappy<T>(file_path: &Path) -> Result<T, Box<dyn std::error::Error>>
 where
