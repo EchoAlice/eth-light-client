@@ -45,6 +45,97 @@ impl<'de> Deserialize<'de> for Bloom {
 /// Variable-length byte array
 pub type Bytes = Vec<u8>;
 
+// =============================================================================
+// SSZ-native TreeHash impls for consensus types
+// =============================================================================
+
+impl tree_hash::TreeHash for Bloom {
+    fn tree_hash_type() -> tree_hash::TreeHashType {
+        tree_hash::TreeHashType::Vector
+    }
+
+    fn tree_hash_packed_encoding(&self) -> tree_hash::PackedEncoding {
+        unreachable!("Bloom is not a basic type")
+    }
+
+    fn tree_hash_packing_factor() -> usize {
+        unreachable!("Bloom is not a basic type")
+    }
+
+    fn tree_hash_root(&self) -> tree_hash::Hash256 {
+        // ByteVector[256]: pack into 8 chunks of 32 bytes and merkleize.
+        tree_hash::merkle_root(&self.0, 8)
+    }
+}
+
+/// Bounded extra data field for execution payload headers.
+///
+/// SSZ type: `ByteList[MAX_EXTRA_DATA_BYTES]` where `MAX_EXTRA_DATA_BYTES = 32`.
+/// The bound is enforced at construction via [`ExtraData::try_new`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExtraData(Vec<u8>);
+
+impl ExtraData {
+    /// Maximum length per the consensus spec (`MAX_EXTRA_DATA_BYTES`).
+    pub const MAX_BYTES: usize = 32;
+
+    /// Create from a byte vec, returning an error if it exceeds the bound.
+    pub fn try_new(data: Vec<u8>) -> Result<Self, String> {
+        if data.len() > Self::MAX_BYTES {
+            return Err(format!(
+                "extra_data length {} exceeds MAX_EXTRA_DATA_BYTES ({})",
+                data.len(),
+                Self::MAX_BYTES
+            ));
+        }
+        Ok(Self(data))
+    }
+
+    /// Create an empty ExtraData.
+    pub fn empty() -> Self {
+        Self(Vec::new())
+    }
+
+    /// Access the inner bytes.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl tree_hash::TreeHash for ExtraData {
+    fn tree_hash_type() -> tree_hash::TreeHashType {
+        tree_hash::TreeHashType::List
+    }
+
+    fn tree_hash_packed_encoding(&self) -> tree_hash::PackedEncoding {
+        unreachable!("ExtraData is not a basic type")
+    }
+
+    fn tree_hash_packing_factor() -> usize {
+        unreachable!("ExtraData is not a basic type")
+    }
+
+    fn tree_hash_root(&self) -> tree_hash::Hash256 {
+        // ByteList[32]: pack into 1 chunk (≤32 bytes), merkleize with limit=1,
+        // then mix_in_length: hash(root || le_bytes(length)).
+        let mut chunk = [0u8; 32];
+        chunk[..self.0.len()].copy_from_slice(&self.0);
+        // mix_in_length: hash(chunk || length_as_le_u64_padded_to_32)
+        let mut mix = [0u8; 64];
+        mix[..32].copy_from_slice(&chunk);
+        mix[32..40].copy_from_slice(&(self.0.len() as u64).to_le_bytes());
+        tree_hash::merkle_root(&mix, 2)
+    }
+}
+
 /// 256-bit unsigned integer
 pub use ruint::aliases::U256;
 

@@ -1,7 +1,7 @@
 use crate::config::ChainSpec;
 use crate::error::{Error, Result};
 use crate::types::primitives::{
-    Address, BLSPublicKey, BLSSignature, Bloom, Epoch, Root, Slot, ValidatorIndex, U256,
+    Address, BLSPublicKey, BLSSignature, Bloom, Epoch, ExtraData, Root, Slot, ValidatorIndex, U256,
 };
 use ssz_derive::{Decode, Encode};
 use tree_hash::TreeHash;
@@ -115,8 +115,8 @@ pub struct ExecutionPayloadHeaderCapella {
     pub gas_limit: u64,
     pub gas_used: u64,
     pub timestamp: u64,
-    /// Variable-length extra data. Spec-bounded to [`MAX_EXTRA_DATA_BYTES`](Self::MAX_EXTRA_DATA_BYTES) (32) bytes.
-    pub extra_data: Vec<u8>,
+    /// Variable-length extra data (`ByteList[32]`). Bound-enforced at construction.
+    pub extra_data: ExtraData,
     pub base_fee_per_gas: U256,
     pub block_hash: Root,
     pub transactions_root: Root,
@@ -124,35 +124,17 @@ pub struct ExecutionPayloadHeaderCapella {
 }
 
 impl ExecutionPayloadHeaderCapella {
-    /// Maximum length of `extra_data` per the consensus spec (`MAX_EXTRA_DATA_BYTES`).
-    pub const MAX_EXTRA_DATA_BYTES: usize = 32;
-
     /// Compute the SSZ `hash_tree_root` of this 15-field container.
     ///
-    /// Uses `tree_hash::TreeHash::tree_hash_root()` for fields that implement
-    /// it (`u64`, `[u8; 32]`). Three field types need custom hashing because
-    /// `tree_hash` lacks impls for `[u8; 20]`, `Bloom` ([u8; 256]), and
-    /// `ruint::U256`:
+    /// Uses `TreeHash::tree_hash_root()` for fields that implement it
+    /// (`u64`, `[u8; 32]`, `Bloom`, `ExtraData`). Two field types still
+    /// need custom hashing because `tree_hash` lacks impls:
     ///
     /// - `[u8; 20]` (Address): right-padded to 32 bytes
-    /// - `Bloom`: ByteVector[256] → merkleize 8 chunks of 32 bytes
     /// - `ruint::U256`: 32-byte little-endian value (single chunk)
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `extra_data` exceeds [`MAX_EXTRA_DATA_BYTES`](Self::MAX_EXTRA_DATA_BYTES).
-    pub fn hash_tree_root(&self) -> Result<Root> {
+    pub fn hash_tree_root(&self) -> Root {
         use tree_hash::TreeHash;
 
-        if self.extra_data.len() > Self::MAX_EXTRA_DATA_BYTES {
-            return Err(Error::InvalidInput(format!(
-                "extra_data length {} exceeds MAX_EXTRA_DATA_BYTES ({})",
-                self.extra_data.len(),
-                Self::MAX_EXTRA_DATA_BYTES,
-            )));
-        }
-
-        // Convert a tree_hash Hash256 to our Root type.
         fn to_root(h: tree_hash::Hash256) -> Root {
             let mut r = [0u8; 32];
             r.copy_from_slice(h.as_bytes());
@@ -166,42 +148,23 @@ impl ExecutionPayloadHeaderCapella {
             buf
         }
 
-        // Bloom: ByteVector[256] → merkleize 8 chunks of 32 bytes.
-        fn bloom_root(bloom: &Bloom) -> Root {
-            to_root(tree_hash::merkle_root(&bloom.0, 8))
-        }
-
         // ruint::U256: 32-byte little-endian value (single chunk).
         fn u256_root(v: &U256) -> Root {
             v.to_le_bytes()
         }
 
-        // extra_data: ByteList[MAX_EXTRA_DATA_BYTES=32].
-        // Pack into 1 chunk (≤32 bytes), then mix_in_length: hash(chunk || len).
-        // tree_hash 0.5 lacks a Vec<u8> impl, so this is done manually.
-        // Caller must validate length before calling this.
-        fn bytelist_root(data: &[u8]) -> Root {
-            let mut chunk = [0u8; 32];
-            chunk[..data.len()].copy_from_slice(data);
-            let mut mix = [0u8; 64];
-            mix[..32].copy_from_slice(&chunk);
-            mix[32..40].copy_from_slice(&(data.len() as u64).to_le_bytes());
-            to_root(tree_hash::merkle_root(&mix, 2))
-        }
-
-        // Collect the 15 field roots using library impls where possible.
         let field_roots: [Root; 15] = [
             self.parent_hash,                            // 0: [u8; 32]
             address_root(&self.fee_recipient),           // 1: [u8; 20]
             self.state_root,                             // 2: [u8; 32]
             self.receipts_root,                          // 3: [u8; 32]
-            bloom_root(&self.logs_bloom),                // 4: Bloom
+            to_root(self.logs_bloom.tree_hash_root()),   // 4: Bloom (TreeHash)
             self.prev_randao,                            // 5: [u8; 32]
             to_root(self.block_number.tree_hash_root()), // 6: u64
             to_root(self.gas_limit.tree_hash_root()),    // 7: u64
             to_root(self.gas_used.tree_hash_root()),     // 8: u64
             to_root(self.timestamp.tree_hash_root()),    // 9: u64
-            bytelist_root(&self.extra_data),             // 10: Vec<u8> (ByteList)
+            to_root(self.extra_data.tree_hash_root()),   // 10: ExtraData (TreeHash)
             u256_root(&self.base_fee_per_gas),           // 11: U256
             self.block_hash,                             // 12: [u8; 32]
             self.transactions_root,                      // 13: [u8; 32]
@@ -214,7 +177,7 @@ impl ExecutionPayloadHeaderCapella {
             leaf_bytes[i * 32..(i + 1) * 32].copy_from_slice(root);
         }
 
-        Ok(to_root(tree_hash::merkle_root(&leaf_bytes, 16)))
+        to_root(tree_hash::merkle_root(&leaf_bytes, 16))
     }
 }
 
@@ -274,7 +237,7 @@ impl LightClientHeader {
             Self::Bellatrix(h) => h.beacon.hash_tree_root(),
             Self::Capella(h) => {
                 let beacon_root = h.beacon.hash_tree_root()?;
-                let execution_root = h.execution.hash_tree_root()?;
+                let execution_root = h.execution.hash_tree_root();
 
                 // execution_branch: Vector[Bytes32, 4] → merkleize 4 × 32-byte leaves.
                 let mut branch_bytes = [0u8; 32 * 4];

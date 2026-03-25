@@ -144,7 +144,7 @@ pub(crate) fn validate_light_client_header(header: &LightClientHeader) -> Result
     match header {
         LightClientHeader::Altair(_) | LightClientHeader::Bellatrix(_) => Ok(()),
         LightClientHeader::Capella(h) => {
-            let execution_root = h.execution.hash_tree_root()?;
+            let execution_root = h.execution.hash_tree_root();
             verify_execution_payload_inclusion(
                 &execution_root,
                 &h.execution_branch,
