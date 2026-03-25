@@ -71,7 +71,8 @@ impl tree_hash::TreeHash for Bloom {
 /// Bounded extra data field for execution payload headers.
 ///
 /// SSZ type: `ByteList[MAX_EXTRA_DATA_BYTES]` where `MAX_EXTRA_DATA_BYTES = 32`.
-/// The bound is enforced at construction via [`ExtraData::try_new`].
+/// The bound is enforced at construction via [`ExtraData::try_new`]; the inner
+/// `Vec<u8>` is private, so no code path can bypass the check.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtraData(Vec<u8>);
 
@@ -80,13 +81,13 @@ impl ExtraData {
     pub const MAX_BYTES: usize = 32;
 
     /// Create from a byte vec, returning an error if it exceeds the bound.
-    pub fn try_new(data: Vec<u8>) -> Result<Self, String> {
+    pub fn try_new(data: Vec<u8>) -> crate::error::Result<Self> {
         if data.len() > Self::MAX_BYTES {
-            return Err(format!(
+            return Err(crate::error::Error::InvalidInput(format!(
                 "extra_data length {} exceeds MAX_EXTRA_DATA_BYTES ({})",
                 data.len(),
                 Self::MAX_BYTES
-            ));
+            )));
         }
         Ok(Self(data))
     }
@@ -124,11 +125,11 @@ impl tree_hash::TreeHash for ExtraData {
     }
 
     fn tree_hash_root(&self) -> tree_hash::Hash256 {
-        // ByteList[32]: pack into 1 chunk (≤32 bytes), merkleize with limit=1,
-        // then mix_in_length: hash(root || le_bytes(length)).
+        // ByteList[32] hash: pack bytes into 1 chunk (right-padded to 32),
+        // then mix_in_length by hashing the 64-byte buffer
+        // [chunk (32 bytes) || length as LE u64 (8 bytes) || zeros (24 bytes)].
         let mut chunk = [0u8; 32];
         chunk[..self.0.len()].copy_from_slice(&self.0);
-        // mix_in_length: hash(chunk || length_as_le_u64_padded_to_32)
         let mut mix = [0u8; 64];
         mix[..32].copy_from_slice(&chunk);
         mix[32..40].copy_from_slice(&(self.0.len() as u64).to_le_bytes());
@@ -162,3 +163,14 @@ pub type Domain = [u8; 32];
 
 /// Fork version for different beacon chain forks
 pub type ForkVersion = [u8; 4];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extra_data_rejects_oversized() {
+        assert!(ExtraData::try_new(vec![0u8; 32]).is_ok());
+        assert!(ExtraData::try_new(vec![0u8; 33]).is_err());
+    }
+}
