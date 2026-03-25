@@ -7,8 +7,9 @@
 //! ## Test Organization
 //!
 //! - `test_altair_light_client_sync` — Altair happy path (steps 1-5).
-//! - `test_bellatrix_light_client_sync` — Bellatrix happy path (steps 1-5),
-//!   using real Bellatrix spec fixtures.
+//! - `test_bellatrix_light_client_sync` — Bellatrix happy path (steps 1-5).
+//! - `test_capella_light_client_sync` — Capella happy path (steps 1-5),
+//!   including execution payload header and execution_root verification.
 //! - `test_altair_light_client_sync_with_force_update` — Full Altair spec test
 //!   including all 10 steps. Currently `#[ignore]` until `force_update` is implemented.
 //!
@@ -26,7 +27,7 @@ use crate::consensus::light_client::LightClientProcessor;
 use crate::test_utils::{
     hex_to_root, ForceUpdateStep, ProcessUpdateStep, SpecTestLoader, TestStep,
 };
-use crate::types::consensus::{LightClientBootstrap, LightClientUpdate};
+use crate::types::consensus::{LightClientBootstrap, LightClientHeader, LightClientUpdate};
 
 struct StepResult {
     passed: bool,
@@ -76,6 +77,16 @@ fn execute_process_update_step(
                     );
                     step_passed = false;
                 }
+
+                if let Some(ref expected_exec_root) = expected.execution_root {
+                    if !check_execution_root(
+                        processor.finalized_light_client_header(),
+                        expected_exec_root,
+                        "finalized",
+                    ) {
+                        step_passed = false;
+                    }
+                }
             }
 
             if let Some(ref expected) = step.checks.optimistic_header {
@@ -93,6 +104,16 @@ fn execute_process_update_step(
                         expected.slot, actual_slot
                     );
                     step_passed = false;
+                }
+
+                if let Some(ref expected_exec_root) = expected.execution_root {
+                    if !check_execution_root(
+                        processor.optimistic_light_client_header(),
+                        expected_exec_root,
+                        "optimistic",
+                    ) {
+                        step_passed = false;
+                    }
                 }
             }
 
@@ -170,6 +191,33 @@ fn initialize_processor_from(loader: &SpecTestLoader) -> LightClientProcessor {
     .expect("Failed to initialize LightClientProcessor")
 }
 
+fn check_execution_root(header: &LightClientHeader, expected_hex: &str, label: &str) -> bool {
+    let expected = hex_to_root(expected_hex).expect("Invalid execution_root hex");
+    match header {
+        LightClientHeader::Capella(h) => {
+            let actual = h.execution.hash_tree_root();
+            if actual != expected {
+                println!(
+                    "    FAIL {} execution_root: expected {} got {}",
+                    label,
+                    hex::encode(expected),
+                    hex::encode(actual),
+                );
+                return false;
+            }
+            true
+        }
+        _ => {
+            // Altair/Bellatrix headers shouldn't have execution_root checks
+            println!(
+                "    FAIL {}: execution_root check on non-Capella header",
+                label
+            );
+            false
+        }
+    }
+}
+
 // ============================================================================
 // Tests
 // ============================================================================
@@ -221,6 +269,40 @@ fn test_bellatrix_light_client_sync() {
     let mut failed = 0;
 
     println!("bellatrix light client sync (steps 1-5):");
+
+    for (i, step) in steps.iter().enumerate().take(5) {
+        match step {
+            TestStep::ProcessUpdate { process_update } => {
+                let result =
+                    execute_process_update_step(i + 1, process_update, &mut processor, &loader);
+                if result.passed {
+                    passed += 1;
+                } else {
+                    failed += 1;
+                }
+            }
+            TestStep::ForceUpdate { .. } => {
+                println!("  step {}: force_update (skipped)", i + 1);
+            }
+        }
+    }
+
+    println!("  result: {}/{} passed", passed, passed + failed);
+    assert_eq!(failed, 0, "{} step(s) failed", failed);
+}
+
+/// Capella happy path using real Capella spec fixtures.
+/// Headers include execution payload and execution_branch verification.
+#[test]
+fn test_capella_light_client_sync() {
+    let loader = SpecTestLoader::minimal_capella_sync();
+    let steps = loader.load_steps().expect("Failed to load steps");
+    let mut processor = initialize_processor_from(&loader);
+
+    let mut passed = 0;
+    let mut failed = 0;
+
+    println!("capella light client sync (steps 1-5):");
 
     for (i, step) in steps.iter().enumerate().take(5) {
         match step {
