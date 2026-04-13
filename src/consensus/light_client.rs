@@ -254,9 +254,19 @@ impl LightClientProcessor {
         self.store.finalized_header.beacon()
     }
 
+    /// Full fork-aware finalized header (for fork-specific checks in tests).
+    pub(crate) fn finalized_light_client_header(&self) -> &LightClientHeader {
+        &self.store.finalized_header
+    }
+
     /// Current optimistic header (may be ahead of finalized).
     pub(crate) fn optimistic_header(&self) -> &BeaconBlockHeader {
         self.store.optimistic_header.beacon()
+    }
+
+    /// Full fork-aware optimistic header (for fork-specific checks in tests).
+    pub(crate) fn optimistic_light_client_header(&self) -> &LightClientHeader {
+        &self.store.optimistic_header
     }
 
     /// Current sync committee
