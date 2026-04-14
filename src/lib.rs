@@ -30,8 +30,9 @@ pub use crate::types::{
 };
 
 /// Contains the recommended set of types needed for most light client usage.
-/// For additional types (e.g. [`SyncAggregate`]), import them from the crate root
-/// (or from [`crate::types`] if you prefer the module path).
+///
+/// For additional types (e.g. [`SyncAggregate`]), import them from the crate
+/// root (or from [`crate::types`] if you prefer the module path).
 pub mod prelude {
     pub use crate::config::ChainSpec;
     pub use crate::error::{Error, Result};

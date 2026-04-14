@@ -255,6 +255,7 @@ impl LightClientProcessor {
     }
 
     /// Full fork-aware finalized header (for fork-specific checks in tests).
+    #[cfg(test)]
     pub(crate) fn finalized_light_client_header(&self) -> &LightClientHeader {
         &self.store.finalized_header
     }
@@ -265,6 +266,7 @@ impl LightClientProcessor {
     }
 
     /// Full fork-aware optimistic header (for fork-specific checks in tests).
+    #[cfg(test)]
     pub(crate) fn optimistic_light_client_header(&self) -> &LightClientHeader {
         &self.store.optimistic_header
     }

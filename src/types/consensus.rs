@@ -63,6 +63,7 @@ impl BeaconBlockHeader {
 /// Verification logic accesses the inner `BeaconBlockHeader` through
 /// [`beacon()`](Self::beacon), keeping the pipeline fork-agnostic.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(clippy::large_enum_variant)]
 pub enum LightClientHeader {
     Altair(AltairLightClientHeader),
     Bellatrix(BellatrixLightClientHeader),
