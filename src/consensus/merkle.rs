@@ -151,6 +151,14 @@ pub(crate) fn validate_light_client_header(header: &LightClientHeader) -> Result
                 &h.beacon.body_root,
             )
         }
+        LightClientHeader::Deneb(h) => {
+            let execution_root = h.execution.hash_tree_root();
+            verify_execution_payload_inclusion(
+                &execution_root,
+                &h.execution_branch,
+                &h.beacon.body_root,
+            )
+        }
     }
 }
 

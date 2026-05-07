@@ -68,8 +68,8 @@ pub enum LightClientHeader {
     Altair(AltairLightClientHeader),
     Bellatrix(BellatrixLightClientHeader),
     Capella(CapellaLightClientHeader),
+    Deneb(DenebLightClientHeader),
     // Future variants:
-    // Deneb(DenebLightClientHeader),
     // Electra(ElectraLightClientHeader),
     // Fulu(FuluLightClientHeader),
 }
@@ -182,6 +182,101 @@ impl ExecutionPayloadHeaderCapella {
     }
 }
 
+/// Deneb light client header — same shape as Capella, with a Deneb execution payload.
+///
+/// The execution branch length is unchanged: `EXECUTION_PAYLOAD_GINDEX` (25) is
+/// constant from Capella through Electra, so `floorlog2(25) = 4`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DenebLightClientHeader {
+    pub beacon: BeaconBlockHeader,
+    pub execution: ExecutionPayloadHeaderDeneb,
+    /// Merkle branch proving `execution` is at gindex 25 in `beacon.body_root`.
+    pub execution_branch: [Root; 4],
+}
+
+/// Execution payload header for Deneb (17 fields).
+///
+/// Adds `blob_gas_used` and `excess_blob_gas` to the Capella shape, increasing
+/// the SSZ container field count from 15 to 17. Merkleization pads to 32 leaves
+/// (next power of two ≥ 17), which differs from Capella's 16-leaf padding.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutionPayloadHeaderDeneb {
+    pub parent_hash: Root,
+    pub fee_recipient: Address,
+    pub state_root: Root,
+    pub receipts_root: Root,
+    pub logs_bloom: Bloom,
+    pub prev_randao: Root,
+    pub block_number: u64,
+    pub gas_limit: u64,
+    pub gas_used: u64,
+    pub timestamp: u64,
+    /// Variable-length extra data (`ByteList[32]`). Bound-enforced at construction.
+    pub extra_data: ExtraData,
+    pub base_fee_per_gas: U256,
+    pub block_hash: Root,
+    pub transactions_root: Root,
+    pub withdrawals_root: Root,
+    pub blob_gas_used: u64,
+    pub excess_blob_gas: u64,
+}
+
+impl ExecutionPayloadHeaderDeneb {
+    /// Compute the SSZ `hash_tree_root` of this 17-field container.
+    ///
+    /// Mirrors the Capella implementation — same custom hashing for `[u8; 20]`
+    /// (Address, right-padded to 32) and `ruint::U256` (32-byte little-endian
+    /// single chunk) — but with two extra `u64` field roots and 32-leaf padding
+    /// (next power of two ≥ 17).
+    pub fn hash_tree_root(&self) -> Root {
+        use tree_hash::TreeHash;
+
+        fn to_root(h: tree_hash::Hash256) -> Root {
+            let mut r = [0u8; 32];
+            r.copy_from_slice(h.as_bytes());
+            r
+        }
+
+        fn address_root(addr: &[u8; 20]) -> Root {
+            let mut buf = [0u8; 32];
+            buf[..20].copy_from_slice(addr);
+            buf
+        }
+
+        fn u256_root(v: &U256) -> Root {
+            v.to_le_bytes()
+        }
+
+        let field_roots: [Root; 17] = [
+            self.parent_hash,                               // 0:  [u8; 32]
+            address_root(&self.fee_recipient),              // 1:  [u8; 20]
+            self.state_root,                                // 2:  [u8; 32]
+            self.receipts_root,                             // 3:  [u8; 32]
+            to_root(self.logs_bloom.tree_hash_root()),      // 4:  Bloom (TreeHash)
+            self.prev_randao,                               // 5:  [u8; 32]
+            to_root(self.block_number.tree_hash_root()),    // 6:  u64
+            to_root(self.gas_limit.tree_hash_root()),       // 7:  u64
+            to_root(self.gas_used.tree_hash_root()),        // 8:  u64
+            to_root(self.timestamp.tree_hash_root()),       // 9:  u64
+            to_root(self.extra_data.tree_hash_root()),      // 10: ExtraData (TreeHash)
+            u256_root(&self.base_fee_per_gas),              // 11: U256
+            self.block_hash,                                // 12: [u8; 32]
+            self.transactions_root,                         // 13: [u8; 32]
+            self.withdrawals_root,                          // 14: [u8; 32]
+            to_root(self.blob_gas_used.tree_hash_root()),   // 15: u64
+            to_root(self.excess_blob_gas.tree_hash_root()), // 16: u64
+        ];
+
+        // 17-field container → pad to 32 leaves and merkleize.
+        let mut leaf_bytes = [0u8; 32 * 32];
+        for (i, root) in field_roots.iter().enumerate() {
+            leaf_bytes[i * 32..(i + 1) * 32].copy_from_slice(root);
+        }
+
+        to_root(tree_hash::merkle_root(&leaf_bytes, 32))
+    }
+}
+
 impl LightClientHeader {
     /// Wrap a `BeaconBlockHeader` as an Altair-era header.
     pub fn altair(beacon: BeaconBlockHeader) -> Self {
@@ -208,12 +303,27 @@ impl LightClientHeader {
         })
     }
 
+    /// Construct a Deneb header with execution payload and inclusion proof.
+    #[allow(dead_code)]
+    pub fn deneb(
+        beacon: BeaconBlockHeader,
+        execution: ExecutionPayloadHeaderDeneb,
+        execution_branch: [Root; 4],
+    ) -> Self {
+        Self::Deneb(DenebLightClientHeader {
+            beacon,
+            execution,
+            execution_branch,
+        })
+    }
+
     /// The inner `BeaconBlockHeader` (available for all forks).
     pub fn beacon(&self) -> &BeaconBlockHeader {
         match self {
             Self::Altair(h) => &h.beacon,
             Self::Bellatrix(h) => &h.beacon,
             Self::Capella(h) => &h.beacon,
+            Self::Deneb(h) => &h.beacon,
         }
     }
 
@@ -230,33 +340,45 @@ impl LightClientHeader {
     /// Compute the hash tree root of this header.
     ///
     /// - Altair/Bellatrix: `hash_tree_root(beacon)` (1-field container).
-    /// - Capella: `hash_tree_root({beacon, execution, execution_branch})`
-    ///   (3-field container).
+    /// - Capella/Deneb: `hash_tree_root({beacon, execution, execution_branch})`
+    ///   (3-field container). The container shape is identical; only the inner
+    ///   `execution.hash_tree_root()` differs across forks.
     pub fn hash_tree_root(&self) -> Result<Root> {
+        // Helper: 3-field container merkleization shared by all execution-payload forks.
+        fn execution_header_root(
+            beacon: &BeaconBlockHeader,
+            execution_root: Root,
+            execution_branch: &[Root; 4],
+        ) -> Result<Root> {
+            let beacon_root = beacon.hash_tree_root()?;
+
+            // execution_branch: Vector[Bytes32, 4] → merkleize 4 × 32-byte leaves.
+            let mut branch_bytes = [0u8; 32 * 4];
+            for (i, node) in execution_branch.iter().enumerate() {
+                branch_bytes[i * 32..(i + 1) * 32].copy_from_slice(node);
+            }
+            let mut branch_root = [0u8; 32];
+            branch_root.copy_from_slice(tree_hash::merkle_root(&branch_bytes, 4).as_bytes());
+
+            // 3-field container → pad to 4 leaves and merkleize.
+            let mut container = [0u8; 32 * 4];
+            container[0..32].copy_from_slice(&beacon_root);
+            container[32..64].copy_from_slice(&execution_root);
+            container[64..96].copy_from_slice(&branch_root);
+            // container[96..128] is already zero (padding).
+            let mut result = [0u8; 32];
+            result.copy_from_slice(tree_hash::merkle_root(&container, 4).as_bytes());
+            Ok(result)
+        }
+
         match self {
             Self::Altair(h) => h.beacon.hash_tree_root(),
             Self::Bellatrix(h) => h.beacon.hash_tree_root(),
             Self::Capella(h) => {
-                let beacon_root = h.beacon.hash_tree_root()?;
-                let execution_root = h.execution.hash_tree_root();
-
-                // execution_branch: Vector[Bytes32, 4] → merkleize 4 × 32-byte leaves.
-                let mut branch_bytes = [0u8; 32 * 4];
-                for (i, node) in h.execution_branch.iter().enumerate() {
-                    branch_bytes[i * 32..(i + 1) * 32].copy_from_slice(node);
-                }
-                let mut branch_root = [0u8; 32];
-                branch_root.copy_from_slice(tree_hash::merkle_root(&branch_bytes, 4).as_bytes());
-
-                // 3-field container → pad to 4 leaves and merkleize.
-                let mut container = [0u8; 32 * 4];
-                container[0..32].copy_from_slice(&beacon_root);
-                container[32..64].copy_from_slice(&execution_root);
-                container[64..96].copy_from_slice(&branch_root);
-                // container[96..128] is already zero (padding).
-                let mut result = [0u8; 32];
-                result.copy_from_slice(tree_hash::merkle_root(&container, 4).as_bytes());
-                Ok(result)
+                execution_header_root(&h.beacon, h.execution.hash_tree_root(), &h.execution_branch)
+            }
+            Self::Deneb(h) => {
+                execution_header_root(&h.beacon, h.execution.hash_tree_root(), &h.execution_branch)
             }
         }
     }
