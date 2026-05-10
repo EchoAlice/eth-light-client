@@ -13,8 +13,9 @@
 //! ```
 
 use crate::types::consensus::{
-    BeaconBlockHeader, ExecutionPayloadHeaderCapella, LightClientBootstrap,
-    LightClientHeader as PubLightClientHeader, LightClientUpdate, SyncAggregate, SyncCommittee,
+    BeaconBlockHeader, ExecutionPayloadHeaderCapella, ExecutionPayloadHeaderDeneb,
+    LightClientBootstrap, LightClientHeader as PubLightClientHeader, LightClientUpdate,
+    SyncAggregate, SyncCommittee,
 };
 use crate::types::primitives::Root;
 use crate::types::primitives::{Bloom, ExtraData};
@@ -29,6 +30,7 @@ pub enum TestFork {
     Altair,
     Bellatrix,
     Capella,
+    Deneb,
 }
 
 impl TestFork {
@@ -40,6 +42,9 @@ impl TestFork {
             TestFork::Bellatrix => PubLightClientHeader::bellatrix(beacon),
             TestFork::Capella => {
                 panic!("Capella headers require execution payload; use Capella-specific load path")
+            }
+            TestFork::Deneb => {
+                panic!("Deneb headers require execution payload; use Deneb-specific load path")
             }
         }
     }
@@ -75,6 +80,11 @@ impl TestFork {
             TestFork::Capella => {
                 config.bellatrix_fork_epoch = 0;
                 config.capella_fork_epoch = 0;
+            }
+            TestFork::Deneb => {
+                config.bellatrix_fork_epoch = 0;
+                config.capella_fork_epoch = 0;
+                config.deneb_fork_epoch = 0;
             }
         }
 
@@ -357,6 +367,180 @@ fn raw_capella_update_to_pub(
     })
 }
 
+// ============================================================================
+// Deneb SSZ Types (execution payload + blob_gas_used + excess_blob_gas)
+// ============================================================================
+
+#[derive(Debug, Clone, Default, SimpleSerialize)]
+struct RawExecutionPayloadHeaderDeneb {
+    parent_hash: Node,
+    fee_recipient: Vector<u8, 20>,
+    state_root: Node,
+    receipts_root: Node,
+    logs_bloom: Vector<u8, 256>,
+    prev_randao: Node,
+    block_number: u64,
+    gas_limit: u64,
+    gas_used: u64,
+    timestamp: u64,
+    extra_data: List<u8, 32>,
+    base_fee_per_gas: ssz_rs::U256,
+    block_hash: Node,
+    transactions_root: Node,
+    withdrawals_root: Node,
+    blob_gas_used: u64,
+    excess_blob_gas: u64,
+}
+
+impl RawExecutionPayloadHeaderDeneb {
+    fn into_execution_payload_header(self) -> Result<ExecutionPayloadHeaderDeneb, String> {
+        fn node_to_root(n: &Node) -> [u8; 32] {
+            let mut r = [0u8; 32];
+            r.copy_from_slice(n.as_ref());
+            r
+        }
+
+        let mut fee_recipient = [0u8; 20];
+        fee_recipient.copy_from_slice(self.fee_recipient.as_ref());
+
+        let mut bloom_bytes = [0u8; 256];
+        bloom_bytes.copy_from_slice(self.logs_bloom.as_ref());
+
+        // Convert ssz_rs::U256 to ruint::U256 via LE bytes
+        let le_bytes = self.base_fee_per_gas.to_bytes_le();
+        let mut u256_bytes = [0u8; 32];
+        let len = le_bytes.len().min(32);
+        u256_bytes[..len].copy_from_slice(&le_bytes[..len]);
+        let base_fee = ruint::aliases::U256::from_le_bytes(u256_bytes);
+
+        let extra_data_vec: Vec<u8> = self.extra_data.to_vec();
+        let extra_data = ExtraData::try_new(extra_data_vec).map_err(|e| e.to_string())?;
+
+        Ok(ExecutionPayloadHeaderDeneb {
+            parent_hash: node_to_root(&self.parent_hash),
+            fee_recipient,
+            state_root: node_to_root(&self.state_root),
+            receipts_root: node_to_root(&self.receipts_root),
+            logs_bloom: Bloom(bloom_bytes),
+            prev_randao: node_to_root(&self.prev_randao),
+            block_number: self.block_number,
+            gas_limit: self.gas_limit,
+            gas_used: self.gas_used,
+            timestamp: self.timestamp,
+            extra_data,
+            base_fee_per_gas: base_fee,
+            block_hash: node_to_root(&self.block_hash),
+            transactions_root: node_to_root(&self.transactions_root),
+            withdrawals_root: node_to_root(&self.withdrawals_root),
+            blob_gas_used: self.blob_gas_used,
+            excess_blob_gas: self.excess_blob_gas,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Default, SimpleSerialize)]
+struct RawDenebLightClientHeader {
+    beacon: RawBeaconBlockHeader,
+    execution: RawExecutionPayloadHeaderDeneb,
+    execution_branch: Vector<Node, 4>,
+}
+
+#[derive(Debug, Clone, Default, SimpleSerialize)]
+struct RawDenebLightClientBootstrap {
+    header: RawDenebLightClientHeader,
+    current_sync_committee: RawSyncCommittee,
+    current_sync_committee_branch: Vector<Node, 5>,
+}
+
+#[derive(Debug, Clone, Default, SimpleSerialize)]
+struct RawDenebLightClientUpdate {
+    attested_header: RawDenebLightClientHeader,
+    next_sync_committee: RawSyncCommittee,
+    next_sync_committee_branch: Vector<Node, 5>,
+    finalized_header: RawDenebLightClientHeader,
+    finality_branch: Vector<Node, 6>,
+    sync_aggregate: RawSyncAggregate,
+    signature_slot: u64,
+}
+
+fn raw_deneb_header_to_pub(
+    raw: &RawDenebLightClientHeader,
+) -> Result<PubLightClientHeader, String> {
+    let beacon = raw.beacon.clone().into_beacon_block_header();
+    let execution = raw.execution.clone().into_execution_payload_header()?;
+    let mut execution_branch = [[0u8; 32]; 4];
+    for (i, node) in raw.execution_branch.iter().enumerate() {
+        execution_branch[i].copy_from_slice(node.as_ref());
+    }
+    Ok(PubLightClientHeader::deneb(
+        beacon,
+        execution,
+        execution_branch,
+    ))
+}
+
+fn raw_deneb_update_to_pub(raw: RawDenebLightClientUpdate) -> Result<LightClientUpdate, String> {
+    let sync_committee = raw.next_sync_committee.to_sync_committee()?;
+    let sync_aggregate = raw.sync_aggregate.into_sync_aggregate()?;
+
+    let has_sync_committee = !sync_committee
+        .pubkeys
+        .iter()
+        .all(|pk| pk.iter().all(|&b| b == 0));
+
+    let finality_branch: Vec<[u8; 32]> = raw
+        .finality_branch
+        .iter()
+        .map(|node| {
+            let mut root = [0u8; 32];
+            root.copy_from_slice(node.as_ref());
+            root
+        })
+        .collect();
+
+    let next_sync_committee_branch: Vec<[u8; 32]> = raw
+        .next_sync_committee_branch
+        .iter()
+        .map(|node| {
+            let mut root = [0u8; 32];
+            root.copy_from_slice(node.as_ref());
+            root
+        })
+        .collect();
+
+    // A default finalized header (slot=0) means no finality update.
+    // Without this, the empty header's all-zero body_root triggers spurious
+    // execution-branch verification failures.
+    let has_finality = raw.finalized_header.beacon.slot != 0;
+    let finalized_header = if has_finality {
+        Some(raw_deneb_header_to_pub(&raw.finalized_header)?)
+    } else {
+        None
+    };
+
+    Ok(LightClientUpdate {
+        attested_header: raw_deneb_header_to_pub(&raw.attested_header)?,
+        finalized_header,
+        finality_branch: if has_finality {
+            finality_branch
+        } else {
+            Vec::new()
+        },
+        next_sync_committee: if has_sync_committee {
+            Some(sync_committee)
+        } else {
+            None
+        },
+        next_sync_committee_branch: if has_sync_committee {
+            next_sync_committee_branch
+        } else {
+            Vec::new()
+        },
+        sync_aggregate,
+        signature_slot: raw.signature_slot,
+    })
+}
+
 impl RawLightClientUpdate {
     fn into_light_client_update(self, fork: TestFork) -> Result<LightClientUpdate, String> {
         let sync_committee = self.next_sync_committee.to_sync_committee()?;
@@ -563,6 +747,19 @@ impl SpecTestLoader {
         }
     }
 
+    /// Create a loader for the minimal/deneb sync test.
+    ///
+    /// Uses real Deneb spec fixtures. Deneb extends the Capella execution
+    /// payload header with `blob_gas_used` and `excess_blob_gas`.
+    pub fn minimal_deneb_sync() -> Self {
+        let test_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/minimal/deneb/light_client/sync/light_client_sync");
+        Self {
+            test_dir,
+            fork: TestFork::Deneb,
+        }
+    }
+
     /// Create a loader for a custom test directory with an explicit fork tag.
     pub fn from_path(path: impl Into<PathBuf>, fork: TestFork) -> Self {
         Self {
@@ -610,6 +807,19 @@ impl SpecTestLoader {
                     genesis_validators_root,
                 })
             }
+            TestFork::Deneb => {
+                let bootstrap: RawDenebLightClientBootstrap = load_ssz_snappy(&bootstrap_path)?;
+                let sync_committee = bootstrap.current_sync_committee.to_sync_committee()?;
+                let branch = nodes_to_roots(&bootstrap.current_sync_committee_branch);
+                let header = raw_deneb_header_to_pub(&bootstrap.header)?;
+
+                Ok(BootstrapData {
+                    header,
+                    sync_committee,
+                    branch,
+                    genesis_validators_root,
+                })
+            }
         }
     }
 
@@ -628,6 +838,10 @@ impl SpecTestLoader {
             TestFork::Capella => {
                 let raw: RawCapellaLightClientUpdate = load_ssz_snappy(&update_path)?;
                 raw_capella_update_to_pub(raw).map_err(|e| e.into())
+            }
+            TestFork::Deneb => {
+                let raw: RawDenebLightClientUpdate = load_ssz_snappy(&update_path)?;
+                raw_deneb_update_to_pub(raw).map_err(|e| e.into())
             }
         }
     }

@@ -10,6 +10,9 @@
 //! - `test_bellatrix_light_client_sync` — Bellatrix happy path (steps 1-5).
 //! - `test_capella_light_client_sync` — Capella happy path (steps 1-5),
 //!   including execution payload header and execution_root verification.
+//! - `test_deneb_light_client_sync` — Deneb happy path (steps 1-5),
+//!   covering the Deneb execution payload (adds `blob_gas_used` /
+//!   `excess_blob_gas`) and the same execution_root verification.
 //! - `test_altair_light_client_sync_with_force_update` — Full Altair spec test
 //!   including all 10 steps. Currently `#[ignore]` until `force_update` is implemented.
 //!
@@ -193,29 +196,29 @@ fn initialize_processor_from(loader: &SpecTestLoader) -> LightClientProcessor {
 
 fn check_execution_root(header: &LightClientHeader, expected_hex: &str, label: &str) -> bool {
     let expected = hex_to_root(expected_hex).expect("Invalid execution_root hex");
-    match header {
-        LightClientHeader::Capella(h) => {
-            let actual = h.execution.hash_tree_root();
-            if actual != expected {
-                println!(
-                    "    FAIL {} execution_root: expected {} got {}",
-                    label,
-                    hex::encode(expected),
-                    hex::encode(actual),
-                );
-                return false;
-            }
-            true
-        }
-        _ => {
-            // Altair/Bellatrix headers shouldn't have execution_root checks
+    let actual = match header {
+        LightClientHeader::Capella(h) => h.execution.hash_tree_root(),
+        LightClientHeader::Deneb(h) => h.execution.hash_tree_root(),
+        LightClientHeader::Altair(_) | LightClientHeader::Bellatrix(_) => {
+            // Pre-Capella headers carry no execution payload; the fixture
+            // shouldn't ask us to check one.
             println!(
-                "    FAIL {}: execution_root check on non-Capella header",
+                "    FAIL {}: execution_root check on pre-Capella header",
                 label
             );
-            false
+            return false;
         }
+    };
+    if actual != expected {
+        println!(
+            "    FAIL {} execution_root: expected {} got {}",
+            label,
+            hex::encode(expected),
+            hex::encode(actual),
+        );
+        return false;
     }
+    true
 }
 
 // ============================================================================
@@ -303,6 +306,41 @@ fn test_capella_light_client_sync() {
     let mut failed = 0;
 
     println!("capella light client sync (steps 1-5):");
+
+    for (i, step) in steps.iter().enumerate().take(5) {
+        match step {
+            TestStep::ProcessUpdate { process_update } => {
+                let result =
+                    execute_process_update_step(i + 1, process_update, &mut processor, &loader);
+                if result.passed {
+                    passed += 1;
+                } else {
+                    failed += 1;
+                }
+            }
+            TestStep::ForceUpdate { .. } => {
+                println!("  step {}: force_update (skipped)", i + 1);
+            }
+        }
+    }
+
+    println!("  result: {}/{} passed", passed, passed + failed);
+    assert_eq!(failed, 0, "{} step(s) failed", failed);
+}
+
+/// Deneb happy path using real Deneb spec fixtures.
+/// Headers include execution payload (with `blob_gas_used` /
+/// `excess_blob_gas`) and execution_branch verification.
+#[test]
+fn test_deneb_light_client_sync() {
+    let loader = SpecTestLoader::minimal_deneb_sync();
+    let steps = loader.load_steps().expect("Failed to load steps");
+    let mut processor = initialize_processor_from(&loader);
+
+    let mut passed = 0;
+    let mut failed = 0;
+
+    println!("deneb light client sync (steps 1-5):");
 
     for (i, step) in steps.iter().enumerate().take(5) {
         match step {
