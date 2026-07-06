@@ -524,10 +524,7 @@ pub struct SpecTestLoader {
 }
 
 impl SpecTestLoader {
-    /// Create a loader for the minimal/altair sync test.
-    ///
-    /// Looks for fixtures at `tests/fixtures/minimal/altair/light_client/sync/light_client_sync`
-    /// relative to `CARGO_MANIFEST_DIR`.
+    /// Loader for the minimal Altair light-client sync fixtures.
     pub fn minimal_altair_sync() -> Self {
         let test_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/minimal/altair/light_client/sync/light_client_sync");
@@ -537,11 +534,7 @@ impl SpecTestLoader {
         }
     }
 
-    /// Create a loader for the minimal/bellatrix sync test.
-    ///
-    /// Uses real Bellatrix spec fixtures (same `LightClientHeader` shape as
-    /// Altair — no execution payload header yet — but independently generated
-    /// BLS signatures, merkle proofs, and header data).
+    /// Loader for the minimal Bellatrix light-client sync fixtures.
     pub fn minimal_bellatrix_sync() -> Self {
         let test_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/minimal/bellatrix/light_client/sync/light_client_sync");
@@ -551,9 +544,7 @@ impl SpecTestLoader {
         }
     }
 
-    /// Create a loader for the minimal/capella sync test.
-    ///
-    /// Uses real Capella spec fixtures with execution payload headers.
+    /// Loader for the minimal Capella light-client sync fixtures.
     pub fn minimal_capella_sync() -> Self {
         let test_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/minimal/capella/light_client/sync/light_client_sync");
@@ -563,7 +554,6 @@ impl SpecTestLoader {
         }
     }
 
-    /// Create a loader for a custom test directory with an explicit fork tag.
     pub fn from_path(path: impl Into<PathBuf>, fork: TestFork) -> Self {
         Self {
             test_dir: path.into(),
@@ -571,12 +561,10 @@ impl SpecTestLoader {
         }
     }
 
-    /// Return a `ChainSpec` matching this loader's fork.
     pub fn chain_spec(&self) -> crate::config::ChainSpec {
         self.fork.chain_spec()
     }
 
-    /// Load bootstrap data from the test fixtures.
     pub fn load_bootstrap(&self) -> Result<BootstrapData, Box<dyn std::error::Error>> {
         let meta = self.load_meta()?;
         let genesis_validators_root = hex_to_root(&meta.genesis_validators_root)?;
@@ -613,9 +601,7 @@ impl SpecTestLoader {
         }
     }
 
-    /// Load a specific update by name.
-    ///
-    /// The name should not include the `.ssz_snappy` extension.
+    /// `name` must not include the `.ssz_snappy` extension.
     pub fn load_update(&self, name: &str) -> Result<LightClientUpdate, Box<dyn std::error::Error>> {
         let update_path = self.test_dir.join(format!("{}.ssz_snappy", name));
 
@@ -632,7 +618,6 @@ impl SpecTestLoader {
         }
     }
 
-    /// Load test metadata from meta.yaml.
     pub fn load_meta(&self) -> Result<TestMeta, Box<dyn std::error::Error>> {
         let meta_path = self.test_dir.join("meta.yaml");
         let meta_contents = fs::read_to_string(&meta_path)?;
@@ -640,7 +625,6 @@ impl SpecTestLoader {
         Ok(meta)
     }
 
-    /// Load test steps from steps.yaml.
     pub fn load_steps(&self) -> Result<Vec<TestStep>, Box<dyn std::error::Error>> {
         let steps_path = self.test_dir.join("steps.yaml");
         let steps_contents = fs::read_to_string(&steps_path)?;
