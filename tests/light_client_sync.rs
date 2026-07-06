@@ -8,20 +8,36 @@
 #![cfg(feature = "test-utils")]
 
 use eth_light_client::test_utils::{hex_to_root, ProcessUpdateStep, SpecTestLoader, TestStep};
-use eth_light_client::{ChainSpec, LightClient, UpdateOutcome};
+use eth_light_client::{LightClient, UpdateOutcome};
 
-/// Run spec sync steps 1-5 through the public LightClient API.
 #[test]
-fn test_light_client_public_api_sync() {
+fn test_light_client_public_api_sync_altair() {
+    run_public_api_sync(SpecTestLoader::minimal_altair_sync());
+}
+
+#[test]
+fn test_light_client_public_api_sync_bellatrix() {
+    run_public_api_sync(SpecTestLoader::minimal_bellatrix_sync());
+}
+
+#[test]
+fn test_light_client_public_api_sync_capella() {
+    run_public_api_sync(SpecTestLoader::minimal_capella_sync());
+}
+
+/// Run spec sync steps 1-5 for the given fixture set through the public
+/// `LightClient` API. Shared by the per-fork tests above; the fork is
+/// determined entirely by the supplied `loader`.
+fn run_public_api_sync(loader: SpecTestLoader) {
     println!("\n=== Integration Test: LightClient Public API ===\n");
 
     // Load fixtures using test_utils
-    let loader = SpecTestLoader::minimal_altair_sync();
     let bootstrap = loader.load_bootstrap().expect("Failed to load bootstrap");
     let steps = loader.load_steps().expect("Failed to load steps");
 
-    // Initialize LightClient via public API
-    let mut client = LightClient::new(ChainSpec::minimal(), bootstrap.into_bootstrap())
+    // Use the loader's fork-appropriate ChainSpec so fork version / domain
+    // selection matches the fixtures.
+    let mut client = LightClient::new(loader.chain_spec(), bootstrap.into_bootstrap())
         .expect("Failed to initialize LightClient");
 
     println!(
@@ -72,7 +88,8 @@ fn process_step(
     println!("Processing update: {}", step.update);
     println!(
         "  Attested slot: {}, Signature slot: {}",
-        update.attested_header.slot, update.signature_slot
+        update.attested_header.slot(),
+        update.signature_slot
     );
 
     let before_finalized = client.finalized_header().slot;
