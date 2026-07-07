@@ -17,9 +17,9 @@ mod raw_ssz;
 mod steps;
 
 pub use loader::{BootstrapData, SpecTestLoader};
-pub use steps::{ForceUpdateStep, HeaderCheck, ProcessUpdateStep, StateChecks, TestMeta, TestStep};
-
-use crate::types::primitives::Root;
+pub use steps::{
+    hex_to_root, ForceUpdateStep, HeaderCheck, ProcessUpdateStep, StateChecks, TestMeta, TestStep,
+};
 
 /// Fork tag used by the fixture loader to wrap deserialized headers
 /// into the correct [`LightClientHeader`](crate::types::consensus::LightClientHeader) variant.
@@ -67,16 +67,4 @@ impl TestFork {
 
         ChainSpec::try_from_config(config).expect("minimal fixture config is valid")
     }
-}
-
-/// Convert a hex string (with or without 0x prefix) to a 32-byte root.
-pub fn hex_to_root(hex: &str) -> Result<Root, Box<dyn std::error::Error>> {
-    let hex = hex.strip_prefix("0x").unwrap_or(hex);
-    let bytes = hex::decode(hex)?;
-    if bytes.len() != 32 {
-        return Err(format!("Expected 32 bytes, got {}", bytes.len()).into());
-    }
-    let mut root = [0u8; 32];
-    root.copy_from_slice(&bytes);
-    Ok(root)
 }

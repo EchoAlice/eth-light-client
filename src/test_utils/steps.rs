@@ -1,5 +1,7 @@
 //! YAML metadata and step types deserialized from spec test fixtures.
 
+use crate::types::primitives::Root;
+
 /// Metadata from a spec test's meta.yaml file.
 #[derive(Debug, serde::Deserialize)]
 pub struct TestMeta {
@@ -54,4 +56,16 @@ pub struct ProcessUpdateStep {
 pub struct ForceUpdateStep {
     pub current_slot: u64,
     pub checks: StateChecks,
+}
+
+/// Convert a hex string (with or without 0x prefix) to a 32-byte root.
+pub fn hex_to_root(hex: &str) -> Result<Root, Box<dyn std::error::Error>> {
+    let hex = hex.strip_prefix("0x").unwrap_or(hex);
+    let bytes = hex::decode(hex)?;
+    if bytes.len() != 32 {
+        return Err(format!("Expected 32 bytes, got {}", bytes.len()).into());
+    }
+    let mut root = [0u8; 32];
+    root.copy_from_slice(&bytes);
+    Ok(root)
 }
