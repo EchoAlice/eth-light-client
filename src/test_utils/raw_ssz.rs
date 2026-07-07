@@ -227,66 +227,81 @@ pub(crate) fn raw_capella_header_to_pub(
     ))
 }
 
-pub(crate) fn raw_capella_update_to_pub(
-    raw: RawCapellaLightClientUpdate,
-) -> Result<LightClientUpdate, String> {
-    let sync_committee = raw.next_sync_committee.to_sync_committee()?;
-    let sync_aggregate = raw.sync_aggregate.into_sync_aggregate()?;
+/// Convert a branch of SSZ nodes into `Root`s.
+pub(crate) fn nodes_to_roots(nodes: &[Node]) -> Vec<Root> {
+    nodes
+        .iter()
+        .map(|node| {
+            let mut root = [0u8; 32];
+            root.copy_from_slice(node.as_ref());
+            root
+        })
+        .collect()
+}
 
+/// Assemble a `LightClientUpdate` from converted parts, applying the spec's
+/// optional-field rules uniformly: a `None` finalized header means "no finality
+/// update" (empty finality branch), and an all-zero sync committee means "no
+/// committee update" (empty next-committee branch).
+fn assemble_update(
+    attested_header: LightClientHeader,
+    finalized_header: Option<LightClientHeader>,
+    finality_branch: Vec<Root>,
+    sync_committee: SyncCommittee,
+    next_sync_committee_branch: Vec<Root>,
+    sync_aggregate: SyncAggregate,
+    signature_slot: u64,
+) -> LightClientUpdate {
+    let has_finality = finalized_header.is_some();
     let has_sync_committee = !sync_committee
         .pubkeys
         .iter()
         .all(|pk| pk.iter().all(|&b| b == 0));
 
-    let finality_branch: Vec<[u8; 32]> = raw
-        .finality_branch
-        .iter()
-        .map(|node| {
-            let mut root = [0u8; 32];
-            root.copy_from_slice(node.as_ref());
-            root
-        })
-        .collect();
-
-    let next_sync_committee_branch: Vec<[u8; 32]> = raw
-        .next_sync_committee_branch
-        .iter()
-        .map(|node| {
-            let mut root = [0u8; 32];
-            root.copy_from_slice(node.as_ref());
-            root
-        })
-        .collect();
-
-    // A default finalized header (slot=0) means no finality update.
-    let has_finality = raw.finalized_header.beacon.slot != 0;
-    let finalized_header = if has_finality {
-        Some(raw_capella_header_to_pub(raw.finalized_header)?)
-    } else {
-        None
-    };
-
-    Ok(LightClientUpdate {
-        attested_header: raw_capella_header_to_pub(raw.attested_header)?,
+    LightClientUpdate {
+        attested_header,
         finalized_header,
         finality_branch: if has_finality {
             finality_branch
         } else {
             Vec::new()
         },
-        next_sync_committee: if has_sync_committee {
-            Some(sync_committee)
-        } else {
-            None
-        },
+        next_sync_committee: has_sync_committee.then_some(sync_committee),
         next_sync_committee_branch: if has_sync_committee {
             next_sync_committee_branch
         } else {
             Vec::new()
         },
         sync_aggregate,
-        signature_slot: raw.signature_slot,
-    })
+        signature_slot,
+    }
+}
+
+pub(crate) fn raw_capella_update_to_pub(
+    raw: RawCapellaLightClientUpdate,
+) -> Result<LightClientUpdate, String> {
+    let sync_committee = raw.next_sync_committee.to_sync_committee()?;
+    let sync_aggregate = raw.sync_aggregate.into_sync_aggregate()?;
+    let finality_branch = nodes_to_roots(&raw.finality_branch);
+    let next_sync_committee_branch = nodes_to_roots(&raw.next_sync_committee_branch);
+
+    // A default (slot-0) finalized header means the update carries no finality.
+    let finalized_header = if raw.finalized_header.beacon.slot != 0 {
+        Some(raw_capella_header_to_pub(raw.finalized_header)?)
+    } else {
+        None
+    };
+    let attested_header = raw_capella_header_to_pub(raw.attested_header)?;
+
+    Ok(assemble_update(
+        attested_header,
+        finalized_header,
+        finality_branch,
+        sync_committee,
+        next_sync_committee_branch,
+        sync_aggregate,
+        raw.signature_slot,
+    ))
 }
 
 pub(crate) fn raw_beacon_only_update_to_pub(
@@ -295,47 +310,52 @@ pub(crate) fn raw_beacon_only_update_to_pub(
 ) -> Result<LightClientUpdate, String> {
     let sync_committee = raw.next_sync_committee.to_sync_committee()?;
     let sync_aggregate = raw.sync_aggregate.into_sync_aggregate()?;
+    let finality_branch = nodes_to_roots(&raw.finality_branch);
+    let next_sync_committee_branch = nodes_to_roots(&raw.next_sync_committee_branch);
 
-    let has_sync_committee = !sync_committee
-        .pubkeys
-        .iter()
-        .all(|pk| pk.iter().all(|&b| b == 0));
+    // A default (slot-0) finalized header means the update carries no finality.
+    let finalized_header = if raw.finalized_header.beacon.slot != 0 {
+        Some(raw_beacon_only_header_to_pub(fork, raw.finalized_header))
+    } else {
+        None
+    };
+    let attested_header = raw_beacon_only_header_to_pub(fork, raw.attested_header);
 
-    let finality_branch: Vec<Root> = raw
-        .finality_branch
-        .iter()
-        .map(|node| {
-            let mut root = [0u8; 32];
-            root.copy_from_slice(node.as_ref());
-            root
-        })
-        .collect();
-
-    let next_sync_committee_branch: Vec<Root> = raw
-        .next_sync_committee_branch
-        .iter()
-        .map(|node| {
-            let mut root = [0u8; 32];
-            root.copy_from_slice(node.as_ref());
-            root
-        })
-        .collect();
-
-    Ok(LightClientUpdate {
-        attested_header: raw_beacon_only_header_to_pub(fork, raw.attested_header),
-        finalized_header: Some(raw_beacon_only_header_to_pub(fork, raw.finalized_header)),
+    Ok(assemble_update(
+        attested_header,
+        finalized_header,
         finality_branch,
-        next_sync_committee: if has_sync_committee {
-            Some(sync_committee)
-        } else {
-            None
-        },
-        next_sync_committee_branch: if has_sync_committee {
-            next_sync_committee_branch
-        } else {
-            Vec::new()
-        },
+        sync_committee,
+        next_sync_committee_branch,
         sync_aggregate,
-        signature_slot: raw.signature_slot,
-    })
+        raw.signature_slot,
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::test_utils::SpecTestLoader;
+
+    // Regression guard against the beacon-only vs Capella converters drifting on
+    // finality handling: a no-finality update (spec `_sx`/`_xx` fixtures) must
+    // convert to `finalized_header: None`, not a `Some(slot-0 placeholder)`.
+    #[test]
+    fn no_finality_update_yields_none_finalized_header() {
+        let loader = SpecTestLoader::minimal_altair_sync();
+        // Altair step 4: a sync-committee update carrying no finality (`_sx`).
+        let update = loader
+            .load_update(
+                "update_0xa955d1485f6a3bb6c993c2699b16af66dc6ddf6f93a63d7cbe53334ad68c6e04_sx",
+            )
+            .expect("load no-finality (_sx) update");
+
+        assert!(
+            update.finalized_header.is_none(),
+            "no-finality update must yield finalized_header == None"
+        );
+        assert!(
+            update.finality_branch.is_empty(),
+            "no-finality update must yield an empty finality_branch"
+        );
+    }
 }

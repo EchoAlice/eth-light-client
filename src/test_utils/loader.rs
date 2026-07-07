@@ -1,9 +1,9 @@
 //! Fixture loader: reads spec test files and builds production light client types.
 
 use super::raw_ssz::{
-    raw_beacon_only_header_to_pub, raw_beacon_only_update_to_pub, raw_capella_header_to_pub,
-    raw_capella_update_to_pub, RawCapellaLightClientBootstrap, RawCapellaLightClientUpdate,
-    RawLightClientBootstrap, RawLightClientUpdate,
+    nodes_to_roots, raw_beacon_only_header_to_pub, raw_beacon_only_update_to_pub,
+    raw_capella_header_to_pub, raw_capella_update_to_pub, RawCapellaLightClientBootstrap,
+    RawCapellaLightClientUpdate, RawLightClientBootstrap, RawLightClientUpdate,
 };
 use super::steps::{TestMeta, TestStep};
 use super::{hex_to_root, TestFork};
@@ -147,17 +147,6 @@ impl SpecTestLoader {
         let steps: Vec<TestStep> = serde_yaml::from_str(&steps_contents)?;
         Ok(steps)
     }
-}
-
-fn nodes_to_roots(nodes: &[Node]) -> Vec<Root> {
-    nodes
-        .iter()
-        .map(|node| {
-            let mut root = [0u8; 32];
-            root.copy_from_slice(node.as_ref());
-            root
-        })
-        .collect()
 }
 
 fn load_ssz_snappy<T>(file_path: &Path) -> Result<T, Box<dyn std::error::Error>>
