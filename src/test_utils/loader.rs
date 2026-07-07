@@ -7,8 +7,7 @@ use super::raw_ssz::{
 use super::steps::{TestMeta, TestStep};
 use super::{hex_to_root, TestFork};
 use crate::types::consensus::{
-    LightClientBootstrap, LightClientHeader as PubLightClientHeader, LightClientUpdate,
-    SyncCommittee,
+    LightClientBootstrap, LightClientHeader, LightClientUpdate, SyncCommittee,
 };
 use crate::types::primitives::Root;
 use ssz_rs::prelude::*;
@@ -17,7 +16,7 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct BootstrapData {
-    pub header: PubLightClientHeader,
+    pub header: LightClientHeader,
     pub sync_committee: SyncCommittee,
     pub branch: Vec<Root>,
     pub genesis_validators_root: Root,

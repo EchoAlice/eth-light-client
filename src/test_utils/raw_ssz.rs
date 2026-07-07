@@ -2,8 +2,8 @@
 
 use super::TestFork;
 use crate::types::consensus::{
-    BeaconBlockHeader, ExecutionPayloadHeaderCapella, LightClientHeader as PubLightClientHeader,
-    LightClientUpdate, SyncAggregate, SyncCommittee,
+    BeaconBlockHeader, ExecutionPayloadHeaderCapella, LightClientHeader, LightClientUpdate,
+    SyncAggregate, SyncCommittee,
 };
 use crate::types::primitives::{Bloom, ExtraData, Root};
 use ssz_rs::prelude::*;
@@ -37,13 +37,13 @@ impl RawBeaconBlockHeader {
 }
 
 #[derive(Debug, Clone, Default, SimpleSerialize)]
-pub(crate) struct LightClientHeader {
+pub(crate) struct RawLightClientHeader {
     pub(crate) beacon: RawBeaconBlockHeader,
 }
 
 #[derive(Debug, Clone, Default, SimpleSerialize)]
 pub(crate) struct RawLightClientBootstrap {
-    pub(crate) header: LightClientHeader,
+    pub(crate) header: RawLightClientHeader,
     pub(crate) current_sync_committee: RawSyncCommittee,
     pub(crate) current_sync_committee_branch: Vector<Node, 5>,
 }
@@ -100,10 +100,10 @@ impl RawSyncAggregate {
 // Altair/Bellatrix update (beacon-only headers)
 #[derive(Debug, Clone, Default, SimpleSerialize)]
 pub(crate) struct RawLightClientUpdate {
-    attested_header: LightClientHeader,
+    attested_header: RawLightClientHeader,
     next_sync_committee: RawSyncCommittee,
     next_sync_committee_branch: Vector<Node, 5>,
-    finalized_header: LightClientHeader,
+    finalized_header: RawLightClientHeader,
     finality_branch: Vector<Node, 6>,
     sync_aggregate: RawSyncAggregate,
     signature_slot: u64,
@@ -199,14 +199,14 @@ pub(crate) struct RawCapellaLightClientUpdate {
 
 pub(crate) fn raw_capella_header_to_pub(
     raw: &RawCapellaLightClientHeader,
-) -> Result<PubLightClientHeader, String> {
+) -> Result<LightClientHeader, String> {
     let beacon = raw.beacon.clone().into_beacon_block_header();
     let execution = raw.execution.clone().into_execution_payload_header()?;
     let mut execution_branch = [[0u8; 32]; 4];
     for (i, node) in raw.execution_branch.iter().enumerate() {
         execution_branch[i].copy_from_slice(node.as_ref());
     }
-    Ok(PubLightClientHeader::capella(
+    Ok(LightClientHeader::capella(
         beacon,
         execution,
         execution_branch,
