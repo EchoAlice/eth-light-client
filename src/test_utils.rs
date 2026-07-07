@@ -32,8 +32,7 @@ pub enum TestFork {
 }
 
 impl TestFork {
-    /// Wrap a `BeaconBlockHeader` into the corresponding `LightClientHeader` variant.
-    /// Only valid for Altair/Bellatrix (no execution payload).
+    /// Only valid for Altair/Bellatrix; Capella headers carry an execution payload (panics).
     fn wrap_header(&self, beacon: BeaconBlockHeader) -> PubLightClientHeader {
         match self {
             TestFork::Altair => PubLightClientHeader::altair(beacon),
@@ -417,7 +416,6 @@ impl RawLightClientUpdate {
 /// Metadata from a spec test's meta.yaml file.
 #[derive(Debug, serde::Deserialize)]
 pub struct TestMeta {
-    /// Genesis validators root as hex string (0x-prefixed).
     pub genesis_validators_root: String,
     #[allow(dead_code)]
     trusted_block_root: String,
@@ -427,23 +425,17 @@ pub struct TestMeta {
     store_fork_digest: String,
 }
 
-/// Expected state after a test step.
 #[derive(Debug, serde::Deserialize)]
 pub struct StateChecks {
-    /// Expected finalized header state.
     pub finalized_header: Option<HeaderCheck>,
-    /// Expected optimistic header state.
     pub optimistic_header: Option<HeaderCheck>,
 }
 
-/// Expected header values.
 #[derive(Debug, serde::Deserialize)]
 pub struct HeaderCheck {
-    /// Expected slot.
     pub slot: u64,
-    /// Expected beacon block root as hex string.
     pub beacon_root: String,
-    /// Expected execution payload root as hex string (Capella+, absent for Altair/Bellatrix).
+    /// Present only for Capella+ (absent for Altair/Bellatrix).
     #[serde(default)]
     pub execution_root: Option<String>,
 }
@@ -452,37 +444,28 @@ pub struct HeaderCheck {
 #[derive(Debug, serde::Deserialize)]
 #[serde(untagged)]
 pub enum TestStep {
-    /// Process a light client update.
     ProcessUpdate {
-        /// The process_update step data.
         process_update: ProcessUpdateStep,
     },
     /// Force update (safety timeout mechanism).
     ForceUpdate {
-        /// The force_update step data.
         force_update: ForceUpdateStep,
     },
 }
 
-/// Data for a process_update test step.
 #[derive(Debug, serde::Deserialize)]
 pub struct ProcessUpdateStep {
     #[allow(dead_code)]
     update_fork_digest: String,
     /// Update file name (without .ssz_snappy extension).
     pub update: String,
-    /// Current slot when processing the update.
     pub current_slot: u64,
-    /// Expected state after processing.
     pub checks: StateChecks,
 }
 
-/// Data for a force_update test step.
 #[derive(Debug, serde::Deserialize)]
 pub struct ForceUpdateStep {
-    /// Current slot when forcing update.
     pub current_slot: u64,
-    /// Expected state after forcing.
     pub checks: StateChecks,
 }
 
@@ -490,21 +473,15 @@ pub struct ForceUpdateStep {
 // Public API
 // ============================================================================
 
-/// Bootstrap data loaded from spec test fixtures.
 #[derive(Debug, Clone)]
 pub struct BootstrapData {
-    /// The trusted header (fork-aware).
     pub header: PubLightClientHeader,
-    /// The current sync committee.
     pub sync_committee: SyncCommittee,
-    /// Merkle branch proving sync committee in state.
     pub branch: Vec<Root>,
-    /// Genesis validators root for signature domain.
     pub genesis_validators_root: Root,
 }
 
 impl BootstrapData {
-    /// Convert to the public [`LightClientBootstrap`] type.
     pub fn into_bootstrap(self) -> LightClientBootstrap {
         LightClientBootstrap::from_header(
             self.header,
@@ -524,10 +501,7 @@ pub struct SpecTestLoader {
 }
 
 impl SpecTestLoader {
-    /// Create a loader for the minimal/altair sync test.
-    ///
-    /// Looks for fixtures at `tests/fixtures/minimal/altair/light_client/sync/light_client_sync`
-    /// relative to `CARGO_MANIFEST_DIR`.
+    /// Loader for the minimal Altair light-client sync fixtures.
     pub fn minimal_altair_sync() -> Self {
         let test_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/minimal/altair/light_client/sync/light_client_sync");
@@ -537,11 +511,7 @@ impl SpecTestLoader {
         }
     }
 
-    /// Create a loader for the minimal/bellatrix sync test.
-    ///
-    /// Uses real Bellatrix spec fixtures (same `LightClientHeader` shape as
-    /// Altair — no execution payload header yet — but independently generated
-    /// BLS signatures, merkle proofs, and header data).
+    /// Loader for the minimal Bellatrix light-client sync fixtures.
     pub fn minimal_bellatrix_sync() -> Self {
         let test_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/minimal/bellatrix/light_client/sync/light_client_sync");
@@ -551,9 +521,7 @@ impl SpecTestLoader {
         }
     }
 
-    /// Create a loader for the minimal/capella sync test.
-    ///
-    /// Uses real Capella spec fixtures with execution payload headers.
+    /// Loader for the minimal Capella light-client sync fixtures.
     pub fn minimal_capella_sync() -> Self {
         let test_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/minimal/capella/light_client/sync/light_client_sync");
@@ -563,7 +531,6 @@ impl SpecTestLoader {
         }
     }
 
-    /// Create a loader for a custom test directory with an explicit fork tag.
     pub fn from_path(path: impl Into<PathBuf>, fork: TestFork) -> Self {
         Self {
             test_dir: path.into(),
@@ -571,12 +538,10 @@ impl SpecTestLoader {
         }
     }
 
-    /// Return a `ChainSpec` matching this loader's fork.
     pub fn chain_spec(&self) -> crate::config::ChainSpec {
         self.fork.chain_spec()
     }
 
-    /// Load bootstrap data from the test fixtures.
     pub fn load_bootstrap(&self) -> Result<BootstrapData, Box<dyn std::error::Error>> {
         let meta = self.load_meta()?;
         let genesis_validators_root = hex_to_root(&meta.genesis_validators_root)?;
@@ -613,9 +578,7 @@ impl SpecTestLoader {
         }
     }
 
-    /// Load a specific update by name.
-    ///
-    /// The name should not include the `.ssz_snappy` extension.
+    /// `name` must not include the `.ssz_snappy` extension.
     pub fn load_update(&self, name: &str) -> Result<LightClientUpdate, Box<dyn std::error::Error>> {
         let update_path = self.test_dir.join(format!("{}.ssz_snappy", name));
 
@@ -632,7 +595,6 @@ impl SpecTestLoader {
         }
     }
 
-    /// Load test metadata from meta.yaml.
     pub fn load_meta(&self) -> Result<TestMeta, Box<dyn std::error::Error>> {
         let meta_path = self.test_dir.join("meta.yaml");
         let meta_contents = fs::read_to_string(&meta_path)?;
@@ -640,7 +602,6 @@ impl SpecTestLoader {
         Ok(meta)
     }
 
-    /// Load test steps from steps.yaml.
     pub fn load_steps(&self) -> Result<Vec<TestStep>, Box<dyn std::error::Error>> {
         let steps_path = self.test_dir.join("steps.yaml");
         let steps_contents = fs::read_to_string(&steps_path)?;
