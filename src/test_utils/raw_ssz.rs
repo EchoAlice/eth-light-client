@@ -9,7 +9,7 @@ use crate::types::primitives::{Bloom, ExtraData, Root};
 use ssz_rs::prelude::*;
 
 #[derive(Debug, Clone, Default, SimpleSerialize)]
-pub(crate) struct RawBeaconBlockHeader {
+struct RawBeaconBlockHeader {
     slot: u64,
     proposer_index: u64,
     parent_root: Node,
@@ -18,7 +18,7 @@ pub(crate) struct RawBeaconBlockHeader {
 }
 
 impl RawBeaconBlockHeader {
-    pub(crate) fn into_beacon_block_header(self) -> BeaconBlockHeader {
+    fn into_beacon_block_header(self) -> BeaconBlockHeader {
         let mut parent_root = [0u8; 32];
         parent_root.copy_from_slice(self.parent_root.as_ref());
         let mut state_root = [0u8; 32];
@@ -38,7 +38,7 @@ impl RawBeaconBlockHeader {
 
 #[derive(Debug, Clone, Default, SimpleSerialize)]
 pub(crate) struct RawLightClientHeader {
-    pub(crate) beacon: RawBeaconBlockHeader,
+    beacon: RawBeaconBlockHeader,
 }
 
 #[derive(Debug, Clone, Default, SimpleSerialize)]
