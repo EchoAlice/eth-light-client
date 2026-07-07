@@ -32,8 +32,7 @@ pub enum TestFork {
 }
 
 impl TestFork {
-    /// Wrap a `BeaconBlockHeader` into the corresponding `LightClientHeader` variant.
-    /// Only valid for Altair/Bellatrix (no execution payload).
+    /// Only valid for Altair/Bellatrix; Capella headers carry an execution payload (panics).
     fn wrap_header(&self, beacon: BeaconBlockHeader) -> PubLightClientHeader {
         match self {
             TestFork::Altair => PubLightClientHeader::altair(beacon),
@@ -417,7 +416,6 @@ impl RawLightClientUpdate {
 /// Metadata from a spec test's meta.yaml file.
 #[derive(Debug, serde::Deserialize)]
 pub struct TestMeta {
-    /// Genesis validators root as hex string (0x-prefixed).
     pub genesis_validators_root: String,
     #[allow(dead_code)]
     trusted_block_root: String,
@@ -427,23 +425,17 @@ pub struct TestMeta {
     store_fork_digest: String,
 }
 
-/// Expected state after a test step.
 #[derive(Debug, serde::Deserialize)]
 pub struct StateChecks {
-    /// Expected finalized header state.
     pub finalized_header: Option<HeaderCheck>,
-    /// Expected optimistic header state.
     pub optimistic_header: Option<HeaderCheck>,
 }
 
-/// Expected header values.
 #[derive(Debug, serde::Deserialize)]
 pub struct HeaderCheck {
-    /// Expected slot.
     pub slot: u64,
-    /// Expected beacon block root as hex string.
     pub beacon_root: String,
-    /// Expected execution payload root as hex string (Capella+, absent for Altair/Bellatrix).
+    /// Present only for Capella+ (absent for Altair/Bellatrix).
     #[serde(default)]
     pub execution_root: Option<String>,
 }
@@ -452,37 +444,28 @@ pub struct HeaderCheck {
 #[derive(Debug, serde::Deserialize)]
 #[serde(untagged)]
 pub enum TestStep {
-    /// Process a light client update.
     ProcessUpdate {
-        /// The process_update step data.
         process_update: ProcessUpdateStep,
     },
     /// Force update (safety timeout mechanism).
     ForceUpdate {
-        /// The force_update step data.
         force_update: ForceUpdateStep,
     },
 }
 
-/// Data for a process_update test step.
 #[derive(Debug, serde::Deserialize)]
 pub struct ProcessUpdateStep {
     #[allow(dead_code)]
     update_fork_digest: String,
     /// Update file name (without .ssz_snappy extension).
     pub update: String,
-    /// Current slot when processing the update.
     pub current_slot: u64,
-    /// Expected state after processing.
     pub checks: StateChecks,
 }
 
-/// Data for a force_update test step.
 #[derive(Debug, serde::Deserialize)]
 pub struct ForceUpdateStep {
-    /// Current slot when forcing update.
     pub current_slot: u64,
-    /// Expected state after forcing.
     pub checks: StateChecks,
 }
 
@@ -490,21 +473,15 @@ pub struct ForceUpdateStep {
 // Public API
 // ============================================================================
 
-/// Bootstrap data loaded from spec test fixtures.
 #[derive(Debug, Clone)]
 pub struct BootstrapData {
-    /// The trusted header (fork-aware).
     pub header: PubLightClientHeader,
-    /// The current sync committee.
     pub sync_committee: SyncCommittee,
-    /// Merkle branch proving sync committee in state.
     pub branch: Vec<Root>,
-    /// Genesis validators root for signature domain.
     pub genesis_validators_root: Root,
 }
 
 impl BootstrapData {
-    /// Convert to the public [`LightClientBootstrap`] type.
     pub fn into_bootstrap(self) -> LightClientBootstrap {
         LightClientBootstrap::from_header(
             self.header,
