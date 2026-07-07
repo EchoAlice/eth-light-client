@@ -1,8 +1,9 @@
 //! Fixture loader: reads spec test files and builds production light client types.
 
 use super::raw_ssz::{
-    raw_capella_header_to_pub, raw_capella_update_to_pub, RawCapellaLightClientBootstrap,
-    RawCapellaLightClientUpdate, RawLightClientBootstrap, RawLightClientUpdate,
+    raw_beacon_only_header_to_pub, raw_beacon_only_update_to_pub, raw_capella_header_to_pub,
+    raw_capella_update_to_pub, RawCapellaLightClientBootstrap, RawCapellaLightClientUpdate,
+    RawLightClientBootstrap, RawLightClientUpdate,
 };
 use super::steps::{TestMeta, TestStep};
 use super::{hex_to_root, TestFork};
@@ -95,9 +96,7 @@ impl SpecTestLoader {
                 let branch = nodes_to_roots(&bootstrap.current_sync_committee_branch);
 
                 Ok(BootstrapData {
-                    header: self
-                        .fork
-                        .wrap_header(bootstrap.header.beacon.into_beacon_block_header()),
+                    header: raw_beacon_only_header_to_pub(self.fork, bootstrap.header),
                     sync_committee,
                     branch,
                     genesis_validators_root,
@@ -107,7 +106,7 @@ impl SpecTestLoader {
                 let bootstrap: RawCapellaLightClientBootstrap = load_ssz_snappy(&bootstrap_path)?;
                 let sync_committee = bootstrap.current_sync_committee.to_sync_committee()?;
                 let branch = nodes_to_roots(&bootstrap.current_sync_committee_branch);
-                let header = raw_capella_header_to_pub(&bootstrap.header)?;
+                let header = raw_capella_header_to_pub(bootstrap.header)?;
 
                 Ok(BootstrapData {
                     header,
@@ -126,8 +125,7 @@ impl SpecTestLoader {
         match self.fork {
             TestFork::Altair | TestFork::Bellatrix => {
                 let raw: RawLightClientUpdate = load_ssz_snappy(&update_path)?;
-                raw.into_light_client_update(self.fork)
-                    .map_err(|e| e.into())
+                raw_beacon_only_update_to_pub(self.fork, raw).map_err(|e| e.into())
             }
             TestFork::Capella => {
                 let raw: RawCapellaLightClientUpdate = load_ssz_snappy(&update_path)?;

@@ -19,11 +19,10 @@ mod steps;
 pub use loader::{BootstrapData, SpecTestLoader};
 pub use steps::{ForceUpdateStep, HeaderCheck, ProcessUpdateStep, StateChecks, TestMeta, TestStep};
 
-use crate::types::consensus::{BeaconBlockHeader, LightClientHeader};
 use crate::types::primitives::Root;
 
 /// Fork tag used by the fixture loader to wrap deserialized headers
-/// into the correct [`LightClientHeader`] variant.
+/// into the correct [`LightClientHeader`](crate::types::consensus::LightClientHeader) variant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TestFork {
     Altair,
@@ -32,17 +31,6 @@ pub enum TestFork {
 }
 
 impl TestFork {
-    /// Only valid for Altair/Bellatrix; Capella headers carry an execution payload (panics).
-    fn wrap_header(&self, beacon: BeaconBlockHeader) -> LightClientHeader {
-        match self {
-            TestFork::Altair => LightClientHeader::altair(beacon),
-            TestFork::Bellatrix => LightClientHeader::bellatrix(beacon),
-            TestFork::Capella => {
-                panic!("Capella headers require execution payload; use Capella-specific load path")
-            }
-        }
-    }
-
     /// Return a `ChainSpec` whose fork schedule matches the spec-test fixtures
     /// for this fork.
     pub fn chain_spec(&self) -> crate::config::ChainSpec {

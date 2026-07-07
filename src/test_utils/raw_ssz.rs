@@ -197,11 +197,25 @@ pub(crate) struct RawCapellaLightClientUpdate {
     signature_slot: u64,
 }
 
+/// Convert a beacon-only fixture header into the matching production
+/// `LightClientHeader` variant. Only valid for Altair/Bellatrix.
+pub(crate) fn raw_beacon_only_header_to_pub(
+    fork: TestFork,
+    raw: RawLightClientHeader,
+) -> LightClientHeader {
+    let beacon = raw.beacon.into_beacon_block_header();
+    match fork {
+        TestFork::Altair => LightClientHeader::altair(beacon),
+        TestFork::Bellatrix => LightClientHeader::bellatrix(beacon),
+        TestFork::Capella => unreachable!("beacon-only converter called for Capella"),
+    }
+}
+
 pub(crate) fn raw_capella_header_to_pub(
-    raw: &RawCapellaLightClientHeader,
+    raw: RawCapellaLightClientHeader,
 ) -> Result<LightClientHeader, String> {
-    let beacon = raw.beacon.clone().into_beacon_block_header();
-    let execution = raw.execution.clone().into_execution_payload_header()?;
+    let beacon = raw.beacon.into_beacon_block_header();
+    let execution = raw.execution.into_execution_payload_header()?;
     let mut execution_branch = [[0u8; 32]; 4];
     for (i, node) in raw.execution_branch.iter().enumerate() {
         execution_branch[i].copy_from_slice(node.as_ref());
@@ -247,13 +261,13 @@ pub(crate) fn raw_capella_update_to_pub(
     // A default finalized header (slot=0) means no finality update.
     let has_finality = raw.finalized_header.beacon.slot != 0;
     let finalized_header = if has_finality {
-        Some(raw_capella_header_to_pub(&raw.finalized_header)?)
+        Some(raw_capella_header_to_pub(raw.finalized_header)?)
     } else {
         None
     };
 
     Ok(LightClientUpdate {
-        attested_header: raw_capella_header_to_pub(&raw.attested_header)?,
+        attested_header: raw_capella_header_to_pub(raw.attested_header)?,
         finalized_header,
         finality_branch: if has_finality {
             finality_branch
@@ -275,58 +289,53 @@ pub(crate) fn raw_capella_update_to_pub(
     })
 }
 
-impl RawLightClientUpdate {
-    pub(crate) fn into_light_client_update(
-        self,
-        fork: TestFork,
-    ) -> Result<LightClientUpdate, String> {
-        let sync_committee = self.next_sync_committee.to_sync_committee()?;
-        let sync_aggregate = self.sync_aggregate.into_sync_aggregate()?;
+pub(crate) fn raw_beacon_only_update_to_pub(
+    fork: TestFork,
+    raw: RawLightClientUpdate,
+) -> Result<LightClientUpdate, String> {
+    let sync_committee = raw.next_sync_committee.to_sync_committee()?;
+    let sync_aggregate = raw.sync_aggregate.into_sync_aggregate()?;
 
-        let has_sync_committee = !sync_committee
-            .pubkeys
-            .iter()
-            .all(|pk| pk.iter().all(|&b| b == 0));
+    let has_sync_committee = !sync_committee
+        .pubkeys
+        .iter()
+        .all(|pk| pk.iter().all(|&b| b == 0));
 
-        let finality_branch: Vec<Root> = self
-            .finality_branch
-            .iter()
-            .map(|node| {
-                let mut root = [0u8; 32];
-                root.copy_from_slice(node.as_ref());
-                root
-            })
-            .collect();
-
-        let next_sync_committee_branch: Vec<Root> = self
-            .next_sync_committee_branch
-            .iter()
-            .map(|node| {
-                let mut root = [0u8; 32];
-                root.copy_from_slice(node.as_ref());
-                root
-            })
-            .collect();
-
-        Ok(LightClientUpdate {
-            attested_header: fork
-                .wrap_header(self.attested_header.beacon.into_beacon_block_header()),
-            finalized_header: Some(
-                fork.wrap_header(self.finalized_header.beacon.into_beacon_block_header()),
-            ),
-            finality_branch,
-            next_sync_committee: if has_sync_committee {
-                Some(sync_committee)
-            } else {
-                None
-            },
-            next_sync_committee_branch: if has_sync_committee {
-                next_sync_committee_branch
-            } else {
-                Vec::new()
-            },
-            sync_aggregate,
-            signature_slot: self.signature_slot,
+    let finality_branch: Vec<Root> = raw
+        .finality_branch
+        .iter()
+        .map(|node| {
+            let mut root = [0u8; 32];
+            root.copy_from_slice(node.as_ref());
+            root
         })
-    }
+        .collect();
+
+    let next_sync_committee_branch: Vec<Root> = raw
+        .next_sync_committee_branch
+        .iter()
+        .map(|node| {
+            let mut root = [0u8; 32];
+            root.copy_from_slice(node.as_ref());
+            root
+        })
+        .collect();
+
+    Ok(LightClientUpdate {
+        attested_header: raw_beacon_only_header_to_pub(fork, raw.attested_header),
+        finalized_header: Some(raw_beacon_only_header_to_pub(fork, raw.finalized_header)),
+        finality_branch,
+        next_sync_committee: if has_sync_committee {
+            Some(sync_committee)
+        } else {
+            None
+        },
+        next_sync_committee_branch: if has_sync_committee {
+            next_sync_committee_branch
+        } else {
+            Vec::new()
+        },
+        sync_aggregate,
+        signature_slot: raw.signature_slot,
+    })
 }
