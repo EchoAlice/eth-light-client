@@ -124,7 +124,7 @@ impl SpecTestLoader {
         }
     }
 
-    pub fn load_meta(&self) -> Result<TestMeta, Box<dyn std::error::Error>> {
+    pub(crate) fn load_meta(&self) -> Result<TestMeta, Box<dyn std::error::Error>> {
         let meta_path = self.test_dir.join("meta.yaml");
         let meta_contents = fs::read_to_string(&meta_path)?;
         let meta: TestMeta = serde_yaml::from_str(&meta_contents)?;
