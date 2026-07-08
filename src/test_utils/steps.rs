@@ -1,5 +1,6 @@
 //! YAML metadata and step types deserialized from spec test fixtures.
 
+use crate::types::consensus::BeaconBlockHeader;
 use crate::types::primitives::Root;
 
 /// Metadata from a spec test's meta.yaml file.
@@ -68,4 +69,16 @@ pub fn hex_to_root(hex: &str) -> Result<Root, Box<dyn std::error::Error>> {
     let mut root = [0u8; 32];
     root.copy_from_slice(&bytes);
     Ok(root)
+}
+
+/// Whether a beacon header matches a fixture `HeaderCheck` (slot + beacon root).
+///
+/// Covers only the beacon check — the part both the internal processor and the
+/// public `LightClient` expose as a `BeaconBlockHeader`. The Capella+
+/// `execution_root` is not checked here, since only the processor exposes the
+/// full light client header.
+pub fn beacon_header_matches(check: &HeaderCheck, header: &BeaconBlockHeader) -> bool {
+    let expected_root = hex_to_root(&check.beacon_root).expect("invalid beacon_root hex");
+    let actual_root = header.hash_tree_root().expect("hash_tree_root");
+    header.slot == check.slot && actual_root == expected_root
 }

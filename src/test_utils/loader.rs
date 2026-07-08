@@ -139,6 +139,16 @@ impl SpecTestLoader {
     }
 }
 
+/// Load a minimal Altair bootstrap — a convenience for tests that only need a
+/// valid bootstrap for setup.
+#[cfg(test)]
+pub(crate) fn load_altair_bootstrap() -> LightClientBootstrap {
+    SpecTestLoader::minimal_altair_sync()
+        .load_bootstrap()
+        .expect("Failed to load bootstrap")
+        .into_bootstrap()
+}
+
 fn load_ssz_snappy<T>(file_path: &Path) -> Result<T, Box<dyn std::error::Error>>
 where
     T: Deserialize,

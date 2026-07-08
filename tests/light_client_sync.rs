@@ -7,7 +7,9 @@
 
 #![cfg(feature = "test-utils")]
 
-use eth_light_client::test_utils::{hex_to_root, ProcessUpdateStep, SpecTestLoader, TestStep};
+use eth_light_client::test_utils::{
+    beacon_header_matches, ProcessUpdateStep, SpecTestLoader, TestStep,
+};
 use eth_light_client::{LightClient, UpdateOutcome};
 
 #[test]
@@ -137,43 +139,21 @@ fn process_step(
     let mut step_passed = true;
 
     if let Some(ref expected) = step.checks.finalized_header {
-        if after_finalized != expected.slot {
+        if !beacon_header_matches(expected, client.finalized_header()) {
             println!(
-                "  FAIL: Finalized slot mismatch (expected {}, got {})",
-                expected.slot, after_finalized
+                "  FAIL: Finalized header mismatch (expected slot {})",
+                expected.slot
             );
-            step_passed = false;
-        }
-
-        let actual_root = client
-            .finalized_header()
-            .hash_tree_root()
-            .expect("hash_tree_root failed");
-        let expected_root = hex_to_root(&expected.beacon_root).expect("Invalid beacon_root");
-
-        if actual_root != expected_root {
-            println!("  FAIL: Finalized beacon_root mismatch");
             step_passed = false;
         }
     }
 
     if let Some(ref expected) = step.checks.optimistic_header {
-        if after_optimistic != expected.slot {
+        if !beacon_header_matches(expected, client.optimistic_header()) {
             println!(
-                "  FAIL: Optimistic slot mismatch (expected {}, got {})",
-                expected.slot, after_optimistic
+                "  FAIL: Optimistic header mismatch (expected slot {})",
+                expected.slot
             );
-            step_passed = false;
-        }
-
-        let actual_root = client
-            .optimistic_header()
-            .hash_tree_root()
-            .expect("hash_tree_root failed");
-        let expected_root = hex_to_root(&expected.beacon_root).expect("Invalid beacon_root");
-
-        if actual_root != expected_root {
-            println!("  FAIL: Optimistic beacon_root mismatch");
             step_passed = false;
         }
     }
