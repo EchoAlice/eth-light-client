@@ -8,7 +8,7 @@ use crate::types::consensus::{
 use crate::types::primitives::{Bloom, ExtraData, Root};
 use ssz_rs::prelude::*;
 
-#[derive(Debug, Clone, Default, SimpleSerialize)]
+#[derive(Default, SimpleSerialize)]
 struct RawBeaconBlockHeader {
     slot: u64,
     proposer_index: u64,
@@ -36,19 +36,19 @@ impl RawBeaconBlockHeader {
     }
 }
 
-#[derive(Debug, Clone, Default, SimpleSerialize)]
+#[derive(Default, SimpleSerialize)]
 pub(crate) struct RawLightClientHeader {
     beacon: RawBeaconBlockHeader,
 }
 
-#[derive(Debug, Clone, Default, SimpleSerialize)]
+#[derive(Default, SimpleSerialize)]
 pub(crate) struct RawLightClientBootstrap {
     pub(crate) header: RawLightClientHeader,
     pub(crate) current_sync_committee: RawSyncCommittee,
     pub(crate) current_sync_committee_branch: Vector<Node, 5>,
 }
 
-#[derive(Debug, Clone, Default, SimpleSerialize)]
+#[derive(Default, SimpleSerialize)]
 pub(crate) struct RawSyncCommittee {
     pubkeys: Vector<Vector<u8, 48>, 32>,
     aggregate_pubkey: Vector<u8, 48>,
@@ -77,7 +77,7 @@ impl RawSyncCommittee {
     }
 }
 
-#[derive(Debug, Clone, Default, SimpleSerialize)]
+#[derive(Default, SimpleSerialize)]
 struct RawSyncAggregate {
     sync_committee_bits: Bitvector<32>,
     sync_committee_signature: Vector<u8, 96>,
@@ -98,7 +98,7 @@ impl RawSyncAggregate {
 }
 
 // Altair/Bellatrix update (beacon-only headers)
-#[derive(Debug, Clone, Default, SimpleSerialize)]
+#[derive(Default, SimpleSerialize)]
 pub(crate) struct RawLightClientUpdate {
     attested_header: RawLightClientHeader,
     next_sync_committee: RawSyncCommittee,
@@ -109,7 +109,7 @@ pub(crate) struct RawLightClientUpdate {
     signature_slot: u64,
 }
 
-#[derive(Debug, Clone, Default, SimpleSerialize)]
+#[derive(Default, SimpleSerialize)]
 struct RawExecutionPayloadHeader {
     parent_hash: Node,
     fee_recipient: Vector<u8, 20>,
@@ -172,21 +172,21 @@ impl RawExecutionPayloadHeader {
     }
 }
 
-#[derive(Debug, Clone, Default, SimpleSerialize)]
+#[derive(Default, SimpleSerialize)]
 pub(crate) struct RawCapellaLightClientHeader {
     beacon: RawBeaconBlockHeader,
     execution: RawExecutionPayloadHeader,
     execution_branch: Vector<Node, 4>,
 }
 
-#[derive(Debug, Clone, Default, SimpleSerialize)]
+#[derive(Default, SimpleSerialize)]
 pub(crate) struct RawCapellaLightClientBootstrap {
     pub(crate) header: RawCapellaLightClientHeader,
     pub(crate) current_sync_committee: RawSyncCommittee,
     pub(crate) current_sync_committee_branch: Vector<Node, 5>,
 }
 
-#[derive(Debug, Clone, Default, SimpleSerialize)]
+#[derive(Default, SimpleSerialize)]
 pub(crate) struct RawCapellaLightClientUpdate {
     attested_header: RawCapellaLightClientHeader,
     next_sync_committee: RawSyncCommittee,
@@ -277,33 +277,6 @@ fn assemble_update(
     }
 }
 
-pub(crate) fn raw_capella_update_to_pub(
-    raw: RawCapellaLightClientUpdate,
-) -> Result<LightClientUpdate, String> {
-    let sync_committee = raw.next_sync_committee.to_sync_committee()?;
-    let sync_aggregate = raw.sync_aggregate.into_sync_aggregate()?;
-    let finality_branch = nodes_to_roots(&raw.finality_branch);
-    let next_sync_committee_branch = nodes_to_roots(&raw.next_sync_committee_branch);
-
-    // A default (slot-0) finalized header means the update carries no finality.
-    let finalized_header = if raw.finalized_header.beacon.slot != 0 {
-        Some(raw_capella_header_to_pub(raw.finalized_header)?)
-    } else {
-        None
-    };
-    let attested_header = raw_capella_header_to_pub(raw.attested_header)?;
-
-    Ok(assemble_update(
-        attested_header,
-        finalized_header,
-        finality_branch,
-        sync_committee,
-        next_sync_committee_branch,
-        sync_aggregate,
-        raw.signature_slot,
-    ))
-}
-
 pub(crate) fn raw_beacon_only_update_to_pub(
     fork: TestFork,
     raw: RawLightClientUpdate,
@@ -320,6 +293,33 @@ pub(crate) fn raw_beacon_only_update_to_pub(
         None
     };
     let attested_header = raw_beacon_only_header_to_pub(fork, raw.attested_header);
+
+    Ok(assemble_update(
+        attested_header,
+        finalized_header,
+        finality_branch,
+        sync_committee,
+        next_sync_committee_branch,
+        sync_aggregate,
+        raw.signature_slot,
+    ))
+}
+
+pub(crate) fn raw_capella_update_to_pub(
+    raw: RawCapellaLightClientUpdate,
+) -> Result<LightClientUpdate, String> {
+    let sync_committee = raw.next_sync_committee.to_sync_committee()?;
+    let sync_aggregate = raw.sync_aggregate.into_sync_aggregate()?;
+    let finality_branch = nodes_to_roots(&raw.finality_branch);
+    let next_sync_committee_branch = nodes_to_roots(&raw.next_sync_committee_branch);
+
+    // A default (slot-0) finalized header means the update carries no finality.
+    let finalized_header = if raw.finalized_header.beacon.slot != 0 {
+        Some(raw_capella_header_to_pub(raw.finalized_header)?)
+    } else {
+        None
+    };
+    let attested_header = raw_capella_header_to_pub(raw.attested_header)?;
 
     Ok(assemble_update(
         attested_header,
