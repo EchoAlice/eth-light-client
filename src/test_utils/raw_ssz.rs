@@ -1,0 +1,348 @@
+//! Raw SSZ fixture types and their conversions into production light client types.
+
+use super::MinimalPresetFork;
+use crate::types::consensus::{
+    BeaconBlockHeader, ExecutionPayloadHeaderCapella, LightClientHeader, LightClientUpdate,
+    SyncAggregate, SyncCommittee,
+};
+use crate::types::primitives::{Bloom, ExtraData, Root};
+use ssz_rs::prelude::*;
+
+#[derive(Default, SimpleSerialize)]
+struct RawBeaconBlockHeader {
+    slot: u64,
+    proposer_index: u64,
+    parent_root: Node,
+    state_root: Node,
+    body_root: Node,
+}
+
+impl RawBeaconBlockHeader {
+    fn into_beacon_block_header(self) -> BeaconBlockHeader {
+        BeaconBlockHeader::new(
+            self.slot,
+            self.proposer_index,
+            node_to_root(&self.parent_root),
+            node_to_root(&self.state_root),
+            node_to_root(&self.body_root),
+        )
+    }
+}
+
+#[derive(Default, SimpleSerialize)]
+pub(crate) struct RawLightClientHeader {
+    beacon: RawBeaconBlockHeader,
+}
+
+#[derive(Default, SimpleSerialize)]
+pub(crate) struct RawLightClientBootstrap {
+    pub(crate) header: RawLightClientHeader,
+    pub(crate) current_sync_committee: RawSyncCommittee,
+    pub(crate) current_sync_committee_branch: Vector<Node, 5>,
+}
+
+#[derive(Default, SimpleSerialize)]
+pub(crate) struct RawSyncCommittee {
+    pubkeys: Vector<Vector<u8, 48>, 32>,
+    aggregate_pubkey: Vector<u8, 48>,
+}
+
+impl RawSyncCommittee {
+    pub(crate) fn to_sync_committee(&self) -> Result<SyncCommittee, String> {
+        if self.pubkeys.len() != 32 {
+            return Err(format!(
+                "Expected 32 pubkeys (minimal preset), got {}",
+                self.pubkeys.len()
+            ));
+        }
+
+        let mut pubkeys_array = Box::new([[0u8; 48]; 512]);
+        for (i, pk) in self.pubkeys.iter().enumerate() {
+            let mut key = [0u8; 48];
+            key.copy_from_slice(pk.as_ref());
+            pubkeys_array[i] = key;
+        }
+
+        let mut aggregate = [0u8; 48];
+        aggregate.copy_from_slice(self.aggregate_pubkey.as_ref());
+
+        Ok(SyncCommittee::new(pubkeys_array, aggregate))
+    }
+}
+
+#[derive(Default, SimpleSerialize)]
+struct RawSyncAggregate {
+    sync_committee_bits: Bitvector<32>,
+    sync_committee_signature: Vector<u8, 96>,
+}
+
+impl RawSyncAggregate {
+    fn into_sync_aggregate(self) -> Result<SyncAggregate, String> {
+        let mut bits_array = Box::new([false; 512]);
+        for (i, bit) in self.sync_committee_bits.iter().enumerate() {
+            bits_array[i] = *bit;
+        }
+
+        let mut signature = [0u8; 96];
+        signature.copy_from_slice(self.sync_committee_signature.as_ref());
+
+        Ok(SyncAggregate::new(bits_array, signature))
+    }
+}
+
+// Altair/Bellatrix update (beacon-only headers)
+#[derive(Default, SimpleSerialize)]
+pub(crate) struct RawLightClientUpdate {
+    attested_header: RawLightClientHeader,
+    next_sync_committee: RawSyncCommittee,
+    next_sync_committee_branch: Vector<Node, 5>,
+    finalized_header: RawLightClientHeader,
+    finality_branch: Vector<Node, 6>,
+    sync_aggregate: RawSyncAggregate,
+    signature_slot: u64,
+}
+
+#[derive(Default, SimpleSerialize)]
+struct RawExecutionPayloadHeader {
+    parent_hash: Node,
+    fee_recipient: Vector<u8, 20>,
+    state_root: Node,
+    receipts_root: Node,
+    logs_bloom: Vector<u8, 256>,
+    prev_randao: Node,
+    block_number: u64,
+    gas_limit: u64,
+    gas_used: u64,
+    timestamp: u64,
+    extra_data: List<u8, 32>,
+    base_fee_per_gas: ssz_rs::U256,
+    block_hash: Node,
+    transactions_root: Node,
+    withdrawals_root: Node,
+}
+
+impl RawExecutionPayloadHeader {
+    fn into_execution_payload_header(self) -> Result<ExecutionPayloadHeaderCapella, String> {
+        let mut fee_recipient = [0u8; 20];
+        fee_recipient.copy_from_slice(self.fee_recipient.as_ref());
+
+        let mut bloom_bytes = [0u8; 256];
+        bloom_bytes.copy_from_slice(self.logs_bloom.as_ref());
+
+        // Convert ssz_rs::U256 to ruint::U256 via LE bytes
+        let le_bytes = self.base_fee_per_gas.to_bytes_le();
+        let mut u256_bytes = [0u8; 32];
+        let len = le_bytes.len().min(32);
+        u256_bytes[..len].copy_from_slice(&le_bytes[..len]);
+        let base_fee = ruint::aliases::U256::from_le_bytes(u256_bytes);
+
+        let extra_data_vec: Vec<u8> = self.extra_data.to_vec();
+        let extra_data = ExtraData::try_new(extra_data_vec).map_err(|e| e.to_string())?;
+
+        Ok(ExecutionPayloadHeaderCapella {
+            parent_hash: node_to_root(&self.parent_hash),
+            fee_recipient,
+            state_root: node_to_root(&self.state_root),
+            receipts_root: node_to_root(&self.receipts_root),
+            logs_bloom: Bloom(bloom_bytes),
+            prev_randao: node_to_root(&self.prev_randao),
+            block_number: self.block_number,
+            gas_limit: self.gas_limit,
+            gas_used: self.gas_used,
+            timestamp: self.timestamp,
+            extra_data,
+            base_fee_per_gas: base_fee,
+            block_hash: node_to_root(&self.block_hash),
+            transactions_root: node_to_root(&self.transactions_root),
+            withdrawals_root: node_to_root(&self.withdrawals_root),
+        })
+    }
+}
+
+#[derive(Default, SimpleSerialize)]
+pub(crate) struct RawCapellaLightClientHeader {
+    beacon: RawBeaconBlockHeader,
+    execution: RawExecutionPayloadHeader,
+    execution_branch: Vector<Node, 4>,
+}
+
+#[derive(Default, SimpleSerialize)]
+pub(crate) struct RawCapellaLightClientBootstrap {
+    pub(crate) header: RawCapellaLightClientHeader,
+    pub(crate) current_sync_committee: RawSyncCommittee,
+    pub(crate) current_sync_committee_branch: Vector<Node, 5>,
+}
+
+#[derive(Default, SimpleSerialize)]
+pub(crate) struct RawCapellaLightClientUpdate {
+    attested_header: RawCapellaLightClientHeader,
+    next_sync_committee: RawSyncCommittee,
+    next_sync_committee_branch: Vector<Node, 5>,
+    finalized_header: RawCapellaLightClientHeader,
+    finality_branch: Vector<Node, 6>,
+    sync_aggregate: RawSyncAggregate,
+    signature_slot: u64,
+}
+
+/// Convert a beacon-only fixture header into the matching production
+/// `LightClientHeader` variant. Only valid for Altair/Bellatrix.
+pub(crate) fn raw_beacon_only_header_to_pub(
+    fork: MinimalPresetFork,
+    raw: RawLightClientHeader,
+) -> LightClientHeader {
+    let beacon = raw.beacon.into_beacon_block_header();
+    match fork {
+        MinimalPresetFork::Altair => LightClientHeader::altair(beacon),
+        MinimalPresetFork::Bellatrix => LightClientHeader::bellatrix(beacon),
+        MinimalPresetFork::Capella => unreachable!("beacon-only converter called for Capella"),
+    }
+}
+
+pub(crate) fn raw_capella_header_to_pub(
+    raw: RawCapellaLightClientHeader,
+) -> Result<LightClientHeader, String> {
+    let beacon = raw.beacon.into_beacon_block_header();
+    let execution = raw.execution.into_execution_payload_header()?;
+    let mut execution_branch = [[0u8; 32]; 4];
+    for (i, node) in raw.execution_branch.iter().enumerate() {
+        execution_branch[i] = node_to_root(node);
+    }
+    Ok(LightClientHeader::capella(
+        beacon,
+        execution,
+        execution_branch,
+    ))
+}
+
+/// Convert a branch of SSZ nodes into `Root`s.
+/// Copy a 32-byte SSZ node into a `Root`.
+fn node_to_root(node: &Node) -> Root {
+    let mut root = [0u8; 32];
+    root.copy_from_slice(node.as_ref());
+    root
+}
+
+pub(crate) fn nodes_to_roots(nodes: &[Node]) -> Vec<Root> {
+    nodes.iter().map(node_to_root).collect()
+}
+
+/// Assemble a `LightClientUpdate` from converted parts, applying the spec's
+/// optional-field rules uniformly: a `None` finalized header means "no finality
+/// update" (empty finality branch), and an all-zero sync committee means "no
+/// committee update" (empty next-committee branch).
+fn assemble_update(
+    attested_header: LightClientHeader,
+    finalized_header: Option<LightClientHeader>,
+    finality_branch: Vec<Root>,
+    sync_committee: SyncCommittee,
+    next_sync_committee_branch: Vec<Root>,
+    sync_aggregate: SyncAggregate,
+    signature_slot: u64,
+) -> LightClientUpdate {
+    let has_finality = finalized_header.is_some();
+    let has_sync_committee = !sync_committee
+        .pubkeys
+        .iter()
+        .all(|pk| pk.iter().all(|&b| b == 0));
+
+    LightClientUpdate {
+        attested_header,
+        finalized_header,
+        finality_branch: if has_finality {
+            finality_branch
+        } else {
+            Vec::new()
+        },
+        next_sync_committee: has_sync_committee.then_some(sync_committee),
+        next_sync_committee_branch: if has_sync_committee {
+            next_sync_committee_branch
+        } else {
+            Vec::new()
+        },
+        sync_aggregate,
+        signature_slot,
+    }
+}
+
+pub(crate) fn raw_beacon_only_update_to_pub(
+    fork: MinimalPresetFork,
+    raw: RawLightClientUpdate,
+) -> Result<LightClientUpdate, String> {
+    let sync_committee = raw.next_sync_committee.to_sync_committee()?;
+    let sync_aggregate = raw.sync_aggregate.into_sync_aggregate()?;
+    let finality_branch = nodes_to_roots(&raw.finality_branch);
+    let next_sync_committee_branch = nodes_to_roots(&raw.next_sync_committee_branch);
+
+    // A default (slot-0) finalized header means the update carries no finality.
+    let finalized_header = if raw.finalized_header.beacon.slot != 0 {
+        Some(raw_beacon_only_header_to_pub(fork, raw.finalized_header))
+    } else {
+        None
+    };
+    let attested_header = raw_beacon_only_header_to_pub(fork, raw.attested_header);
+
+    Ok(assemble_update(
+        attested_header,
+        finalized_header,
+        finality_branch,
+        sync_committee,
+        next_sync_committee_branch,
+        sync_aggregate,
+        raw.signature_slot,
+    ))
+}
+
+pub(crate) fn raw_capella_update_to_pub(
+    raw: RawCapellaLightClientUpdate,
+) -> Result<LightClientUpdate, String> {
+    let sync_committee = raw.next_sync_committee.to_sync_committee()?;
+    let sync_aggregate = raw.sync_aggregate.into_sync_aggregate()?;
+    let finality_branch = nodes_to_roots(&raw.finality_branch);
+    let next_sync_committee_branch = nodes_to_roots(&raw.next_sync_committee_branch);
+
+    // A default (slot-0) finalized header means the update carries no finality.
+    let finalized_header = if raw.finalized_header.beacon.slot != 0 {
+        Some(raw_capella_header_to_pub(raw.finalized_header)?)
+    } else {
+        None
+    };
+    let attested_header = raw_capella_header_to_pub(raw.attested_header)?;
+
+    Ok(assemble_update(
+        attested_header,
+        finalized_header,
+        finality_branch,
+        sync_committee,
+        next_sync_committee_branch,
+        sync_aggregate,
+        raw.signature_slot,
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::test_utils::SpecTestLoader;
+
+    // Regression guard against the beacon-only vs Capella converters drifting on
+    // finality handling: a no-finality update (spec `_sx`/`_xx` fixtures) must
+    // convert to `finalized_header: None`, not a `Some(slot-0 placeholder)`.
+    #[test]
+    fn no_finality_update_yields_none_finalized_header() {
+        let loader = SpecTestLoader::minimal_altair_sync();
+        // Altair step 4: a sync-committee update carrying no finality (`_sx`).
+        let update = loader
+            .load_update(
+                "update_0xa955d1485f6a3bb6c993c2699b16af66dc6ddf6f93a63d7cbe53334ad68c6e04_sx",
+            )
+            .expect("load no-finality (_sx) update");
+
+        assert!(
+            update.finalized_header.is_none(),
+            "no-finality update must yield finalized_header == None"
+        );
+        assert!(
+            update.finality_branch.is_empty(),
+            "no-finality update must yield an empty finality_branch"
+        );
+    }
+}
