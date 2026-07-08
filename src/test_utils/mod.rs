@@ -17,8 +17,9 @@ mod loader;
 mod raw_ssz;
 mod steps;
 
-pub use fork::TestFork;
 pub use loader::{BootstrapData, SpecTestLoader};
 pub use steps::{
     hex_to_root, ForceUpdateStep, HeaderCheck, ProcessUpdateStep, StateChecks, TestMeta, TestStep,
 };
+
+pub(crate) use fork::MinimalPresetFork;

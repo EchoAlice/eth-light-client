@@ -1,19 +1,19 @@
 //! The fork tag identifying which spec-test fixtures to load and how to
 //! configure the chain for them.
 
-/// Fork tag used by the fixture loader to wrap deserialized headers
-/// into the correct [`LightClientHeader`](crate::types::consensus::LightClientHeader) variant.
+/// The fork whose minimal-preset spec-test fixtures are being loaded; selects
+/// both the fixture set and the matching minimal-preset chain configuration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TestFork {
+pub(crate) enum MinimalPresetFork {
     Altair,
     Bellatrix,
     Capella,
 }
 
-impl TestFork {
+impl MinimalPresetFork {
     /// Return a `ChainSpec` whose fork schedule matches the spec-test fixtures
     /// for this fork.
-    pub fn chain_spec(&self) -> crate::config::ChainSpec {
+    pub(crate) fn chain_spec(&self) -> crate::config::ChainSpec {
         use crate::config::{ChainSpec, ChainSpecConfig};
 
         let mut config = ChainSpecConfig {
@@ -35,11 +35,11 @@ impl TestFork {
         };
 
         match self {
-            TestFork::Altair => {} // defaults are correct
-            TestFork::Bellatrix => {
+            MinimalPresetFork::Altair => {} // defaults are correct
+            MinimalPresetFork::Bellatrix => {
                 config.bellatrix_fork_epoch = 0;
             }
-            TestFork::Capella => {
+            MinimalPresetFork::Capella => {
                 config.bellatrix_fork_epoch = 0;
                 config.capella_fork_epoch = 0;
             }

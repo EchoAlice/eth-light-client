@@ -6,7 +6,7 @@ use super::raw_ssz::{
     RawCapellaLightClientUpdate, RawLightClientBootstrap, RawLightClientUpdate,
 };
 use super::steps::{TestMeta, TestStep};
-use super::{hex_to_root, TestFork};
+use super::{hex_to_root, MinimalPresetFork};
 use crate::types::consensus::{
     LightClientBootstrap, LightClientHeader, LightClientUpdate, SyncCommittee,
 };
@@ -39,44 +39,34 @@ impl BootstrapData {
 /// **Unstable:** This API may change without notice.
 pub struct SpecTestLoader {
     test_dir: PathBuf,
-    fork: TestFork,
+    fork: MinimalPresetFork,
 }
 
 impl SpecTestLoader {
-    /// Loader for the minimal Altair light-client sync fixtures.
     pub fn minimal_altair_sync() -> Self {
         let test_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/minimal/altair/light_client/sync/light_client_sync");
         Self {
             test_dir,
-            fork: TestFork::Altair,
+            fork: MinimalPresetFork::Altair,
         }
     }
 
-    /// Loader for the minimal Bellatrix light-client sync fixtures.
     pub fn minimal_bellatrix_sync() -> Self {
         let test_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/minimal/bellatrix/light_client/sync/light_client_sync");
         Self {
             test_dir,
-            fork: TestFork::Bellatrix,
+            fork: MinimalPresetFork::Bellatrix,
         }
     }
 
-    /// Loader for the minimal Capella light-client sync fixtures.
     pub fn minimal_capella_sync() -> Self {
         let test_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/minimal/capella/light_client/sync/light_client_sync");
         Self {
             test_dir,
-            fork: TestFork::Capella,
-        }
-    }
-
-    pub fn from_path(path: impl Into<PathBuf>, fork: TestFork) -> Self {
-        Self {
-            test_dir: path.into(),
-            fork,
+            fork: MinimalPresetFork::Capella,
         }
     }
 
@@ -90,7 +80,7 @@ impl SpecTestLoader {
         let bootstrap_path = self.test_dir.join("bootstrap.ssz_snappy");
 
         match self.fork {
-            TestFork::Altair | TestFork::Bellatrix => {
+            MinimalPresetFork::Altair | MinimalPresetFork::Bellatrix => {
                 let bootstrap: RawLightClientBootstrap = load_ssz_snappy(&bootstrap_path)?;
                 let sync_committee = bootstrap.current_sync_committee.to_sync_committee()?;
                 let branch = nodes_to_roots(&bootstrap.current_sync_committee_branch);
@@ -102,7 +92,7 @@ impl SpecTestLoader {
                     genesis_validators_root,
                 })
             }
-            TestFork::Capella => {
+            MinimalPresetFork::Capella => {
                 let bootstrap: RawCapellaLightClientBootstrap = load_ssz_snappy(&bootstrap_path)?;
                 let sync_committee = bootstrap.current_sync_committee.to_sync_committee()?;
                 let branch = nodes_to_roots(&bootstrap.current_sync_committee_branch);
@@ -123,11 +113,11 @@ impl SpecTestLoader {
         let update_path = self.test_dir.join(format!("{}.ssz_snappy", name));
 
         match self.fork {
-            TestFork::Altair | TestFork::Bellatrix => {
+            MinimalPresetFork::Altair | MinimalPresetFork::Bellatrix => {
                 let raw: RawLightClientUpdate = load_ssz_snappy(&update_path)?;
                 raw_beacon_only_update_to_pub(self.fork, raw).map_err(|e| e.into())
             }
-            TestFork::Capella => {
+            MinimalPresetFork::Capella => {
                 let raw: RawCapellaLightClientUpdate = load_ssz_snappy(&update_path)?;
                 raw_capella_update_to_pub(raw).map_err(|e| e.into())
             }

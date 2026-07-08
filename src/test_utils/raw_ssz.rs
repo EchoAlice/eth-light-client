@@ -1,6 +1,6 @@
 //! Raw SSZ fixture types and their conversions into production light client types.
 
-use super::TestFork;
+use super::MinimalPresetFork;
 use crate::types::consensus::{
     BeaconBlockHeader, ExecutionPayloadHeaderCapella, LightClientHeader, LightClientUpdate,
     SyncAggregate, SyncCommittee,
@@ -187,14 +187,14 @@ pub(crate) struct RawCapellaLightClientUpdate {
 /// Convert a beacon-only fixture header into the matching production
 /// `LightClientHeader` variant. Only valid for Altair/Bellatrix.
 pub(crate) fn raw_beacon_only_header_to_pub(
-    fork: TestFork,
+    fork: MinimalPresetFork,
     raw: RawLightClientHeader,
 ) -> LightClientHeader {
     let beacon = raw.beacon.into_beacon_block_header();
     match fork {
-        TestFork::Altair => LightClientHeader::altair(beacon),
-        TestFork::Bellatrix => LightClientHeader::bellatrix(beacon),
-        TestFork::Capella => unreachable!("beacon-only converter called for Capella"),
+        MinimalPresetFork::Altair => LightClientHeader::altair(beacon),
+        MinimalPresetFork::Bellatrix => LightClientHeader::bellatrix(beacon),
+        MinimalPresetFork::Capella => unreachable!("beacon-only converter called for Capella"),
     }
 }
 
@@ -265,7 +265,7 @@ fn assemble_update(
 }
 
 pub(crate) fn raw_beacon_only_update_to_pub(
-    fork: TestFork,
+    fork: MinimalPresetFork,
     raw: RawLightClientUpdate,
 ) -> Result<LightClientUpdate, String> {
     let sync_committee = raw.next_sync_committee.to_sync_committee()?;
