@@ -7,7 +7,8 @@ mod steps;
 
 pub use loader::{BootstrapData, SpecTestLoader};
 pub use steps::{
-    hex_to_root, ForceUpdateStep, HeaderCheck, ProcessUpdateStep, StateChecks, TestMeta, TestStep,
+    beacon_header_matches, hex_to_root, ForceUpdateStep, HeaderCheck, ProcessUpdateStep,
+    StateChecks, TestMeta, TestStep,
 };
 
 pub(crate) use fork::MinimalPresetFork;

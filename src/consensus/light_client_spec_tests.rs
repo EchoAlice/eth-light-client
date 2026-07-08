@@ -25,7 +25,8 @@
 
 use crate::consensus::light_client::LightClientProcessor;
 use crate::test_utils::{
-    hex_to_root, ForceUpdateStep, ProcessUpdateStep, SpecTestLoader, TestStep,
+    beacon_header_matches, hex_to_root, ForceUpdateStep, ProcessUpdateStep, SpecTestLoader,
+    TestStep,
 };
 use crate::types::consensus::{LightClientHeader, LightClientUpdate};
 
@@ -62,19 +63,8 @@ fn execute_process_update_step(
             let mut step_passed = true;
 
             if let Some(ref expected) = step.checks.finalized_header {
-                let actual_slot = processor.finalized_header().slot;
-                let actual_root = processor
-                    .finalized_header()
-                    .hash_tree_root()
-                    .expect("hash_tree_root");
-                let expected_root =
-                    hex_to_root(&expected.beacon_root).expect("Invalid beacon_root");
-
-                if actual_slot != expected.slot || actual_root != expected_root {
-                    println!(
-                        "    FAIL finalized: expected slot={} got={}",
-                        expected.slot, actual_slot
-                    );
+                if !beacon_header_matches(expected, processor.finalized_header()) {
+                    println!("    FAIL finalized: expected slot={}", expected.slot);
                     step_passed = false;
                 }
 
@@ -90,19 +80,8 @@ fn execute_process_update_step(
             }
 
             if let Some(ref expected) = step.checks.optimistic_header {
-                let actual_slot = processor.optimistic_header().slot;
-                let actual_root = processor
-                    .optimistic_header()
-                    .hash_tree_root()
-                    .expect("hash_tree_root");
-                let expected_root =
-                    hex_to_root(&expected.beacon_root).expect("Invalid beacon_root");
-
-                if actual_slot != expected.slot || actual_root != expected_root {
-                    println!(
-                        "    FAIL optimistic: expected slot={} got={}",
-                        expected.slot, actual_slot
-                    );
+                if !beacon_header_matches(expected, processor.optimistic_header()) {
+                    println!("    FAIL optimistic: expected slot={}", expected.slot);
                     step_passed = false;
                 }
 
