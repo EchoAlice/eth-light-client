@@ -19,19 +19,12 @@ struct RawBeaconBlockHeader {
 
 impl RawBeaconBlockHeader {
     fn into_beacon_block_header(self) -> BeaconBlockHeader {
-        let mut parent_root = [0u8; 32];
-        parent_root.copy_from_slice(self.parent_root.as_ref());
-        let mut state_root = [0u8; 32];
-        state_root.copy_from_slice(self.state_root.as_ref());
-        let mut body_root = [0u8; 32];
-        body_root.copy_from_slice(self.body_root.as_ref());
-
         BeaconBlockHeader::new(
             self.slot,
             self.proposer_index,
-            parent_root,
-            state_root,
-            body_root,
+            node_to_root(&self.parent_root),
+            node_to_root(&self.state_root),
+            node_to_root(&self.body_root),
         )
     }
 }
@@ -130,12 +123,6 @@ struct RawExecutionPayloadHeader {
 
 impl RawExecutionPayloadHeader {
     fn into_execution_payload_header(self) -> Result<ExecutionPayloadHeaderCapella, String> {
-        fn node_to_root(n: &Node) -> [u8; 32] {
-            let mut r = [0u8; 32];
-            r.copy_from_slice(n.as_ref());
-            r
-        }
-
         let mut fee_recipient = [0u8; 20];
         fee_recipient.copy_from_slice(self.fee_recipient.as_ref());
 
@@ -218,7 +205,7 @@ pub(crate) fn raw_capella_header_to_pub(
     let execution = raw.execution.into_execution_payload_header()?;
     let mut execution_branch = [[0u8; 32]; 4];
     for (i, node) in raw.execution_branch.iter().enumerate() {
-        execution_branch[i].copy_from_slice(node.as_ref());
+        execution_branch[i] = node_to_root(node);
     }
     Ok(LightClientHeader::capella(
         beacon,
@@ -228,15 +215,15 @@ pub(crate) fn raw_capella_header_to_pub(
 }
 
 /// Convert a branch of SSZ nodes into `Root`s.
+/// Copy a 32-byte SSZ node into a `Root`.
+fn node_to_root(node: &Node) -> Root {
+    let mut root = [0u8; 32];
+    root.copy_from_slice(node.as_ref());
+    root
+}
+
 pub(crate) fn nodes_to_roots(nodes: &[Node]) -> Vec<Root> {
-    nodes
-        .iter()
-        .map(|node| {
-            let mut root = [0u8; 32];
-            root.copy_from_slice(node.as_ref());
-            root
-        })
-        .collect()
+    nodes.iter().map(node_to_root).collect()
 }
 
 /// Assemble a `LightClientUpdate` from converted parts, applying the spec's
