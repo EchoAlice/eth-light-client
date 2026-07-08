@@ -11,3 +11,6 @@ pub use steps::{
 };
 
 pub(crate) use fork::MinimalPresetFork;
+
+#[cfg(test)]
+pub(crate) use loader::load_altair_bootstrap;

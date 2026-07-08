@@ -27,7 +27,7 @@ use crate::consensus::light_client::LightClientProcessor;
 use crate::test_utils::{
     hex_to_root, ForceUpdateStep, ProcessUpdateStep, SpecTestLoader, TestStep,
 };
-use crate::types::consensus::{LightClientBootstrap, LightClientHeader, LightClientUpdate};
+use crate::types::consensus::{LightClientHeader, LightClientUpdate};
 
 struct StepResult {
     passed: bool,
@@ -165,13 +165,6 @@ fn detect_update_type(update: &LightClientUpdate) -> &'static str {
         (false, true) => "Committee",
         (true, true) => "Combined",
     }
-}
-
-/// Load Altair bootstrap data from test fixtures.
-pub(crate) fn load_altair_bootstrap() -> LightClientBootstrap {
-    let loader = SpecTestLoader::minimal_altair_sync();
-    let bootstrap = loader.load_bootstrap().expect("Failed to load bootstrap");
-    bootstrap.into_bootstrap()
 }
 
 fn initialize_processor_from(loader: &SpecTestLoader) -> LightClientProcessor {

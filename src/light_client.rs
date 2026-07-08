@@ -496,7 +496,7 @@ mod tests {
     // ------------------------------------------------------------------------
 
     // Import the spec test fixture loader
-    use crate::consensus::light_client_spec_tests::load_altair_bootstrap;
+    use crate::test_utils::load_altair_bootstrap;
 
     #[test]
     fn test_light_client_creation() {

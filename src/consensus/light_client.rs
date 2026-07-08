@@ -295,7 +295,7 @@ impl LightClientProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::consensus::light_client_spec_tests::load_altair_bootstrap;
+    use crate::test_utils::load_altair_bootstrap;
     use crate::types::consensus::SyncAggregate;
 
     fn create_test_beacon_header(slot: Slot) -> BeaconBlockHeader {
