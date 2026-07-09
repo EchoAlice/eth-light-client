@@ -56,6 +56,8 @@ impl RawSyncCommittee {
             ));
         }
 
+        // Minimal fixtures hold 32 pubkeys; production is mainnet-sized (512).
+        // Padding is inert: root + signature checks read only pubkeys[..N] (N from ChainSpec).
         let mut pubkeys_array = Box::new([[0u8; 48]; 512]);
         for (i, pk) in self.pubkeys.iter().enumerate() {
             let mut key = [0u8; 48];
@@ -214,7 +216,6 @@ pub(crate) fn raw_capella_header_to_pub(
     ))
 }
 
-/// Convert a branch of SSZ nodes into `Root`s.
 /// Copy a 32-byte SSZ node into a `Root`.
 fn node_to_root(node: &Node) -> Root {
     let mut root = [0u8; 32];
@@ -222,6 +223,7 @@ fn node_to_root(node: &Node) -> Root {
     root
 }
 
+/// Convert a branch of SSZ nodes into `Root`s.
 pub(crate) fn nodes_to_roots(nodes: &[Node]) -> Vec<Root> {
     nodes.iter().map(node_to_root).collect()
 }

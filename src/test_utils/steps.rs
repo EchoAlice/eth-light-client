@@ -40,8 +40,6 @@ pub enum TestStep {
 
 #[derive(Debug, serde::Deserialize)]
 pub struct ProcessUpdateStep {
-    #[allow(dead_code)]
-    update_fork_digest: String,
     /// Update file name (without .ssz_snappy extension).
     pub update: String,
     pub current_slot: u64,
