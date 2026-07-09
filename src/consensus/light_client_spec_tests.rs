@@ -108,10 +108,7 @@ fn detect_update_type(update: &LightClientUpdate) -> &'static str {
 }
 
 fn initialize_processor_from(loader: &SpecTestLoader) -> LightClientProcessor {
-    let bootstrap = loader
-        .load_bootstrap()
-        .expect("Failed to load bootstrap")
-        .into_bootstrap();
+    let bootstrap = loader.load_bootstrap().expect("Failed to load bootstrap");
     let chain_spec = loader.chain_spec();
 
     LightClientProcessor::new(

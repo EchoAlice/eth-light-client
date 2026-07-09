@@ -39,8 +39,8 @@ fn run_public_api_sync(loader: SpecTestLoader) {
 
     // Use the loader's fork-appropriate ChainSpec so fork version / domain
     // selection matches the fixtures.
-    let mut client = LightClient::new(loader.chain_spec(), bootstrap.into_bootstrap())
-        .expect("Failed to initialize LightClient");
+    let mut client =
+        LightClient::new(loader.chain_spec(), bootstrap).expect("Failed to initialize LightClient");
 
     println!(
         "Initialized at slot {} (period {})",
