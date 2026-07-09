@@ -14,6 +14,79 @@ use crate::test_utils::{
 };
 use crate::types::consensus::{LightClientHeader, LightClientUpdate};
 
+/// Altair happy path (steps 1-5).
+#[test]
+fn test_altair_light_client_sync() {
+    run_sync(
+        SpecTestLoader::minimal_altair_sync(),
+        "altair light client sync (steps 1-5)",
+    );
+}
+
+/// Bellatrix happy path (steps 1-5).
+#[test]
+fn test_bellatrix_light_client_sync() {
+    run_sync(
+        SpecTestLoader::minimal_bellatrix_sync(),
+        "bellatrix light client sync (steps 1-5)",
+    );
+}
+
+/// Capella happy path (steps 1-5), incl. execution_root verification.
+#[test]
+fn test_capella_light_client_sync() {
+    run_sync(
+        SpecTestLoader::minimal_capella_sync(),
+        "capella light client sync (steps 1-5)",
+    );
+}
+
+/// Replay a fork's happy-path sync steps (1-5, all `process_update`) through a
+/// fresh processor, asserting each passes. Later `force_update` steps are
+/// skipped -- that feature is not implemented.
+fn run_sync(loader: SpecTestLoader, label: &str) {
+    let steps = loader.load_steps().expect("Failed to load steps");
+    let mut processor = initialize_processor_from(&loader);
+    let mut passed = 0;
+    let mut failed = 0;
+
+    println!("{}:", label);
+
+    for (i, step) in steps.iter().enumerate().take(5) {
+        match step {
+            TestStep::ProcessUpdate { process_update } => {
+                let result =
+                    execute_process_update_step(i + 1, process_update, &mut processor, &loader);
+                if result.passed {
+                    passed += 1;
+                } else {
+                    failed += 1;
+                }
+            }
+            TestStep::ForceUpdate { .. } => {
+                println!("  step {}: force_update (skipped, not implemented)", i + 1);
+            }
+        }
+    }
+
+    println!("  result: {}/{} passed", passed, passed + failed);
+    assert_eq!(failed, 0, "{} step(s) failed", failed);
+}
+
+fn initialize_processor_from(loader: &SpecTestLoader) -> LightClientProcessor {
+    let bootstrap = loader.load_bootstrap().expect("Failed to load bootstrap");
+    let chain_spec = loader.chain_spec();
+
+    LightClientProcessor::new(
+        chain_spec,
+        bootstrap.header.clone(),
+        bootstrap.current_sync_committee,
+        &bootstrap.current_sync_committee_branch,
+        bootstrap.genesis_validators_root,
+    )
+    .expect("Failed to initialize LightClientProcessor")
+}
+
 struct StepResult {
     passed: bool,
 }
@@ -91,10 +164,6 @@ fn execute_process_update_step(
     }
 }
 
-// ============================================================================
-// Shared Helper Functions
-// ============================================================================
-
 fn detect_update_type(update: &LightClientUpdate) -> &'static str {
     match (
         update.finalized_header.is_some(),
@@ -105,20 +174,6 @@ fn detect_update_type(update: &LightClientUpdate) -> &'static str {
         (false, true) => "Committee",
         (true, true) => "Combined",
     }
-}
-
-fn initialize_processor_from(loader: &SpecTestLoader) -> LightClientProcessor {
-    let bootstrap = loader.load_bootstrap().expect("Failed to load bootstrap");
-    let chain_spec = loader.chain_spec();
-
-    LightClientProcessor::new(
-        chain_spec,
-        bootstrap.header.clone(),
-        bootstrap.current_sync_committee,
-        &bootstrap.current_sync_committee_branch,
-        bootstrap.genesis_validators_root,
-    )
-    .expect("Failed to initialize LightClientProcessor")
 }
 
 fn check_execution_root(header: &LightClientHeader, expected_hex: &str, label: &str) -> bool {
@@ -146,67 +201,4 @@ fn check_execution_root(header: &LightClientHeader, expected_hex: &str, label: &
             false
         }
     }
-}
-
-// ============================================================================
-// Tests
-// ============================================================================
-
-/// Replay a fork's happy-path sync steps (1-5, all `process_update`) through a
-/// fresh processor, asserting each passes. Later `force_update` steps are
-/// skipped -- that feature is not implemented.
-fn run_sync(loader: SpecTestLoader, label: &str) {
-    let steps = loader.load_steps().expect("Failed to load steps");
-    let mut processor = initialize_processor_from(&loader);
-    let mut passed = 0;
-    let mut failed = 0;
-
-    println!("{}:", label);
-
-    for (i, step) in steps.iter().enumerate().take(5) {
-        match step {
-            TestStep::ProcessUpdate { process_update } => {
-                let result =
-                    execute_process_update_step(i + 1, process_update, &mut processor, &loader);
-                if result.passed {
-                    passed += 1;
-                } else {
-                    failed += 1;
-                }
-            }
-            TestStep::ForceUpdate { .. } => {
-                println!("  step {}: force_update (skipped, not implemented)", i + 1);
-            }
-        }
-    }
-
-    println!("  result: {}/{} passed", passed, passed + failed);
-    assert_eq!(failed, 0, "{} step(s) failed", failed);
-}
-
-/// Altair happy path (steps 1-5).
-#[test]
-fn test_altair_light_client_sync() {
-    run_sync(
-        SpecTestLoader::minimal_altair_sync(),
-        "altair light client sync (steps 1-5)",
-    );
-}
-
-/// Bellatrix happy path (steps 1-5).
-#[test]
-fn test_bellatrix_light_client_sync() {
-    run_sync(
-        SpecTestLoader::minimal_bellatrix_sync(),
-        "bellatrix light client sync (steps 1-5)",
-    );
-}
-
-/// Capella happy path (steps 1-5), incl. execution_root verification.
-#[test]
-fn test_capella_light_client_sync() {
-    run_sync(
-        SpecTestLoader::minimal_capella_sync(),
-        "capella light client sync (steps 1-5)",
-    );
 }
