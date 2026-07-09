@@ -27,26 +27,30 @@ fn capella_sync_via_public_api() {
     run_public_api_sync(SpecTestLoader::minimal_capella_sync());
 }
 
-/// Run spec sync steps 1-5 for the given fixture set through the public
-/// `LightClient` API. Shared by the per-fork tests above; the fork is
-/// determined entirely by the supplied `loader`.
+/// Replay the fixture's `process_update` steps through the public `LightClient`
+/// API; the fork is determined by `loader`.
 fn run_public_api_sync(loader: SpecTestLoader) {
     let bootstrap = loader.load_bootstrap().expect("Failed to load bootstrap");
     let steps = loader.load_steps().expect("Failed to load steps");
 
-    // Use the loader's fork-appropriate ChainSpec so fork version / domain
-    // selection matches the fixtures.
     let mut client =
         LightClient::new(loader.chain_spec(), bootstrap).expect("Failed to initialize LightClient");
 
-    for (i, step) in steps.iter().enumerate().take(5) {
+    let mut processed = 0;
+    for (i, step) in steps.iter().enumerate() {
         match step {
             TestStep::ProcessUpdate { process_update } => {
                 process_step(&mut client, &loader, process_update, i + 1);
+                processed += 1;
             }
-            TestStep::ForceUpdate { .. } => {} // not implemented -- skip
+            // later steps depend on force_update's transition -- stop, don't skip
+            TestStep::ForceUpdate { .. } => break,
         }
     }
+    assert!(
+        processed > 0,
+        "no process_update steps ran before the first force_update"
+    );
 }
 
 fn process_step(
@@ -62,7 +66,6 @@ fn process_step(
     let before_finalized = client.finalized_header().slot;
     let before_optimistic = client.optimistic_header().slot;
 
-    // Process update via public API with the fixture's current_slot.
     let outcome: UpdateOutcome = client
         .process_update_at_slot(update, step.current_slot)
         .unwrap_or_else(|e| panic!("step {}: error processing update: {}", step_num, e));
@@ -86,7 +89,6 @@ fn process_step(
         );
     }
 
-    // Observed headers must match the fixture's expected headers.
     if let Some(expected) = &step.checks.finalized_header {
         assert!(
             beacon_header_matches(expected, client.finalized_header()),

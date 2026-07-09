@@ -4,10 +4,9 @@
 //! Validates the Ethereum light client sync protocol against official
 //! consensus-spec test vectors from https://github.com/ethereum/consensus-spec-tests
 //!
-//! Each test replays a fork's happy-path steps (1-5, all `process_update`)
-//! through a fresh processor, asserting the resulting store state against the
-//! fixture's expected headers. The vectors also contain `force_update` steps
-//! (6, 9), but `force_update` is not implemented, so those steps are skipped.
+//! Each test replays a fork's `process_update` steps through a fresh processor,
+//! asserting store state against the fixture. Stops at the first `force_update`:
+//! it's unimplemented and later steps depend on its state transition.
 
 use crate::consensus::light_client::LightClientProcessor;
 use crate::test_utils::{
@@ -15,39 +14,42 @@ use crate::test_utils::{
 };
 use crate::types::consensus::LightClientHeader;
 
-/// Altair happy path (steps 1-5).
 #[test]
 fn altair_sync_via_processor() {
     run_processor_sync(SpecTestLoader::minimal_altair_sync());
 }
 
-/// Bellatrix happy path (steps 1-5).
 #[test]
 fn bellatrix_sync_via_processor() {
     run_processor_sync(SpecTestLoader::minimal_bellatrix_sync());
 }
 
-/// Capella happy path (steps 1-5), incl. execution_root verification.
+/// Capella additionally verifies execution roots.
 #[test]
 fn capella_sync_via_processor() {
     run_processor_sync(SpecTestLoader::minimal_capella_sync());
 }
 
-/// Replay a fork's happy-path sync steps (1-5, all `process_update`) through a
-/// fresh processor, asserting each against the fixture's expected state. Later
-/// `force_update` steps are skipped -- that feature is not implemented.
+/// Replay a fork's `process_update` steps, asserting each against the fixture.
 fn run_processor_sync(loader: SpecTestLoader) {
     let steps = loader.load_steps().expect("Failed to load steps");
     let mut processor = initialize_processor_from(&loader);
 
-    for (i, step) in steps.iter().enumerate().take(5) {
+    let mut processed = 0;
+    for (i, step) in steps.iter().enumerate() {
         match step {
             TestStep::ProcessUpdate { process_update } => {
                 execute_process_update_step(i + 1, process_update, &mut processor, &loader);
+                processed += 1;
             }
-            TestStep::ForceUpdate { .. } => {} // not implemented -- skip
+            // later steps depend on force_update's transition -- stop, don't skip
+            TestStep::ForceUpdate { .. } => break,
         }
     }
+    assert!(
+        processed > 0,
+        "no process_update steps ran before the first force_update"
+    );
 }
 
 fn initialize_processor_from(loader: &SpecTestLoader) -> LightClientProcessor {
