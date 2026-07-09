@@ -13,17 +13,17 @@ use eth_light_client::test_utils::{
 use eth_light_client::{LightClient, UpdateOutcome};
 
 #[test]
-fn test_light_client_public_api_sync_altair() {
+fn altair_sync_via_public_api() {
     run_public_api_sync(SpecTestLoader::minimal_altair_sync());
 }
 
 #[test]
-fn test_light_client_public_api_sync_bellatrix() {
+fn bellatrix_sync_via_public_api() {
     run_public_api_sync(SpecTestLoader::minimal_bellatrix_sync());
 }
 
 #[test]
-fn test_light_client_public_api_sync_capella() {
+fn capella_sync_via_public_api() {
     run_public_api_sync(SpecTestLoader::minimal_capella_sync());
 }
 

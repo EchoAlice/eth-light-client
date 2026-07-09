@@ -17,26 +17,26 @@ use crate::types::consensus::LightClientHeader;
 
 /// Altair happy path (steps 1-5).
 #[test]
-fn test_altair_light_client_sync() {
-    run_sync(SpecTestLoader::minimal_altair_sync());
+fn altair_sync_via_processor() {
+    run_processor_sync(SpecTestLoader::minimal_altair_sync());
 }
 
 /// Bellatrix happy path (steps 1-5).
 #[test]
-fn test_bellatrix_light_client_sync() {
-    run_sync(SpecTestLoader::minimal_bellatrix_sync());
+fn bellatrix_sync_via_processor() {
+    run_processor_sync(SpecTestLoader::minimal_bellatrix_sync());
 }
 
 /// Capella happy path (steps 1-5), incl. execution_root verification.
 #[test]
-fn test_capella_light_client_sync() {
-    run_sync(SpecTestLoader::minimal_capella_sync());
+fn capella_sync_via_processor() {
+    run_processor_sync(SpecTestLoader::minimal_capella_sync());
 }
 
 /// Replay a fork's happy-path sync steps (1-5, all `process_update`) through a
 /// fresh processor, asserting each against the fixture's expected state. Later
 /// `force_update` steps are skipped -- that feature is not implemented.
-fn run_sync(loader: SpecTestLoader) {
+fn run_processor_sync(loader: SpecTestLoader) {
     let steps = loader.load_steps().expect("Failed to load steps");
     let mut processor = initialize_processor_from(&loader);
 
