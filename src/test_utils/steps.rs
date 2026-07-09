@@ -37,9 +37,8 @@ pub enum TestStep {
     ProcessUpdate {
         process_update: ProcessUpdateStep,
     },
-    /// Force update (safety timeout mechanism).
     ForceUpdate {
-        force_update: ForceUpdateStep,
+        force_update: serde::de::IgnoredAny,
     },
 }
 
@@ -49,12 +48,6 @@ pub struct ProcessUpdateStep {
     update_fork_digest: String,
     /// Update file name (without .ssz_snappy extension).
     pub update: String,
-    pub current_slot: u64,
-    pub checks: StateChecks,
-}
-
-#[derive(Debug, serde::Deserialize)]
-pub struct ForceUpdateStep {
     pub current_slot: u64,
     pub checks: StateChecks,
 }
