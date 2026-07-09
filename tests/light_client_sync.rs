@@ -31,9 +31,6 @@ fn test_light_client_public_api_sync_capella() {
 /// `LightClient` API. Shared by the per-fork tests above; the fork is
 /// determined entirely by the supplied `loader`.
 fn run_public_api_sync(loader: SpecTestLoader) {
-    println!("\n=== Integration Test: LightClient Public API ===\n");
-
-    // Load fixtures using test_utils
     let bootstrap = loader.load_bootstrap().expect("Failed to load bootstrap");
     let steps = loader.load_steps().expect("Failed to load steps");
 
@@ -42,39 +39,14 @@ fn run_public_api_sync(loader: SpecTestLoader) {
     let mut client =
         LightClient::new(loader.chain_spec(), bootstrap).expect("Failed to initialize LightClient");
 
-    println!(
-        "Initialized at slot {} (period {})",
-        client.finalized_header().slot,
-        client.current_period()
-    );
-
-    // Process steps 1-5
-    let mut passed = 0;
-    let mut failed = 0;
-
     for (i, step) in steps.iter().enumerate().take(5) {
-        let step_num = i + 1;
-
         match step {
             TestStep::ProcessUpdate { process_update } => {
-                println!("\n--- Step {} ---", step_num);
-                if process_step(&mut client, &loader, process_update, step_num) {
-                    passed += 1;
-                } else {
-                    failed += 1;
-                }
+                process_step(&mut client, &loader, process_update, i + 1);
             }
-            TestStep::ForceUpdate { .. } => {
-                println!("\n--- Step {} (force_update: skipped) ---", step_num);
-            }
+            TestStep::ForceUpdate { .. } => {} // not implemented -- skip
         }
     }
-
-    println!("\n=== Results ===");
-    println!("Passed: {}", passed);
-    println!("Failed: {}", failed);
-
-    assert_eq!(failed, 0, "{} step(s) failed", failed);
 }
 
 fn process_step(
@@ -82,85 +54,53 @@ fn process_step(
     loader: &SpecTestLoader,
     step: &ProcessUpdateStep,
     step_num: usize,
-) -> bool {
+) {
     let update = loader
         .load_update(&step.update)
         .expect("Failed to load update");
 
-    println!("Processing update: {}", step.update);
-    println!(
-        "  Attested slot: {}, Signature slot: {}",
-        update.attested_header.slot(),
-        update.signature_slot
-    );
-
     let before_finalized = client.finalized_header().slot;
     let before_optimistic = client.optimistic_header().slot;
 
-    // Process update via public API with fixture's current_slot
-    let outcome: UpdateOutcome = match client.process_update_at_slot(update, step.current_slot) {
-        Ok(outcome) => outcome,
-        Err(e) => {
-            println!("  FAIL: Error processing update: {}", e);
-            return false;
-        }
-    };
+    // Process update via public API with the fixture's current_slot.
+    let outcome: UpdateOutcome = client
+        .process_update_at_slot(update, step.current_slot)
+        .unwrap_or_else(|e| panic!("step {}: error processing update: {}", step_num, e));
 
     let after_finalized = client.finalized_header().slot;
     let after_optimistic = client.optimistic_header().slot;
 
-    println!(
-        "  Before: finalized={}, optimistic={}",
-        before_finalized, before_optimistic
-    );
-    println!(
-        "  After:  finalized={}, optimistic={}",
-        after_finalized, after_optimistic
-    );
-    println!("  Outcome: {:?}", outcome);
-
-    // Verify UpdateOutcome consistency
+    // UpdateOutcome must agree with observed state.
     if outcome.finalized_updated() {
         assert!(
             after_finalized > before_finalized,
-            "Step {}: finalized_updated()=true but slot didn't advance",
+            "step {}: finalized_updated()=true but slot didn't advance",
             step_num
         );
     }
     if outcome.optimistic_updated() {
         assert!(
             after_optimistic > before_optimistic,
-            "Step {}: optimistic_updated()=true but slot didn't advance",
+            "step {}: optimistic_updated()=true but slot didn't advance",
             step_num
         );
     }
 
-    // Verify against expected state
-    let mut step_passed = true;
-
-    if let Some(ref expected) = step.checks.finalized_header {
-        if !beacon_header_matches(expected, client.finalized_header()) {
-            println!(
-                "  FAIL: Finalized header mismatch (expected slot {})",
-                expected.slot
-            );
-            step_passed = false;
-        }
+    // Observed headers must match the fixture's expected headers.
+    if let Some(expected) = &step.checks.finalized_header {
+        assert!(
+            beacon_header_matches(expected, client.finalized_header()),
+            "step {}: finalized header mismatch (expected slot {})",
+            step_num,
+            expected.slot,
+        );
     }
-
-    if let Some(ref expected) = step.checks.optimistic_header {
-        if !beacon_header_matches(expected, client.optimistic_header()) {
-            println!(
-                "  FAIL: Optimistic header mismatch (expected slot {})",
-                expected.slot
-            );
-            step_passed = false;
-        }
+    if let Some(expected) = &step.checks.optimistic_header {
+        assert!(
+            beacon_header_matches(expected, client.optimistic_header()),
+            "step {}: optimistic header mismatch (expected slot {})",
+            step_num,
+            expected.slot,
+        );
     }
-
-    if step_passed {
-        println!("  PASS");
-    }
-
-    step_passed
 }
