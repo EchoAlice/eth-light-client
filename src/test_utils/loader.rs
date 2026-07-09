@@ -7,32 +7,10 @@ use super::raw_ssz::{
 };
 use super::steps::{TestMeta, TestStep};
 use super::{hex_to_root, MinimalPresetFork};
-use crate::types::consensus::{
-    LightClientBootstrap, LightClientHeader, LightClientUpdate, SyncCommittee,
-};
-use crate::types::primitives::Root;
+use crate::types::consensus::{LightClientBootstrap, LightClientUpdate};
 use ssz_rs::prelude::*;
 use std::fs;
 use std::path::{Path, PathBuf};
-
-#[derive(Debug, Clone)]
-pub struct BootstrapData {
-    pub header: LightClientHeader,
-    pub sync_committee: SyncCommittee,
-    pub branch: Vec<Root>,
-    pub genesis_validators_root: Root,
-}
-
-impl BootstrapData {
-    pub fn into_bootstrap(self) -> LightClientBootstrap {
-        LightClientBootstrap::from_header(
-            self.header,
-            self.sync_committee,
-            self.branch,
-            self.genesis_validators_root,
-        )
-    }
-}
 
 /// Loads spec test fixtures from a directory.
 ///
@@ -74,7 +52,7 @@ impl SpecTestLoader {
         self.fork.chain_spec()
     }
 
-    pub fn load_bootstrap(&self) -> Result<BootstrapData, Box<dyn std::error::Error>> {
+    pub fn load_bootstrap(&self) -> Result<LightClientBootstrap, Box<dyn std::error::Error>> {
         let meta = self.load_meta()?;
         let genesis_validators_root = hex_to_root(&meta.genesis_validators_root)?;
         let bootstrap_path = self.test_dir.join("bootstrap.ssz_snappy");
@@ -84,13 +62,14 @@ impl SpecTestLoader {
                 let bootstrap: RawLightClientBootstrap = load_ssz_snappy(&bootstrap_path)?;
                 let sync_committee = bootstrap.current_sync_committee.to_sync_committee()?;
                 let branch = nodes_to_roots(&bootstrap.current_sync_committee_branch);
+                let header = raw_beacon_only_header_to_pub(self.fork, bootstrap.header);
 
-                Ok(BootstrapData {
-                    header: raw_beacon_only_header_to_pub(self.fork, bootstrap.header),
+                Ok(LightClientBootstrap::from_header(
+                    header,
                     sync_committee,
                     branch,
                     genesis_validators_root,
-                })
+                ))
             }
             MinimalPresetFork::Capella => {
                 let bootstrap: RawCapellaLightClientBootstrap = load_ssz_snappy(&bootstrap_path)?;
@@ -98,12 +77,12 @@ impl SpecTestLoader {
                 let branch = nodes_to_roots(&bootstrap.current_sync_committee_branch);
                 let header = raw_capella_header_to_pub(bootstrap.header)?;
 
-                Ok(BootstrapData {
+                Ok(LightClientBootstrap::from_header(
                     header,
                     sync_committee,
                     branch,
                     genesis_validators_root,
-                })
+                ))
             }
         }
     }
@@ -146,7 +125,6 @@ pub(crate) fn load_altair_bootstrap() -> LightClientBootstrap {
     SpecTestLoader::minimal_altair_sync()
         .load_bootstrap()
         .expect("Failed to load bootstrap")
-        .into_bootstrap()
 }
 
 fn load_ssz_snappy<T>(file_path: &Path) -> Result<T, Box<dyn std::error::Error>>

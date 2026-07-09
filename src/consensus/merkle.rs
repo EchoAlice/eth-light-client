@@ -436,13 +436,13 @@ mod tests {
         let bootstrap = loader.load_bootstrap().expect("Failed to load bootstrap");
 
         // Compute sync committee root using our hardened function
-        let computed_root = compute_sync_committee_root(&spec, &bootstrap.sync_committee);
+        let computed_root = compute_sync_committee_root(&spec, &bootstrap.current_sync_committee);
 
         // Verify against the state root using the branch
         let gindex = spec.current_sync_committee_gindex(bootstrap.header.slot());
         let is_valid = is_valid_merkle_branch(
             &computed_root,
-            &bootstrap.branch,
+            &bootstrap.current_sync_committee_branch,
             gindex,
             bootstrap.header.state_root(),
         )

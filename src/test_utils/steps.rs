@@ -34,12 +34,8 @@ pub struct HeaderCheck {
 #[derive(Debug, serde::Deserialize)]
 #[serde(untagged)]
 pub enum TestStep {
-    ProcessUpdate {
-        process_update: ProcessUpdateStep,
-    },
-    ForceUpdate {
-        force_update: serde::de::IgnoredAny,
-    },
+    ProcessUpdate { process_update: ProcessUpdateStep },
+    ForceUpdate { force_update: serde::de::IgnoredAny },
 }
 
 #[derive(Debug, serde::Deserialize)]
