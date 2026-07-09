@@ -1,3 +1,5 @@
+#![doc = include_str!("README.md")]
+
 pub mod bls;
 pub mod light_client;
 pub mod merkle;
