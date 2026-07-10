@@ -12,16 +12,17 @@ use ssz_rs::prelude::*;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Loads spec test fixtures from a directory.
+/// One fork's minimal light-client-sync spec test: its `ChainSpec` plus the
+/// bootstrap / updates / steps loaded from the fixture directory.
 ///
 /// **Unstable:** This API may change without notice.
-pub struct SpecTestLoader {
+pub struct LightClientSyncTest {
     test_dir: PathBuf,
     fork: MinimalPresetFork,
 }
 
-impl SpecTestLoader {
-    pub fn minimal_altair_sync() -> Self {
+impl LightClientSyncTest {
+    pub fn minimal_altair() -> Self {
         let test_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/minimal/altair/light_client/sync/light_client_sync");
         Self {
@@ -30,7 +31,7 @@ impl SpecTestLoader {
         }
     }
 
-    pub fn minimal_bellatrix_sync() -> Self {
+    pub fn minimal_bellatrix() -> Self {
         let test_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/minimal/bellatrix/light_client/sync/light_client_sync");
         Self {
@@ -39,7 +40,7 @@ impl SpecTestLoader {
         }
     }
 
-    pub fn minimal_capella_sync() -> Self {
+    pub fn minimal_capella() -> Self {
         let test_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/minimal/capella/light_client/sync/light_client_sync");
         Self {
@@ -122,7 +123,7 @@ impl SpecTestLoader {
 /// valid bootstrap for setup.
 #[cfg(test)]
 pub(crate) fn load_altair_bootstrap() -> LightClientBootstrap {
-    SpecTestLoader::minimal_altair_sync()
+    LightClientSyncTest::minimal_altair()
         .load_bootstrap()
         .expect("Failed to load bootstrap")
 }

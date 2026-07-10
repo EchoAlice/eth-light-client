@@ -1,12 +1,13 @@
 //! YAML metadata and step types deserialized from spec test fixtures.
 
-use super::hex_to_root;
+use super::TestUtilsResult;
 use crate::types::consensus::BeaconBlockHeader;
+use crate::types::primitives::Root;
 
 /// Metadata from a spec test's meta.yaml file.
 ///
 /// The fork-digest keys are unmodeled; serde ignores them (fork comes from the
-/// `SpecTestLoader` constructor).
+/// `LightClientSyncTest` constructor).
 #[derive(Debug, serde::Deserialize)]
 pub(crate) struct TestMeta {
     pub(crate) genesis_validators_root: String,
@@ -56,4 +57,13 @@ pub fn beacon_header_matches(check: &HeaderCheck, header: &BeaconBlockHeader) ->
     let expected_root = hex_to_root(&check.beacon_root).expect("invalid beacon_root hex");
     let actual_root = header.hash_tree_root().expect("hash_tree_root");
     header.slot == check.slot && actual_root == expected_root
+}
+
+/// Convert a hex string (with or without 0x prefix) to a 32-byte root.
+pub(crate) fn hex_to_root(hex: &str) -> TestUtilsResult<Root> {
+    let hex = hex.strip_prefix("0x").unwrap_or(hex);
+    let bytes = hex::decode(hex)?;
+    bytes
+        .try_into()
+        .map_err(|b: Vec<u8>| format!("expected 32 bytes, got {}", b.len()).into())
 }

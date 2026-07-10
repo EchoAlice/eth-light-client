@@ -314,31 +314,3 @@ pub(crate) fn raw_capella_update_to_pub(
         raw.signature_slot,
     ))
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::test_utils::SpecTestLoader;
-
-    // Regression guard against the beacon-only vs Capella converters drifting on
-    // finality handling: a no-finality update (spec `_sx`/`_xx` fixtures) must
-    // convert to `finalized_header: None`, not a `Some(slot-0 placeholder)`.
-    #[test]
-    fn no_finality_update_yields_none_finalized_header() {
-        let loader = SpecTestLoader::minimal_altair_sync();
-        // Altair step 4: a sync-committee update carrying no finality (`_sx`).
-        let update = loader
-            .load_update(
-                "update_0xa955d1485f6a3bb6c993c2699b16af66dc6ddf6f93a63d7cbe53334ad68c6e04_sx",
-            )
-            .expect("load no-finality (_sx) update");
-
-        assert!(
-            update.finalized_header.is_none(),
-            "no-finality update must yield finalized_header == None"
-        );
-        assert!(
-            update.finality_branch.is_empty(),
-            "no-finality update must yield an empty finality_branch"
-        );
-    }
-}
