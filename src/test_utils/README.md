@@ -20,9 +20,9 @@ the light client against the official vectors with no network or beacon node.
 |------|----------------|
 | `loader.rs` | `SpecTestLoader` — the entry point; reads fixture files and returns typed objects |
 | `raw_ssz.rs` | `Raw*` SSZ structs + the `raw_*_to_pub` raw→production converters |
-| `steps.rs` | YAML fixture types (`meta.yaml` / `steps.yaml`) + `beacon_header_matches` |
+| `steps.rs` | YAML fixture types (`meta.yaml` / `steps.yaml`) + the `hex_to_root` / `beacon_header_matches` fixture helpers |
 | `fork.rs` | `MinimalPresetFork` — the minimal-preset fork tag and its `ChainSpec` |
-| `mod.rs` | module wiring / re-exports + `hex_to_root` |
+| `mod.rs` | module wiring / re-exports |
 
 ## Fixtures
 
