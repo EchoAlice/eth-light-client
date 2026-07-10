@@ -5,7 +5,7 @@ mod loader;
 mod raw_ssz;
 mod steps;
 
-pub use loader::SpecTestLoader;
+pub use loader::LightClientSyncTest;
 pub use steps::{beacon_header_matches, HeaderCheck, ProcessUpdateStep, StateChecks, TestStep};
 
 pub(crate) use fork::MinimalPresetFork;

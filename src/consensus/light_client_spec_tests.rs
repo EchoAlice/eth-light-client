@@ -10,36 +10,36 @@
 
 use crate::consensus::light_client::LightClientProcessor;
 use crate::test_utils::{
-    beacon_header_matches, hex_to_root, ProcessUpdateStep, SpecTestLoader, TestStep,
+    beacon_header_matches, hex_to_root, LightClientSyncTest, ProcessUpdateStep, TestStep,
 };
 use crate::types::consensus::LightClientHeader;
 
 #[test]
 fn altair_sync_via_processor() {
-    run_processor_sync(SpecTestLoader::minimal_altair_sync());
+    run_processor_sync(LightClientSyncTest::minimal_altair());
 }
 
 #[test]
 fn bellatrix_sync_via_processor() {
-    run_processor_sync(SpecTestLoader::minimal_bellatrix_sync());
+    run_processor_sync(LightClientSyncTest::minimal_bellatrix());
 }
 
 /// Capella additionally verifies execution roots.
 #[test]
 fn capella_sync_via_processor() {
-    run_processor_sync(SpecTestLoader::minimal_capella_sync());
+    run_processor_sync(LightClientSyncTest::minimal_capella());
 }
 
 /// Replay a fork's `process_update` steps, asserting each against the fixture.
-fn run_processor_sync(loader: SpecTestLoader) {
-    let steps = loader.load_steps().expect("Failed to load steps");
-    let mut processor = initialize_processor_from(&loader);
+fn run_processor_sync(sync_test: LightClientSyncTest) {
+    let steps = sync_test.load_steps().expect("Failed to load steps");
+    let mut processor = initialize_processor_from(&sync_test);
 
     let mut processed = 0;
     for (i, step) in steps.iter().enumerate() {
         match step {
             TestStep::ProcessUpdate { process_update } => {
-                execute_process_update_step(i + 1, process_update, &mut processor, &loader);
+                execute_process_update_step(i + 1, process_update, &mut processor, &sync_test);
                 processed += 1;
             }
             // later steps depend on force_update's transition -- stop, don't skip
@@ -52,9 +52,11 @@ fn run_processor_sync(loader: SpecTestLoader) {
     );
 }
 
-fn initialize_processor_from(loader: &SpecTestLoader) -> LightClientProcessor {
-    let bootstrap = loader.load_bootstrap().expect("Failed to load bootstrap");
-    let chain_spec = loader.chain_spec();
+fn initialize_processor_from(sync_test: &LightClientSyncTest) -> LightClientProcessor {
+    let bootstrap = sync_test
+        .load_bootstrap()
+        .expect("Failed to load bootstrap");
+    let chain_spec = sync_test.chain_spec();
 
     LightClientProcessor::new(
         chain_spec,
@@ -70,9 +72,9 @@ fn execute_process_update_step(
     step_num: usize,
     step: &ProcessUpdateStep,
     processor: &mut LightClientProcessor,
-    loader: &SpecTestLoader,
+    sync_test: &LightClientSyncTest,
 ) {
-    let update = loader.load_update(&step.update).unwrap_or_else(|e| {
+    let update = sync_test.load_update(&step.update).unwrap_or_else(|e| {
         panic!(
             "step {}: failed to load update {}: {}",
             step_num, step.update, e

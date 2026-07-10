@@ -429,11 +429,13 @@ mod tests {
     /// Uses the minimal preset test vectors.
     #[test]
     fn test_sync_committee_root_against_spec_fixture() {
-        use crate::test_utils::SpecTestLoader;
+        use crate::test_utils::LightClientSyncTest;
 
         let spec = ChainSpec::minimal();
-        let loader = SpecTestLoader::minimal_altair_sync();
-        let bootstrap = loader.load_bootstrap().expect("Failed to load bootstrap");
+        let sync_test = LightClientSyncTest::minimal_altair();
+        let bootstrap = sync_test
+            .load_bootstrap()
+            .expect("Failed to load bootstrap");
 
         // Compute sync committee root using our hardened function
         let computed_root = compute_sync_committee_root(&spec, &bootstrap.current_sync_committee);

@@ -7,7 +7,7 @@ use crate::types::primitives::Root;
 /// Metadata from a spec test's meta.yaml file.
 ///
 /// The fork-digest keys are unmodeled; serde ignores them (fork comes from the
-/// `SpecTestLoader` constructor).
+/// `LightClientSyncTest` constructor).
 #[derive(Debug, serde::Deserialize)]
 pub(crate) struct TestMeta {
     pub(crate) genesis_validators_root: String,

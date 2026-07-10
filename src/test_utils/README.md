@@ -18,7 +18,7 @@ the light client against the official vectors with no network or beacon node.
 
 | File | Responsibility |
 |------|----------------|
-| `loader.rs` | `SpecTestLoader` — the entry point; reads fixture files and returns typed objects |
+| `loader.rs` | `LightClientSyncTest` — the entry point; reads fixture files and returns typed objects |
 | `raw_ssz.rs` | `Raw*` SSZ structs + the `raw_*_to_pub` raw→production converters |
 | `steps.rs` | YAML fixture types (`meta.yaml` / `steps.yaml`) + the `hex_to_root` / `beacon_header_matches` fixture helpers |
 | `fork.rs` | `MinimalPresetFork` — the minimal-preset fork tag and its `ChainSpec` |
@@ -40,7 +40,7 @@ scripts the test:
 
 ## Data flow
 
-`SpecTestLoader` is only the **orchestrator**: it picks a file, decodes it into
+`LightClientSyncTest` is only the **orchestrator**: it picks a file, decodes it into
 a `Raw*` struct, calls the `raw_ssz` converters to produce the production type,
 and assembles the result. The two hops live in two places — decoding in the
 loader, converting in `raw_ssz`.
@@ -78,18 +78,18 @@ into `LightClient::new` / `process_update` — the code actually under test.
 ## Usage
 
 ```rust,ignore
-use eth_light_client::test_utils::SpecTestLoader;
+use eth_light_client::test_utils::LightClientSyncTest;
 use eth_light_client::{ChainSpec, LightClient};
 
-let loader = SpecTestLoader::minimal_altair_sync();
+let sync_test = LightClientSyncTest::minimal_altair();
 
 let mut client = LightClient::new(
-    loader.chain_spec(),
-    loader.load_bootstrap()?,
+    sync_test.chain_spec(),
+    sync_test.load_bootstrap()?,
 )?;
 
-for step in loader.load_steps()? {
-    // feed loader.load_update(&step.update) into client,
+for step in sync_test.load_steps()? {
+    // feed sync_test.load_update(&step.update) into client,
     // then compare client's headers against step.checks
 }
 ```
