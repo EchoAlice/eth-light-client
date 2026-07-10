@@ -1,6 +1,6 @@
 //! Raw SSZ fixture types and their conversions into production light client types.
 
-use super::MinimalPresetFork;
+use super::{MinimalPresetFork, TestUtilsResult};
 use crate::types::consensus::{
     BeaconBlockHeader, ExecutionPayloadHeaderCapella, LightClientHeader, LightClientUpdate,
     SyncAggregate, SyncCommittee,
@@ -48,14 +48,10 @@ pub(crate) struct RawSyncCommittee {
 }
 
 impl RawSyncCommittee {
-    pub(crate) fn to_sync_committee(&self) -> Result<SyncCommittee, String> {
-        if self.pubkeys.len() != 32 {
-            return Err(format!(
-                "Expected 32 pubkeys (minimal preset), got {}",
-                self.pubkeys.len()
-            ));
-        }
-
+    pub(crate) fn into_sync_committee(self) -> SyncCommittee {
+        // Minimal fixtures hold 32 pubkeys; production is mainnet-sized (512).
+        // Padding is inert: root + signature checks read only pubkeys[..N] (N from ChainSpec).
+        // The 32-element count is guaranteed by the SSZ `Vector<_, 32>` decode.
         let mut pubkeys_array = Box::new([[0u8; 48]; 512]);
         for (i, pk) in self.pubkeys.iter().enumerate() {
             let mut key = [0u8; 48];
@@ -66,7 +62,7 @@ impl RawSyncCommittee {
         let mut aggregate = [0u8; 48];
         aggregate.copy_from_slice(self.aggregate_pubkey.as_ref());
 
-        Ok(SyncCommittee::new(pubkeys_array, aggregate))
+        SyncCommittee::new(pubkeys_array, aggregate)
     }
 }
 
@@ -77,7 +73,7 @@ struct RawSyncAggregate {
 }
 
 impl RawSyncAggregate {
-    fn into_sync_aggregate(self) -> Result<SyncAggregate, String> {
+    fn into_sync_aggregate(self) -> SyncAggregate {
         let mut bits_array = Box::new([false; 512]);
         for (i, bit) in self.sync_committee_bits.iter().enumerate() {
             bits_array[i] = *bit;
@@ -86,7 +82,7 @@ impl RawSyncAggregate {
         let mut signature = [0u8; 96];
         signature.copy_from_slice(self.sync_committee_signature.as_ref());
 
-        Ok(SyncAggregate::new(bits_array, signature))
+        SyncAggregate::new(bits_array, signature)
     }
 }
 
@@ -122,7 +118,7 @@ struct RawExecutionPayloadHeader {
 }
 
 impl RawExecutionPayloadHeader {
-    fn into_execution_payload_header(self) -> Result<ExecutionPayloadHeaderCapella, String> {
+    fn into_execution_payload_header(self) -> TestUtilsResult<ExecutionPayloadHeaderCapella> {
         let mut fee_recipient = [0u8; 20];
         fee_recipient.copy_from_slice(self.fee_recipient.as_ref());
 
@@ -137,7 +133,7 @@ impl RawExecutionPayloadHeader {
         let base_fee = ruint::aliases::U256::from_le_bytes(u256_bytes);
 
         let extra_data_vec: Vec<u8> = self.extra_data.to_vec();
-        let extra_data = ExtraData::try_new(extra_data_vec).map_err(|e| e.to_string())?;
+        let extra_data = ExtraData::try_new(extra_data_vec)?;
 
         Ok(ExecutionPayloadHeaderCapella {
             parent_hash: node_to_root(&self.parent_hash),
@@ -200,7 +196,7 @@ pub(crate) fn raw_beacon_only_header_to_pub(
 
 pub(crate) fn raw_capella_header_to_pub(
     raw: RawCapellaLightClientHeader,
-) -> Result<LightClientHeader, String> {
+) -> TestUtilsResult<LightClientHeader> {
     let beacon = raw.beacon.into_beacon_block_header();
     let execution = raw.execution.into_execution_payload_header()?;
     let mut execution_branch = [[0u8; 32]; 4];
@@ -214,7 +210,6 @@ pub(crate) fn raw_capella_header_to_pub(
     ))
 }
 
-/// Convert a branch of SSZ nodes into `Root`s.
 /// Copy a 32-byte SSZ node into a `Root`.
 fn node_to_root(node: &Node) -> Root {
     let mut root = [0u8; 32];
@@ -222,6 +217,7 @@ fn node_to_root(node: &Node) -> Root {
     root
 }
 
+/// Convert a branch of SSZ nodes into `Root`s.
 pub(crate) fn nodes_to_roots(nodes: &[Node]) -> Vec<Root> {
     nodes.iter().map(node_to_root).collect()
 }
@@ -267,9 +263,9 @@ fn assemble_update(
 pub(crate) fn raw_beacon_only_update_to_pub(
     fork: MinimalPresetFork,
     raw: RawLightClientUpdate,
-) -> Result<LightClientUpdate, String> {
-    let sync_committee = raw.next_sync_committee.to_sync_committee()?;
-    let sync_aggregate = raw.sync_aggregate.into_sync_aggregate()?;
+) -> LightClientUpdate {
+    let sync_committee = raw.next_sync_committee.into_sync_committee();
+    let sync_aggregate = raw.sync_aggregate.into_sync_aggregate();
     let finality_branch = nodes_to_roots(&raw.finality_branch);
     let next_sync_committee_branch = nodes_to_roots(&raw.next_sync_committee_branch);
 
@@ -281,7 +277,7 @@ pub(crate) fn raw_beacon_only_update_to_pub(
     };
     let attested_header = raw_beacon_only_header_to_pub(fork, raw.attested_header);
 
-    Ok(assemble_update(
+    assemble_update(
         attested_header,
         finalized_header,
         finality_branch,
@@ -289,14 +285,14 @@ pub(crate) fn raw_beacon_only_update_to_pub(
         next_sync_committee_branch,
         sync_aggregate,
         raw.signature_slot,
-    ))
+    )
 }
 
 pub(crate) fn raw_capella_update_to_pub(
     raw: RawCapellaLightClientUpdate,
-) -> Result<LightClientUpdate, String> {
-    let sync_committee = raw.next_sync_committee.to_sync_committee()?;
-    let sync_aggregate = raw.sync_aggregate.into_sync_aggregate()?;
+) -> TestUtilsResult<LightClientUpdate> {
+    let sync_committee = raw.next_sync_committee.into_sync_committee();
+    let sync_aggregate = raw.sync_aggregate.into_sync_aggregate();
     let finality_branch = nodes_to_roots(&raw.finality_branch);
     let next_sync_committee_branch = nodes_to_roots(&raw.next_sync_committee_branch);
 

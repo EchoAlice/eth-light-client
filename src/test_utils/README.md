@@ -20,9 +20,9 @@ the light client against the official vectors with no network or beacon node.
 |------|----------------|
 | `loader.rs` | `SpecTestLoader` — the entry point; reads fixture files and returns typed objects |
 | `raw_ssz.rs` | `Raw*` SSZ structs + the `raw_*_to_pub` raw→production converters |
-| `steps.rs` | YAML fixture types (`meta.yaml` / `steps.yaml`) + `hex_to_root` |
+| `steps.rs` | YAML fixture types (`meta.yaml` / `steps.yaml`) + `beacon_header_matches` |
 | `fork.rs` | `MinimalPresetFork` — the minimal-preset fork tag and its `ChainSpec` |
-| `mod.rs` | module wiring / re-exports |
+| `mod.rs` | module wiring / re-exports + `hex_to_root` |
 
 ## Fixtures
 
@@ -63,7 +63,7 @@ sequenceDiagram
     R-->>L: header + sync committee
     L->>S: parse genesis root
     S-->>L: Root
-    L-->>T: BootstrapData
+    L-->>T: LightClientBootstrap
 
     T->>L: load_update(name)
     L->>R: decode + convert
@@ -71,8 +71,8 @@ sequenceDiagram
     L-->>T: LightClientUpdate
 ```
 
-The `test` then feeds the returned `BootstrapData` / `LightClientUpdate` into
-`LightClient::new` / `process_update` — the code actually under test.
+The `test` then feeds the returned `LightClientBootstrap` / `LightClientUpdate`
+into `LightClient::new` / `process_update` — the code actually under test.
 
 
 ## Usage
@@ -85,7 +85,7 @@ let loader = SpecTestLoader::minimal_altair_sync();
 
 let mut client = LightClient::new(
     loader.chain_spec(),
-    loader.load_bootstrap()?.into_bootstrap(),
+    loader.load_bootstrap()?,
 )?;
 
 for step in loader.load_steps()? {

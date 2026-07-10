@@ -6,7 +6,7 @@ use super::raw_ssz::{
     RawCapellaLightClientUpdate, RawLightClientBootstrap, RawLightClientUpdate,
 };
 use super::steps::{TestMeta, TestStep};
-use super::{hex_to_root, MinimalPresetFork};
+use super::{hex_to_root, MinimalPresetFork, TestUtilsResult};
 use crate::types::consensus::{LightClientBootstrap, LightClientUpdate};
 use ssz_rs::prelude::*;
 use std::fs;
@@ -52,7 +52,7 @@ impl SpecTestLoader {
         self.fork.chain_spec()
     }
 
-    pub fn load_bootstrap(&self) -> Result<LightClientBootstrap, Box<dyn std::error::Error>> {
+    pub fn load_bootstrap(&self) -> TestUtilsResult<LightClientBootstrap> {
         let meta = self.load_meta()?;
         let genesis_validators_root = hex_to_root(&meta.genesis_validators_root)?;
         let bootstrap_path = self.test_dir.join("bootstrap.ssz_snappy");
@@ -60,7 +60,7 @@ impl SpecTestLoader {
         match self.fork {
             MinimalPresetFork::Altair | MinimalPresetFork::Bellatrix => {
                 let bootstrap: RawLightClientBootstrap = load_ssz_snappy(&bootstrap_path)?;
-                let sync_committee = bootstrap.current_sync_committee.to_sync_committee()?;
+                let sync_committee = bootstrap.current_sync_committee.into_sync_committee();
                 let branch = nodes_to_roots(&bootstrap.current_sync_committee_branch);
                 let header = raw_beacon_only_header_to_pub(self.fork, bootstrap.header);
 
@@ -73,7 +73,7 @@ impl SpecTestLoader {
             }
             MinimalPresetFork::Capella => {
                 let bootstrap: RawCapellaLightClientBootstrap = load_ssz_snappy(&bootstrap_path)?;
-                let sync_committee = bootstrap.current_sync_committee.to_sync_committee()?;
+                let sync_committee = bootstrap.current_sync_committee.into_sync_committee();
                 let branch = nodes_to_roots(&bootstrap.current_sync_committee_branch);
                 let header = raw_capella_header_to_pub(bootstrap.header)?;
 
@@ -88,29 +88,29 @@ impl SpecTestLoader {
     }
 
     /// `name` must not include the `.ssz_snappy` extension.
-    pub fn load_update(&self, name: &str) -> Result<LightClientUpdate, Box<dyn std::error::Error>> {
+    pub fn load_update(&self, name: &str) -> TestUtilsResult<LightClientUpdate> {
         let update_path = self.test_dir.join(format!("{}.ssz_snappy", name));
 
         match self.fork {
             MinimalPresetFork::Altair | MinimalPresetFork::Bellatrix => {
                 let raw: RawLightClientUpdate = load_ssz_snappy(&update_path)?;
-                raw_beacon_only_update_to_pub(self.fork, raw).map_err(|e| e.into())
+                Ok(raw_beacon_only_update_to_pub(self.fork, raw))
             }
             MinimalPresetFork::Capella => {
                 let raw: RawCapellaLightClientUpdate = load_ssz_snappy(&update_path)?;
-                raw_capella_update_to_pub(raw).map_err(|e| e.into())
+                raw_capella_update_to_pub(raw)
             }
         }
     }
 
-    pub(crate) fn load_meta(&self) -> Result<TestMeta, Box<dyn std::error::Error>> {
+    pub(crate) fn load_meta(&self) -> TestUtilsResult<TestMeta> {
         let meta_path = self.test_dir.join("meta.yaml");
         let meta_contents = fs::read_to_string(&meta_path)?;
         let meta: TestMeta = serde_yaml::from_str(&meta_contents)?;
         Ok(meta)
     }
 
-    pub fn load_steps(&self) -> Result<Vec<TestStep>, Box<dyn std::error::Error>> {
+    pub fn load_steps(&self) -> TestUtilsResult<Vec<TestStep>> {
         let steps_path = self.test_dir.join("steps.yaml");
         let steps_contents = fs::read_to_string(&steps_path)?;
         let steps: Vec<TestStep> = serde_yaml::from_str(&steps_contents)?;
@@ -127,7 +127,7 @@ pub(crate) fn load_altair_bootstrap() -> LightClientBootstrap {
         .expect("Failed to load bootstrap")
 }
 
-fn load_ssz_snappy<T>(file_path: &Path) -> Result<T, Box<dyn std::error::Error>>
+fn load_ssz_snappy<T>(file_path: &Path) -> TestUtilsResult<T>
 where
     T: Deserialize,
 {
