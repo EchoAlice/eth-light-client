@@ -1,5 +1,6 @@
 //! YAML metadata and step types deserialized from spec test fixtures.
 
+use super::TestUtilsResult;
 use crate::types::consensus::BeaconBlockHeader;
 use crate::types::primitives::Root;
 
@@ -47,7 +48,7 @@ pub struct ProcessUpdateStep {
 }
 
 /// Convert a hex string (with or without 0x prefix) to a 32-byte root.
-pub(crate) fn hex_to_root(hex: &str) -> Result<Root, Box<dyn std::error::Error>> {
+pub(crate) fn hex_to_root(hex: &str) -> TestUtilsResult<Root> {
     let hex = hex.strip_prefix("0x").unwrap_or(hex);
     let bytes = hex::decode(hex)?;
     if bytes.len() != 32 {

@@ -1,6 +1,6 @@
 //! Raw SSZ fixture types and their conversions into production light client types.
 
-use super::MinimalPresetFork;
+use super::{MinimalPresetFork, TestUtilsResult};
 use crate::types::consensus::{
     BeaconBlockHeader, ExecutionPayloadHeaderCapella, LightClientHeader, LightClientUpdate,
     SyncAggregate, SyncCommittee,
@@ -118,9 +118,7 @@ struct RawExecutionPayloadHeader {
 }
 
 impl RawExecutionPayloadHeader {
-    fn into_execution_payload_header(
-        self,
-    ) -> Result<ExecutionPayloadHeaderCapella, Box<dyn std::error::Error>> {
+    fn into_execution_payload_header(self) -> TestUtilsResult<ExecutionPayloadHeaderCapella> {
         let mut fee_recipient = [0u8; 20];
         fee_recipient.copy_from_slice(self.fee_recipient.as_ref());
 
@@ -198,7 +196,7 @@ pub(crate) fn raw_beacon_only_header_to_pub(
 
 pub(crate) fn raw_capella_header_to_pub(
     raw: RawCapellaLightClientHeader,
-) -> Result<LightClientHeader, Box<dyn std::error::Error>> {
+) -> TestUtilsResult<LightClientHeader> {
     let beacon = raw.beacon.into_beacon_block_header();
     let execution = raw.execution.into_execution_payload_header()?;
     let mut execution_branch = [[0u8; 32]; 4];
@@ -292,7 +290,7 @@ pub(crate) fn raw_beacon_only_update_to_pub(
 
 pub(crate) fn raw_capella_update_to_pub(
     raw: RawCapellaLightClientUpdate,
-) -> Result<LightClientUpdate, Box<dyn std::error::Error>> {
+) -> TestUtilsResult<LightClientUpdate> {
     let sync_committee = raw.next_sync_committee.to_sync_committee();
     let sync_aggregate = raw.sync_aggregate.into_sync_aggregate();
     let finality_branch = nodes_to_roots(&raw.finality_branch);
