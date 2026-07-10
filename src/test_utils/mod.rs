@@ -19,12 +19,9 @@ pub(crate) type TestUtilsResult<T> = Result<T, Box<dyn std::error::Error>>;
 pub(crate) fn hex_to_root(hex: &str) -> TestUtilsResult<Root> {
     let hex = hex.strip_prefix("0x").unwrap_or(hex);
     let bytes = hex::decode(hex)?;
-    if bytes.len() != 32 {
-        return Err(format!("Expected 32 bytes, got {}", bytes.len()).into());
-    }
-    let mut root = [0u8; 32];
-    root.copy_from_slice(&bytes);
-    Ok(root)
+    bytes
+        .try_into()
+        .map_err(|b: Vec<u8>| format!("expected 32 bytes, got {}", b.len()).into())
 }
 
 #[cfg(test)]
