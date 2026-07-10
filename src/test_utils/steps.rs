@@ -1,8 +1,7 @@
 //! YAML metadata and step types deserialized from spec test fixtures.
 
-use super::TestUtilsResult;
+use super::hex_to_root;
 use crate::types::consensus::BeaconBlockHeader;
-use crate::types::primitives::Root;
 
 /// Metadata from a spec test's meta.yaml file.
 ///
@@ -45,18 +44,6 @@ pub struct ProcessUpdateStep {
     pub update: String,
     pub current_slot: u64,
     pub checks: StateChecks,
-}
-
-/// Convert a hex string (with or without 0x prefix) to a 32-byte root.
-pub(crate) fn hex_to_root(hex: &str) -> TestUtilsResult<Root> {
-    let hex = hex.strip_prefix("0x").unwrap_or(hex);
-    let bytes = hex::decode(hex)?;
-    if bytes.len() != 32 {
-        return Err(format!("Expected 32 bytes, got {}", bytes.len()).into());
-    }
-    let mut root = [0u8; 32];
-    root.copy_from_slice(&bytes);
-    Ok(root)
 }
 
 /// Whether a beacon header matches a fixture `HeaderCheck` (slot + beacon root).
