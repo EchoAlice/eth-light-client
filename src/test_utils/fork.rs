@@ -14,28 +14,17 @@ impl MinimalPresetFork {
     /// Return a `ChainSpec` whose fork schedule matches the spec-test fixtures
     /// for this fork.
     pub(crate) fn chain_spec(&self) -> crate::config::ChainSpec {
-        use crate::config::{ChainSpec, ChainSpecConfig};
+        crate::config::ChainSpec::try_from_config(self.config())
+            .expect("minimal fixture config is valid")
+    }
 
-        let mut config = ChainSpecConfig {
-            genesis_time: 1578009600,
-            seconds_per_slot: 6,
-            slots_per_epoch: 8,
-            epochs_per_sync_committee_period: 8,
-            sync_committee_size: 32,
-            altair_fork_version: [0x01, 0x00, 0x00, 0x01],
-            altair_fork_epoch: 0,
-            bellatrix_fork_version: [0x02, 0x00, 0x00, 0x01],
-            bellatrix_fork_epoch: u64::MAX,
-            capella_fork_version: [0x03, 0x00, 0x00, 0x01],
-            capella_fork_epoch: u64::MAX,
-            deneb_fork_version: [0x04, 0x00, 0x00, 0x01],
-            deneb_fork_epoch: u64::MAX,
-            electra_fork_version: [0x05, 0x00, 0x00, 0x01],
-            electra_fork_epoch: u64::MAX,
-        };
+    /// [`ChainSpecConfig::minimal`] with the fork-activation epochs overridden
+    /// per fork — which forks are active, i.e. which signing-domain version applies.
+    fn config(&self) -> crate::config::ChainSpecConfig {
+        let mut config = crate::config::ChainSpecConfig::minimal();
 
         match self {
-            MinimalPresetFork::Altair => {} // defaults are correct
+            MinimalPresetFork::Altair => {} // later forks stay inactive (MAX)
             MinimalPresetFork::Bellatrix => {
                 config.bellatrix_fork_epoch = 0;
             }
@@ -45,6 +34,6 @@ impl MinimalPresetFork {
             }
         }
 
-        ChainSpec::try_from_config(config).expect("minimal fixture config is valid")
+        config
     }
 }

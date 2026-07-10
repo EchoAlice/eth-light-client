@@ -162,6 +162,27 @@ pub struct ChainSpecConfig {
 }
 
 impl ChainSpecConfig {
+    /// Single source of truth for the minimal preset (spec-test config).
+    pub const fn minimal() -> Self {
+        Self {
+            genesis_time: 1578009600,
+            seconds_per_slot: 6,
+            slots_per_epoch: 8,
+            epochs_per_sync_committee_period: 8,
+            sync_committee_size: 32,
+            altair_fork_version: [0x01, 0x00, 0x00, 0x01],
+            bellatrix_fork_version: [0x02, 0x00, 0x00, 0x01],
+            capella_fork_version: [0x03, 0x00, 0x00, 0x01],
+            deneb_fork_version: [0x04, 0x00, 0x00, 0x01],
+            electra_fork_version: [0x05, 0x00, 0x00, 0x01],
+            altair_fork_epoch: 0,
+            bellatrix_fork_epoch: u64::MAX,
+            capella_fork_epoch: u64::MAX,
+            deneb_fork_epoch: u64::MAX,
+            electra_fork_epoch: u64::MAX,
+        }
+    }
+
     /// Validate the configuration.
     ///
     /// Returns an error if any values are invalid or inconsistent.
@@ -257,23 +278,9 @@ impl ChainSpec {
         }
     }
 
-    /// Minimal test specification
+    /// Minimal test spec, from [`ChainSpecConfig::minimal`].
     pub const fn minimal() -> Self {
-        Self {
-            preset_name: "minimal",
-            genesis_time: 1578009600,
-            seconds_per_slot: 6,
-            slots_per_epoch: 8,
-            epochs_per_sync_committee_period: 8,
-            sync_committee_size: 32,
-            fork_schedule: ForkSchedule::new(
-                ForkParams::new([0x01, 0x00, 0x00, 0x01], 0),
-                ForkParams::new([0x02, 0x00, 0x00, 0x01], u64::MAX),
-                ForkParams::new([0x03, 0x00, 0x00, 0x01], u64::MAX),
-                ForkParams::new([0x04, 0x00, 0x00, 0x01], u64::MAX),
-                ForkParams::new([0x05, 0x00, 0x00, 0x01], u64::MAX),
-            ),
-        }
+        Self::from_config(ChainSpecConfig::minimal(), "minimal")
     }
 
     /// Create a ChainSpec from a custom configuration.
@@ -282,9 +289,13 @@ impl ChainSpec {
     /// The configuration is validated before the ChainSpec is created.
     pub fn try_from_config(config: ChainSpecConfig) -> Result<Self> {
         config.validate()?;
+        Ok(Self::from_config(config, "custom"))
+    }
 
-        Ok(Self {
-            preset_name: "custom",
+    /// The one place the config -> spec mapping lives; callers own validation.
+    const fn from_config(config: ChainSpecConfig, preset_name: &'static str) -> Self {
+        Self {
+            preset_name,
             genesis_time: config.genesis_time,
             seconds_per_slot: config.seconds_per_slot,
             slots_per_epoch: config.slots_per_epoch,
@@ -297,7 +308,7 @@ impl ChainSpec {
                 ForkParams::new(config.deneb_fork_version, config.deneb_fork_epoch),
                 ForkParams::new(config.electra_fork_version, config.electra_fork_epoch),
             ),
-        })
+        }
     }
 
     /// Test constructor for creating custom specs (e.g., fork boundary tests).
