@@ -6,7 +6,7 @@ use super::raw_ssz::{
     RawCapellaLightClientUpdate, RawLightClientBootstrap, RawLightClientUpdate,
 };
 use super::steps::{TestMeta, TestStep};
-use super::{hex_to_root, MinimalPresetFork, TestUtilsResult};
+use super::{MinimalPresetFork, TestUtilsResult};
 use crate::types::consensus::{LightClientBootstrap, LightClientUpdate};
 use ssz_rs::prelude::*;
 use std::fs;
@@ -55,7 +55,7 @@ impl LightClientSyncTest {
 
     pub fn load_bootstrap(&self) -> TestUtilsResult<LightClientBootstrap> {
         let meta = self.load_meta()?;
-        let genesis_validators_root = hex_to_root(&meta.genesis_validators_root)?;
+        let genesis_validators_root = meta.genesis_validators_root;
         let bootstrap_path = self.test_dir.join("bootstrap.ssz_snappy");
 
         match self.fork {

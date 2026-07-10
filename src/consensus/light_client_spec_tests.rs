@@ -9,10 +9,9 @@
 //! it's unimplemented and later steps depend on its state transition.
 
 use crate::consensus::light_client::LightClientProcessor;
-use crate::test_utils::{
-    beacon_header_matches, hex_to_root, LightClientSyncTest, ProcessUpdateStep, TestStep,
-};
+use crate::test_utils::{beacon_header_matches, LightClientSyncTest, ProcessUpdateStep, TestStep};
 use crate::types::consensus::LightClientHeader;
+use crate::types::primitives::Root;
 
 #[test]
 fn altair_sync_via_processor() {
@@ -122,16 +121,15 @@ fn execute_process_update_step(
 
 fn assert_execution_root(
     header: &LightClientHeader,
-    expected_hex: &str,
+    expected: &Root,
     label: &str,
     step_num: usize,
 ) {
-    let expected = hex_to_root(expected_hex).expect("Invalid execution_root hex");
     match header {
         LightClientHeader::Capella(h) => {
             let actual = h.execution.hash_tree_root();
             assert!(
-                actual == expected,
+                actual == *expected,
                 "step {}: {} execution_root mismatch: expected {}, got {}",
                 step_num,
                 label,

@@ -3,6 +3,7 @@
 use super::TestUtilsResult;
 use crate::types::consensus::BeaconBlockHeader;
 use crate::types::primitives::Root;
+use serde::Deserialize;
 
 /// Metadata from a spec test's meta.yaml file.
 ///
@@ -10,10 +11,12 @@ use crate::types::primitives::Root;
 /// `LightClientSyncTest` constructor).
 #[derive(Debug, serde::Deserialize)]
 pub(crate) struct TestMeta {
-    pub(crate) genesis_validators_root: String,
+    #[serde(deserialize_with = "de_root")]
+    pub(crate) genesis_validators_root: Root,
     /// Parsed but not yet enforced; see issue #55.
     #[allow(dead_code)]
-    trusted_block_root: String,
+    #[serde(deserialize_with = "de_root")]
+    trusted_block_root: Root,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -25,10 +28,11 @@ pub struct StateChecks {
 #[derive(Debug, serde::Deserialize)]
 pub struct HeaderCheck {
     pub slot: u64,
-    pub beacon_root: String,
+    #[serde(deserialize_with = "de_root")]
+    pub beacon_root: Root,
     /// Present only for Capella+ (absent for Altair/Bellatrix).
-    #[serde(default)]
-    pub execution_root: Option<String>,
+    #[serde(default, deserialize_with = "de_root_opt")]
+    pub execution_root: Option<Root>,
 }
 
 /// A single test step from steps.yaml.
@@ -54,13 +58,32 @@ pub struct ProcessUpdateStep {
 /// `execution_root` is not checked here, since only the processor exposes the
 /// full light client header.
 pub fn beacon_header_matches(check: &HeaderCheck, header: &BeaconBlockHeader) -> bool {
-    let expected_root = hex_to_root(&check.beacon_root).expect("invalid beacon_root hex");
     let actual_root = header.hash_tree_root().expect("hash_tree_root");
-    header.slot == check.slot && actual_root == expected_root
+    header.slot == check.slot && actual_root == check.beacon_root
+}
+
+/// Deserialize a hex root string (`meta.yaml` / `steps.yaml`) into a `Root`,
+/// so malformed hex fails at load time rather than at assertion time.
+fn de_root<'de, D>(deserializer: D) -> Result<Root, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    hex_to_root(&s).map_err(serde::de::Error::custom)
+}
+
+fn de_root_opt<'de, D>(deserializer: D) -> Result<Option<Root>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Option::<String>::deserialize(deserializer)?
+        .map(|s| hex_to_root(&s))
+        .transpose()
+        .map_err(serde::de::Error::custom)
 }
 
 /// Convert a hex string (with or without 0x prefix) to a 32-byte root.
-pub(crate) fn hex_to_root(hex: &str) -> TestUtilsResult<Root> {
+fn hex_to_root(hex: &str) -> TestUtilsResult<Root> {
     let hex = hex.strip_prefix("0x").unwrap_or(hex);
     let bytes = hex::decode(hex)?;
     bytes

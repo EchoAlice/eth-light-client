@@ -9,7 +9,6 @@ pub use loader::LightClientSyncTest;
 pub use steps::{beacon_header_matches, HeaderCheck, ProcessUpdateStep, StateChecks, TestStep};
 
 pub(crate) use fork::MinimalPresetFork;
-pub(crate) use steps::hex_to_root;
 
 /// Box<dyn Error>, not `crate::error::Result`: test glue stays decoupled from the production error enum.
 pub(crate) type TestUtilsResult<T> = Result<T, Box<dyn std::error::Error>>;
