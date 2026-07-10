@@ -60,7 +60,7 @@ impl SpecTestLoader {
         match self.fork {
             MinimalPresetFork::Altair | MinimalPresetFork::Bellatrix => {
                 let bootstrap: RawLightClientBootstrap = load_ssz_snappy(&bootstrap_path)?;
-                let sync_committee = bootstrap.current_sync_committee.to_sync_committee();
+                let sync_committee = bootstrap.current_sync_committee.into_sync_committee();
                 let branch = nodes_to_roots(&bootstrap.current_sync_committee_branch);
                 let header = raw_beacon_only_header_to_pub(self.fork, bootstrap.header);
 
@@ -73,7 +73,7 @@ impl SpecTestLoader {
             }
             MinimalPresetFork::Capella => {
                 let bootstrap: RawCapellaLightClientBootstrap = load_ssz_snappy(&bootstrap_path)?;
-                let sync_committee = bootstrap.current_sync_committee.to_sync_committee();
+                let sync_committee = bootstrap.current_sync_committee.into_sync_committee();
                 let branch = nodes_to_roots(&bootstrap.current_sync_committee_branch);
                 let header = raw_capella_header_to_pub(bootstrap.header)?;
 

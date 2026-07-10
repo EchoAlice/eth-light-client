@@ -48,7 +48,7 @@ pub(crate) struct RawSyncCommittee {
 }
 
 impl RawSyncCommittee {
-    pub(crate) fn to_sync_committee(&self) -> SyncCommittee {
+    pub(crate) fn into_sync_committee(self) -> SyncCommittee {
         // Minimal fixtures hold 32 pubkeys; production is mainnet-sized (512).
         // Padding is inert: root + signature checks read only pubkeys[..N] (N from ChainSpec).
         // The 32-element count is guaranteed by the SSZ `Vector<_, 32>` decode.
@@ -264,7 +264,7 @@ pub(crate) fn raw_beacon_only_update_to_pub(
     fork: MinimalPresetFork,
     raw: RawLightClientUpdate,
 ) -> LightClientUpdate {
-    let sync_committee = raw.next_sync_committee.to_sync_committee();
+    let sync_committee = raw.next_sync_committee.into_sync_committee();
     let sync_aggregate = raw.sync_aggregate.into_sync_aggregate();
     let finality_branch = nodes_to_roots(&raw.finality_branch);
     let next_sync_committee_branch = nodes_to_roots(&raw.next_sync_committee_branch);
@@ -291,7 +291,7 @@ pub(crate) fn raw_beacon_only_update_to_pub(
 pub(crate) fn raw_capella_update_to_pub(
     raw: RawCapellaLightClientUpdate,
 ) -> TestUtilsResult<LightClientUpdate> {
-    let sync_committee = raw.next_sync_committee.to_sync_committee();
+    let sync_committee = raw.next_sync_committee.into_sync_committee();
     let sync_aggregate = raw.sync_aggregate.into_sync_aggregate();
     let finality_branch = nodes_to_roots(&raw.finality_branch);
     let next_sync_committee_branch = nodes_to_roots(&raw.next_sync_committee_branch);
