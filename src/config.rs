@@ -11,20 +11,6 @@ pub(crate) enum Fork {
     Electra,   // Pectra upgrade (2025). BeaconState restructured, gindice change.
 }
 
-impl Fork {
-    /// Returns the fork name as used in spec test paths.
-    #[allow(dead_code)] // Will be used when loading fork-specific test fixtures
-    pub(crate) fn name(&self) -> &'static str {
-        match self {
-            Fork::Altair => "altair",
-            Fork::Bellatrix => "bellatrix",
-            Fork::Capella => "capella",
-            Fork::Deneb => "deneb",
-            Fork::Electra => "electra",
-        }
-    }
-}
-
 /// Fork version and activation epoch for a single fork.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ForkParams {
@@ -97,11 +83,6 @@ impl ForkSchedule {
             Fork::Deneb => self.deneb.version(),
             Fork::Electra => self.electra.version(),
         }
-    }
-
-    #[allow(dead_code)]
-    pub(crate) const fn altair_version(&self) -> [u8; 4] {
-        self.altair.version()
     }
 }
 
@@ -320,21 +301,29 @@ impl ChainSpec {
         altair_fork_epoch: u64,
         bellatrix_fork_epoch: u64,
     ) -> Self {
-        Self {
-            preset_name: "test",
-            genesis_time: 0,
-            seconds_per_slot: 12,
-            slots_per_epoch,
-            epochs_per_sync_committee_period: 8,
-            sync_committee_size: 32,
-            fork_schedule: ForkSchedule::new(
-                ForkParams::new(altair_fork_version, altair_fork_epoch),
-                ForkParams::new(bellatrix_fork_version, bellatrix_fork_epoch),
-                ForkParams::new([0x02, 0x00, 0x00, 0x00], u64::MAX),
-                ForkParams::new([0x03, 0x00, 0x00, 0x00], u64::MAX),
-                ForkParams::new([0x04, 0x00, 0x00, 0x00], u64::MAX),
-            ),
-        }
+        // Later forks are pinned past reach (u64::MAX), so their versions are
+        // never active; values are placeholders. from_config keeps this on the
+        // single config->spec mapping.
+        Self::from_config(
+            ChainSpecConfig {
+                genesis_time: 0,
+                seconds_per_slot: 12,
+                slots_per_epoch,
+                epochs_per_sync_committee_period: 8,
+                sync_committee_size: 32,
+                altair_fork_version,
+                bellatrix_fork_version,
+                capella_fork_version: [0x03, 0x00, 0x00, 0x00],
+                deneb_fork_version: [0x04, 0x00, 0x00, 0x00],
+                electra_fork_version: [0x05, 0x00, 0x00, 0x00],
+                altair_fork_epoch,
+                bellatrix_fork_epoch,
+                capella_fork_epoch: u64::MAX,
+                deneb_fork_epoch: u64::MAX,
+                electra_fork_epoch: u64::MAX,
+            },
+            "test",
+        )
     }
 
     pub const fn preset_name(&self) -> &'static str {
@@ -359,11 +348,6 @@ impl ChainSpec {
 
     pub const fn sync_committee_size(&self) -> usize {
         self.sync_committee_size
-    }
-
-    #[allow(dead_code)]
-    pub(crate) const fn altair_fork_version(&self) -> [u8; 4] {
-        self.fork_schedule.altair_version()
     }
 
     /// Calculate total slots per sync committee period
@@ -426,12 +410,6 @@ impl ChainSpec {
         self.fork_schedule.version_at_epoch(epoch)
     }
 
-    /// Get the fork version for a given slot.
-    #[allow(dead_code)] // Will be used in future fork-aware update processing
-    pub(crate) const fn fork_version_at_slot(&self, slot: Slot) -> [u8; 4] {
-        self.fork_version_at_epoch(slot / self.slots_per_epoch)
-    }
-
     // Beacon State Generalized Indices
     //
     // These return the SSZ generalized index for various beacon state fields.
@@ -477,7 +455,8 @@ mod tests {
         assert_eq!(spec.epochs_per_sync_committee_period(), 256);
         assert_eq!(spec.sync_committee_size(), 512);
         assert_eq!(spec.slots_per_sync_committee_period(), 8192);
-        assert_eq!(spec.altair_fork_version(), [0x01, 0x00, 0x00, 0x00]);
+        // Altair version via the live path (Altair is the genesis fork for the LC).
+        assert_eq!(spec.fork_version_at_epoch(0), [0x01, 0x00, 0x00, 0x00]);
     }
 
     #[test]
@@ -488,7 +467,7 @@ mod tests {
         assert_eq!(spec.epochs_per_sync_committee_period(), 8);
         assert_eq!(spec.sync_committee_size(), 32);
         assert_eq!(spec.slots_per_sync_committee_period(), 64);
-        assert_eq!(spec.altair_fork_version(), [0x01, 0x00, 0x00, 0x01]);
+        assert_eq!(spec.fork_version_at_epoch(0), [0x01, 0x00, 0x00, 0x01]);
     }
 
     #[test]
@@ -620,15 +599,6 @@ mod tests {
         assert!(Fork::Bellatrix < Fork::Capella);
         assert!(Fork::Capella < Fork::Deneb);
         assert!(Fork::Deneb < Fork::Electra);
-    }
-
-    #[test]
-    fn test_fork_name() {
-        assert_eq!(Fork::Altair.name(), "altair");
-        assert_eq!(Fork::Bellatrix.name(), "bellatrix");
-        assert_eq!(Fork::Capella.name(), "capella");
-        assert_eq!(Fork::Deneb.name(), "deneb");
-        assert_eq!(Fork::Electra.name(), "electra");
     }
 
     // Generalized Index Tests

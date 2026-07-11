@@ -11,6 +11,15 @@ pub(crate) enum MinimalPresetFork {
 }
 
 impl MinimalPresetFork {
+    /// Spec name / fixture directory for this fork.
+    pub(crate) fn name(&self) -> &'static str {
+        match self {
+            MinimalPresetFork::Altair => "altair",
+            MinimalPresetFork::Bellatrix => "bellatrix",
+            MinimalPresetFork::Capella => "capella",
+        }
+    }
+
     /// Return a `ChainSpec` whose fork schedule matches the spec-test fixtures
     /// for this fork.
     pub(crate) fn chain_spec(&self) -> crate::config::ChainSpec {
@@ -59,11 +68,7 @@ mod tests {
     }
 
     fn load_config_yaml(fork: MinimalPresetFork) -> ConfigYaml {
-        let dir = match fork {
-            MinimalPresetFork::Altair => "altair",
-            MinimalPresetFork::Bellatrix => "bellatrix",
-            MinimalPresetFork::Capella => "capella",
-        };
+        let dir = fork.name();
         let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
             "tests/fixtures/minimal/{dir}/light_client/sync/light_client_sync/config.yaml"
         ));
