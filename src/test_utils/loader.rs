@@ -22,31 +22,23 @@ pub struct LightClientSyncTest {
 }
 
 impl LightClientSyncTest {
+    fn new(fork: MinimalPresetFork, dir: &str) -> Self {
+        let test_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+            "tests/fixtures/minimal/{dir}/light_client/sync/light_client_sync"
+        ));
+        Self { test_dir, fork }
+    }
+
     pub fn minimal_altair() -> Self {
-        let test_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures/minimal/altair/light_client/sync/light_client_sync");
-        Self {
-            test_dir,
-            fork: MinimalPresetFork::Altair,
-        }
+        Self::new(MinimalPresetFork::Altair, "altair")
     }
 
     pub fn minimal_bellatrix() -> Self {
-        let test_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures/minimal/bellatrix/light_client/sync/light_client_sync");
-        Self {
-            test_dir,
-            fork: MinimalPresetFork::Bellatrix,
-        }
+        Self::new(MinimalPresetFork::Bellatrix, "bellatrix")
     }
 
     pub fn minimal_capella() -> Self {
-        let test_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures/minimal/capella/light_client/sync/light_client_sync");
-        Self {
-            test_dir,
-            fork: MinimalPresetFork::Capella,
-        }
+        Self::new(MinimalPresetFork::Capella, "capella")
     }
 
     pub fn chain_spec(&self) -> crate::config::ChainSpec {
