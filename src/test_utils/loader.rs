@@ -6,7 +6,7 @@ use super::raw_ssz::{
     RawCapellaLightClientUpdate, RawLightClientBootstrap, RawLightClientUpdate,
 };
 use super::steps::{TestMeta, TestStep};
-use super::{hex_to_root, MinimalPresetFork, TestUtilsResult};
+use super::{MinimalPresetFork, TestUtilsResult};
 use crate::types::consensus::{LightClientBootstrap, LightClientUpdate};
 use ssz_rs::prelude::*;
 use std::fs;
@@ -22,31 +22,23 @@ pub struct LightClientSyncTest {
 }
 
 impl LightClientSyncTest {
+    fn new(fork: MinimalPresetFork, dir: &str) -> Self {
+        let test_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+            "tests/fixtures/minimal/{dir}/light_client/sync/light_client_sync"
+        ));
+        Self { test_dir, fork }
+    }
+
     pub fn minimal_altair() -> Self {
-        let test_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures/minimal/altair/light_client/sync/light_client_sync");
-        Self {
-            test_dir,
-            fork: MinimalPresetFork::Altair,
-        }
+        Self::new(MinimalPresetFork::Altair, "altair")
     }
 
     pub fn minimal_bellatrix() -> Self {
-        let test_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures/minimal/bellatrix/light_client/sync/light_client_sync");
-        Self {
-            test_dir,
-            fork: MinimalPresetFork::Bellatrix,
-        }
+        Self::new(MinimalPresetFork::Bellatrix, "bellatrix")
     }
 
     pub fn minimal_capella() -> Self {
-        let test_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures/minimal/capella/light_client/sync/light_client_sync");
-        Self {
-            test_dir,
-            fork: MinimalPresetFork::Capella,
-        }
+        Self::new(MinimalPresetFork::Capella, "capella")
     }
 
     pub fn chain_spec(&self) -> crate::config::ChainSpec {
@@ -55,7 +47,7 @@ impl LightClientSyncTest {
 
     pub fn load_bootstrap(&self) -> TestUtilsResult<LightClientBootstrap> {
         let meta = self.load_meta()?;
-        let genesis_validators_root = hex_to_root(&meta.genesis_validators_root)?;
+        let genesis_validators_root = meta.genesis_validators_root;
         let bootstrap_path = self.test_dir.join("bootstrap.ssz_snappy");
 
         match self.fork {
