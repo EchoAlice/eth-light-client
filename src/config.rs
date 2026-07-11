@@ -11,20 +11,6 @@ pub(crate) enum Fork {
     Electra,   // Pectra upgrade (2025). BeaconState restructured, gindice change.
 }
 
-impl Fork {
-    /// Returns the fork name as used in spec test paths.
-    #[allow(dead_code)] // Will be used when loading fork-specific test fixtures
-    pub(crate) fn name(&self) -> &'static str {
-        match self {
-            Fork::Altair => "altair",
-            Fork::Bellatrix => "bellatrix",
-            Fork::Capella => "capella",
-            Fork::Deneb => "deneb",
-            Fork::Electra => "electra",
-        }
-    }
-}
-
 /// Fork version and activation epoch for a single fork.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ForkParams {
@@ -620,15 +606,6 @@ mod tests {
         assert!(Fork::Bellatrix < Fork::Capella);
         assert!(Fork::Capella < Fork::Deneb);
         assert!(Fork::Deneb < Fork::Electra);
-    }
-
-    #[test]
-    fn test_fork_name() {
-        assert_eq!(Fork::Altair.name(), "altair");
-        assert_eq!(Fork::Bellatrix.name(), "bellatrix");
-        assert_eq!(Fork::Capella.name(), "capella");
-        assert_eq!(Fork::Deneb.name(), "deneb");
-        assert_eq!(Fork::Electra.name(), "electra");
     }
 
     // Generalized Index Tests
