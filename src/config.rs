@@ -84,11 +84,6 @@ impl ForkSchedule {
             Fork::Electra => self.electra.version(),
         }
     }
-
-    #[allow(dead_code)]
-    pub(crate) const fn altair_version(&self) -> [u8; 4] {
-        self.altair.version()
-    }
 }
 
 /// Configurations for creating a [`ChainSpec`].
@@ -347,11 +342,6 @@ impl ChainSpec {
         self.sync_committee_size
     }
 
-    #[allow(dead_code)]
-    pub(crate) const fn altair_fork_version(&self) -> [u8; 4] {
-        self.fork_schedule.altair_version()
-    }
-
     /// Calculate total slots per sync committee period
     pub const fn slots_per_sync_committee_period(&self) -> u64 {
         self.slots_per_epoch * self.epochs_per_sync_committee_period
@@ -463,7 +453,8 @@ mod tests {
         assert_eq!(spec.epochs_per_sync_committee_period(), 256);
         assert_eq!(spec.sync_committee_size(), 512);
         assert_eq!(spec.slots_per_sync_committee_period(), 8192);
-        assert_eq!(spec.altair_fork_version(), [0x01, 0x00, 0x00, 0x00]);
+        // Altair version via the live path (Altair is the genesis fork for the LC).
+        assert_eq!(spec.fork_version_at_epoch(0), [0x01, 0x00, 0x00, 0x00]);
     }
 
     #[test]
@@ -474,7 +465,7 @@ mod tests {
         assert_eq!(spec.epochs_per_sync_committee_period(), 8);
         assert_eq!(spec.sync_committee_size(), 32);
         assert_eq!(spec.slots_per_sync_committee_period(), 64);
-        assert_eq!(spec.altair_fork_version(), [0x01, 0x00, 0x00, 0x01]);
+        assert_eq!(spec.fork_version_at_epoch(0), [0x01, 0x00, 0x00, 0x01]);
     }
 
     #[test]
