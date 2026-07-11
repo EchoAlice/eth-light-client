@@ -402,12 +402,6 @@ impl ChainSpec {
         self.fork_schedule.version_at_epoch(epoch)
     }
 
-    /// Get the fork version for a given slot.
-    #[allow(dead_code)] // Will be used in future fork-aware update processing
-    pub(crate) const fn fork_version_at_slot(&self, slot: Slot) -> [u8; 4] {
-        self.fork_version_at_epoch(slot / self.slots_per_epoch)
-    }
-
     // Beacon State Generalized Indices
     //
     // These return the SSZ generalized index for various beacon state fields.
