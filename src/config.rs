@@ -301,21 +301,29 @@ impl ChainSpec {
         altair_fork_epoch: u64,
         bellatrix_fork_epoch: u64,
     ) -> Self {
-        Self {
-            preset_name: "test",
-            genesis_time: 0,
-            seconds_per_slot: 12,
-            slots_per_epoch,
-            epochs_per_sync_committee_period: 8,
-            sync_committee_size: 32,
-            fork_schedule: ForkSchedule::new(
-                ForkParams::new(altair_fork_version, altair_fork_epoch),
-                ForkParams::new(bellatrix_fork_version, bellatrix_fork_epoch),
-                ForkParams::new([0x02, 0x00, 0x00, 0x00], u64::MAX),
-                ForkParams::new([0x03, 0x00, 0x00, 0x00], u64::MAX),
-                ForkParams::new([0x04, 0x00, 0x00, 0x00], u64::MAX),
-            ),
-        }
+        // Later forks are pinned past reach (u64::MAX), so their versions are
+        // never active; values are placeholders. from_config keeps this on the
+        // single config->spec mapping.
+        Self::from_config(
+            ChainSpecConfig {
+                genesis_time: 0,
+                seconds_per_slot: 12,
+                slots_per_epoch,
+                epochs_per_sync_committee_period: 8,
+                sync_committee_size: 32,
+                altair_fork_version,
+                bellatrix_fork_version,
+                capella_fork_version: [0x03, 0x00, 0x00, 0x00],
+                deneb_fork_version: [0x04, 0x00, 0x00, 0x00],
+                electra_fork_version: [0x05, 0x00, 0x00, 0x00],
+                altair_fork_epoch,
+                bellatrix_fork_epoch,
+                capella_fork_epoch: u64::MAX,
+                deneb_fork_epoch: u64::MAX,
+                electra_fork_epoch: u64::MAX,
+            },
+            "test",
+        )
     }
 
     pub const fn preset_name(&self) -> &'static str {
