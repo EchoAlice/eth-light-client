@@ -11,27 +11,6 @@ pub(crate) enum Fork {
     Electra,   // Pectra upgrade (2025). BeaconState restructured, gindice change.
 }
 
-/// Fork version and activation epoch for a single fork.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct ForkParams {
-    version: [u8; 4],
-    epoch: u64,
-}
-
-impl ForkParams {
-    pub(crate) const fn new(version: [u8; 4], epoch: u64) -> Self {
-        Self { version, epoch }
-    }
-
-    pub(crate) const fn version(&self) -> [u8; 4] {
-        self.version
-    }
-
-    pub(crate) const fn epoch(&self) -> u64 {
-        self.epoch
-    }
-}
-
 /// Complete fork schedule for a network.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ForkSchedule {
@@ -83,6 +62,27 @@ impl ForkSchedule {
             Fork::Deneb => self.deneb.version(),
             Fork::Electra => self.electra.version(),
         }
+    }
+}
+
+/// Fork version and activation epoch for a single fork.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ForkParams {
+    version: [u8; 4],
+    epoch: u64,
+}
+
+impl ForkParams {
+    pub(crate) const fn new(version: [u8; 4], epoch: u64) -> Self {
+        Self { version, epoch }
+    }
+
+    pub(crate) const fn version(&self) -> [u8; 4] {
+        self.version
+    }
+
+    pub(crate) const fn epoch(&self) -> u64 {
+        self.epoch
     }
 }
 
