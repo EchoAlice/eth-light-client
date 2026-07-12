@@ -346,18 +346,13 @@ impl ChainSpec {
     }
 
     /// Convert slot to epoch
-    pub const fn slot_to_epoch(&self, slot: u64) -> u64 {
+    pub(crate) const fn slot_to_epoch(&self, slot: u64) -> u64 {
         slot / self.slots_per_epoch
     }
 
     /// Convert slot to sync committee period
-    pub const fn slot_to_sync_committee_period(&self, slot: u64) -> u64 {
+    pub(crate) const fn slot_to_sync_committee_period(&self, slot: u64) -> u64 {
         self.slot_to_epoch(slot) / self.epochs_per_sync_committee_period
-    }
-
-    /// Convert epoch to sync committee period
-    pub const fn epoch_to_sync_committee_period(&self, epoch: u64) -> u64 {
-        epoch / self.epochs_per_sync_committee_period
     }
 
     /// Get start slot of a sync committee period
@@ -373,7 +368,7 @@ impl ChainSpec {
     /// Calculate current slot from Unix timestamp
     ///
     /// Returns 0 if the timestamp is before genesis (e.g., system clock is wrong)
-    pub fn timestamp_to_slot(&self, timestamp_secs: u64) -> u64 {
+    pub(crate) fn timestamp_to_slot(&self, timestamp_secs: u64) -> u64 {
         if timestamp_secs >= self.genesis_time {
             (timestamp_secs - self.genesis_time) / self.seconds_per_slot
         } else {
@@ -407,7 +402,7 @@ impl ChainSpec {
     //
     // Reference: https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/sync-protocol.md
     #[inline]
-    pub const fn current_sync_committee_gindex(&self, slot: Slot) -> u64 {
+    pub(crate) const fn current_sync_committee_gindex(&self, slot: Slot) -> u64 {
         match self.fork_at_slot(slot) {
             Fork::Electra => 86,
             _ => 54,
@@ -416,7 +411,7 @@ impl ChainSpec {
 
     /// Get the generalized index for `BeaconState.next_sync_committee` at a given slot.
     #[inline]
-    pub const fn next_sync_committee_gindex(&self, slot: Slot) -> u64 {
+    pub(crate) const fn next_sync_committee_gindex(&self, slot: Slot) -> u64 {
         match self.fork_at_slot(slot) {
             Fork::Electra => 87,
             _ => 55,
@@ -425,7 +420,7 @@ impl ChainSpec {
 
     /// Get the generalized index for `BeaconState.finalized_checkpoint.root` at a given slot.
     #[inline]
-    pub const fn finalized_root_gindex(&self, slot: Slot) -> u64 {
+    pub(crate) const fn finalized_root_gindex(&self, slot: Slot) -> u64 {
         match self.fork_at_slot(slot) {
             Fork::Electra => 169,
             _ => 105,
