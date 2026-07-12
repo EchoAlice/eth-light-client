@@ -43,11 +43,10 @@ flowchart TD
 ```
 
 The validated door (`try_from_config`) is the only path that checks input; the
-trusted presets (`minimal`, `mainnet`, `for_test`) skip `validate()` but still
-go through the single `from_config` mapping. `mainnet()` skips `validate()` not
-just as a trust optimization but out of necessity: today's `validate()` rejects
-Altair at a nonzero epoch, and real mainnet activates Altair at epoch 74240 —
-see issue #63.
+trusted presets (`minimal`, `mainnet`, `for_test`) skip `validate()` as a
+`const` construction optimization but still go through the single `from_config`
+mapping. Their params are known-good, so `try_from_config` would accept them
+just the same.
 
 ### Handle this module carefully
 `config` sits near the **floor** of the dependency graph (depends only on `error` + `types::primitives`); nearly everything consensus-y depends on it. So it's foundational.  The module should be stable and low-churn.

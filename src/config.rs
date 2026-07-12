@@ -134,7 +134,8 @@ pub struct ChainSpecConfig {
     pub deneb_fork_version: [u8; 4],
     pub electra_fork_version: [u8; 4],
 
-    /// Must be 0 (light client protocol requires Altair from genesis).
+    /// Altair activation epoch; the monotonic floor of the fork schedule
+    /// (may be nonzero, e.g. mainnet's 74240).
     pub altair_fork_epoch: u64,
     pub bellatrix_fork_epoch: u64,
     pub capella_fork_epoch: u64,
@@ -143,28 +144,6 @@ pub struct ChainSpecConfig {
 }
 
 impl ChainSpecConfig {
-    /// Single source of truth for the minimal preset (spec-test config).
-    pub const fn minimal() -> Self {
-        Self {
-            genesis_time: 1578009600,
-            seconds_per_slot: 6,
-            slots_per_epoch: 8,
-            epochs_per_sync_committee_period: 8,
-            sync_committee_size: 32,
-            altair_fork_version: [0x01, 0x00, 0x00, 0x01],
-            bellatrix_fork_version: [0x02, 0x00, 0x00, 0x01],
-            capella_fork_version: [0x03, 0x00, 0x00, 0x01],
-            deneb_fork_version: [0x04, 0x00, 0x00, 0x01],
-            electra_fork_version: [0x05, 0x00, 0x00, 0x01],
-            altair_fork_epoch: 0,
-            bellatrix_fork_epoch: u64::MAX,
-            capella_fork_epoch: u64::MAX,
-            deneb_fork_epoch: u64::MAX,
-            electra_fork_epoch: u64::MAX,
-        }
-    }
-
-    /// Single source of truth for the Ethereum mainnet parameters.
     pub const fn mainnet() -> Self {
         Self {
             genesis_time: 1606824023,
@@ -185,9 +164,26 @@ impl ChainSpecConfig {
         }
     }
 
-    /// Validate the configuration.
-    ///
-    /// Returns an error if any values are invalid or inconsistent.
+    pub const fn minimal() -> Self {
+        Self {
+            genesis_time: 1578009600,
+            seconds_per_slot: 6,
+            slots_per_epoch: 8,
+            epochs_per_sync_committee_period: 8,
+            sync_committee_size: 32,
+            altair_fork_version: [0x01, 0x00, 0x00, 0x01],
+            bellatrix_fork_version: [0x02, 0x00, 0x00, 0x01],
+            capella_fork_version: [0x03, 0x00, 0x00, 0x01],
+            deneb_fork_version: [0x04, 0x00, 0x00, 0x01],
+            electra_fork_version: [0x05, 0x00, 0x00, 0x01],
+            altair_fork_epoch: 0,
+            bellatrix_fork_epoch: u64::MAX,
+            capella_fork_epoch: u64::MAX,
+            deneb_fork_epoch: u64::MAX,
+            electra_fork_epoch: u64::MAX,
+        }
+    }
+
     pub fn validate(&self) -> Result<()> {
         if self.seconds_per_slot == 0 {
             return Err(Error::InvalidInput(
@@ -212,15 +208,7 @@ impl ChainSpecConfig {
             ));
         }
 
-        // Light client protocol requires Altair from genesis
-        if self.altair_fork_epoch != 0 {
-            return Err(Error::InvalidInput(
-                "altair_fork_epoch must be 0 (light client requires Altair from genesis)"
-                    .to_string(),
-            ));
-        }
-
-        // Fork epochs must be monotonically non-decreasing
+        // Fork epochs must be monotonically non-decreasing, anchored at Altair. The light client operates from Altair onward via its trusted bootstrap, so Altair may activate at any epoch (e.g. mainnet at 74240), not only genesis — it just cannot come after a later fork.
         if self.bellatrix_fork_epoch < self.altair_fork_epoch {
             return Err(Error::InvalidInput(
                 "bellatrix_fork_epoch must be >= altair_fork_epoch".to_string(),
@@ -261,24 +249,15 @@ pub struct ChainSpec {
 }
 
 impl ChainSpec {
-    /// Ethereum mainnet specification, from [`ChainSpecConfig::mainnet`].
-    ///
-    /// A trusted preset: routed through the single `from_config` mapping, but
-    /// skips `validate()` (which enforces this impl's Altair-from-genesis limit
-    /// that real mainnet — Altair at epoch 74240 — does not satisfy). See #63.
     pub const fn mainnet() -> Self {
         Self::from_config(ChainSpecConfig::mainnet(), "mainnet")
     }
 
-    /// Minimal test spec, from [`ChainSpecConfig::minimal`].
     pub const fn minimal() -> Self {
         Self::from_config(ChainSpecConfig::minimal(), "minimal")
     }
 
-    /// Create a ChainSpec from a custom configuration.
-    ///
     /// Use this for local testnets or devnets with non-standard parameters.
-    /// The configuration is validated before the ChainSpec is created.
     pub fn try_from_config(config: ChainSpecConfig) -> Result<Self> {
         config.validate()?;
         Ok(Self::from_config(config, "custom"))
@@ -805,8 +784,15 @@ mod tests {
 
     #[test]
     fn test_chainspec_config_validation_altair_epoch() {
+        // Altair need not activate at genesis: real mainnet (Altair @ 74240)
+        // is a valid config. The LC operates from Altair onward via its trusted
+        // bootstrap, not via a genesis-Altair schedule. See #63.
+        assert!(ChainSpecConfig::mainnet().validate().is_ok());
+
+        // Altair is still the monotonic floor: a later fork before it is invalid.
         let mut config = valid_config();
-        config.altair_fork_epoch = 1; // Must be 0
+        config.altair_fork_epoch = 10;
+        config.bellatrix_fork_epoch = 5;
         assert!(config.validate().is_err());
     }
 
