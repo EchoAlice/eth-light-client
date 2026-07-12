@@ -26,6 +26,28 @@ This module owns two consensus-critical, fork-dependent lookups:
 `try_from_config` validates; `from_config` is the *one* place the config→spec
 mapping lives. Once code holds a `ChainSpec`, it trusts it.
 
+```mermaid
+flowchart TD
+    cfg["ChainSpecConfig<br/> ingests raw input params"]
+
+    cfg --> tfc["try_from_config()"]
+    tfc --> v{"validate()"}
+    v -->|Err| err["Err(InvalidInput)"]
+    v -->|Ok| fc["from_config()<br/>single config-to-spec<br/>mapping"]
+
+    main["mainnet()"] --> fc
+    min["minimal()"] --> fc
+    ft["for_test()"] --> fc
+
+    fc --> spec["ChainSpec<br/>validated<br/>immutable · trusted"]
+```
+
+The validated door (`try_from_config`) is the only path that checks input; the
+trusted presets (`minimal`, `mainnet`, `for_test`) skip `validate()` as a
+`const` construction optimization but still go through the single `from_config`
+mapping. Their params are known-good, so `try_from_config` would accept them
+just the same.
+
 ### Handle this module carefully
 `config` sits near the **floor** of the dependency graph (depends only on `error` + `types::primitives`); nearly everything consensus-y depends on it. So it's foundational.  The module should be stable and low-churn.
 
