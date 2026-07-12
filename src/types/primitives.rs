@@ -21,7 +21,7 @@ impl Serialize for Bloom {
     where
         S: serde::Serializer,
     {
-        hex::encode(&self.0).serialize(serializer)
+        hex::encode(self.0).serialize(serializer)
     }
 }
 
