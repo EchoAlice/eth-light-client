@@ -164,6 +164,27 @@ impl ChainSpecConfig {
         }
     }
 
+    /// Single source of truth for the Ethereum mainnet parameters.
+    pub const fn mainnet() -> Self {
+        Self {
+            genesis_time: 1606824023,
+            seconds_per_slot: 12,
+            slots_per_epoch: 32,
+            epochs_per_sync_committee_period: 256,
+            sync_committee_size: 512,
+            altair_fork_version: [0x01, 0x00, 0x00, 0x00],
+            bellatrix_fork_version: [0x02, 0x00, 0x00, 0x00],
+            capella_fork_version: [0x03, 0x00, 0x00, 0x00],
+            deneb_fork_version: [0x04, 0x00, 0x00, 0x00],
+            electra_fork_version: [0x05, 0x00, 0x00, 0x00],
+            altair_fork_epoch: 74240,
+            bellatrix_fork_epoch: 144896,
+            capella_fork_epoch: 194048,
+            deneb_fork_epoch: 269568,
+            electra_fork_epoch: 364544,
+        }
+    }
+
     /// Validate the configuration.
     ///
     /// Returns an error if any values are invalid or inconsistent.
@@ -240,23 +261,13 @@ pub struct ChainSpec {
 }
 
 impl ChainSpec {
-    /// Ethereum mainnet specification
+    /// Ethereum mainnet specification, from [`ChainSpecConfig::mainnet`].
+    ///
+    /// A trusted preset: routed through the single `from_config` mapping, but
+    /// skips `validate()` (which enforces this impl's Altair-from-genesis limit
+    /// that real mainnet — Altair at epoch 74240 — does not satisfy). See #63.
     pub const fn mainnet() -> Self {
-        Self {
-            preset_name: "mainnet",
-            genesis_time: 1606824023,
-            seconds_per_slot: 12,
-            slots_per_epoch: 32,
-            epochs_per_sync_committee_period: 256,
-            sync_committee_size: 512,
-            fork_schedule: ForkSchedule::new(
-                ForkParams::new([0x01, 0x00, 0x00, 0x00], 74240),
-                ForkParams::new([0x02, 0x00, 0x00, 0x00], 144896),
-                ForkParams::new([0x03, 0x00, 0x00, 0x00], 194048),
-                ForkParams::new([0x04, 0x00, 0x00, 0x00], 269568),
-                ForkParams::new([0x05, 0x00, 0x00, 0x00], 364544),
-            ),
-        }
+        Self::from_config(ChainSpecConfig::mainnet(), "mainnet")
     }
 
     /// Minimal test spec, from [`ChainSpecConfig::minimal`].
