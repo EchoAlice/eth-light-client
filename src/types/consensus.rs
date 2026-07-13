@@ -3,7 +3,7 @@ use crate::error::{Error, Result};
 use crate::types::primitives::{BLSPublicKey, BLSSignature, Epoch, Root, Slot, ValidatorIndex};
 use ethereum_types::{Address, U256};
 use ssz_derive::{Decode, Encode};
-use ssz_types::typenum::{U256 as BloomLen, U32, U48, U512};
+use ssz_types::typenum::{U256 as BloomLen, U32, U4, U48, U512};
 use ssz_types::{FixedVector, VariableList};
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
@@ -92,13 +92,13 @@ pub struct BellatrixLightClientHeader {
 /// Starting at Capella, the `LightClientHeader` includes an execution
 /// payload header and a merkle branch proving it is embedded in
 /// `beacon.body_root` at `EXECUTION_PAYLOAD_GINDEX` (25).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
 pub struct CapellaLightClientHeader {
     pub beacon: BeaconBlockHeader,
     pub execution: ExecutionPayloadHeaderCapella,
     /// Merkle branch proving `execution` is at gindex 25 in `beacon.body_root`.
     /// Fixed length = floorlog2(EXECUTION_PAYLOAD_GINDEX) = floorlog2(25) = 4.
-    pub execution_branch: [Root; 4],
+    pub execution_branch: FixedVector<Root, U4>,
 }
 
 /// Execution payload header for Capella (15 fields).
@@ -137,12 +137,12 @@ impl ExecutionPayloadHeaderCapella {
 ///
 /// The execution branch length is unchanged: `EXECUTION_PAYLOAD_GINDEX` (25) is
 /// constant from Capella through Electra, so `floorlog2(25) = 4`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
 pub struct DenebLightClientHeader {
     pub beacon: BeaconBlockHeader,
     pub execution: ExecutionPayloadHeaderDeneb,
     /// Merkle branch proving `execution` is at gindex 25 in `beacon.body_root`.
-    pub execution_branch: [Root; 4],
+    pub execution_branch: FixedVector<Root, U4>,
 }
 
 /// Execution payload header for Deneb (17 fields).
@@ -202,7 +202,7 @@ impl LightClientHeader {
         Self::Capella(CapellaLightClientHeader {
             beacon,
             execution,
-            execution_branch,
+            execution_branch: FixedVector::new(execution_branch.to_vec()).expect("branch is 4"),
         })
     }
 
@@ -216,7 +216,7 @@ impl LightClientHeader {
         Self::Deneb(DenebLightClientHeader {
             beacon,
             execution,
-            execution_branch,
+            execution_branch: FixedVector::new(execution_branch.to_vec()).expect("branch is 4"),
         })
     }
 
@@ -247,42 +247,15 @@ impl LightClientHeader {
     ///   (3-field container). The container shape is identical; only the inner
     ///   `execution.hash_tree_root()` differs across forks.
     pub fn hash_tree_root(&self) -> Result<Root> {
-        // Helper: 3-field container merkleization shared by all execution-payload forks.
-        fn execution_header_root(
-            beacon: &BeaconBlockHeader,
-            execution_root: Root,
-            execution_branch: &[Root; 4],
-        ) -> Result<Root> {
-            let beacon_root = beacon.hash_tree_root()?;
-
-            // execution_branch: Vector[Bytes32, 4] → merkleize 4 × 32-byte leaves.
-            let mut branch_bytes = [0u8; 32 * 4];
-            for (i, node) in execution_branch.iter().enumerate() {
-                branch_bytes[i * 32..(i + 1) * 32].copy_from_slice(node);
-            }
-            let mut branch_root = [0u8; 32];
-            branch_root.copy_from_slice(tree_hash::merkle_root(&branch_bytes, 4).as_bytes());
-
-            // 3-field container → pad to 4 leaves and merkleize.
-            let mut container = [0u8; 32 * 4];
-            container[0..32].copy_from_slice(&beacon_root);
-            container[32..64].copy_from_slice(&execution_root);
-            container[64..96].copy_from_slice(&branch_root);
-            // container[96..128] is already zero (padding).
-            let mut result = [0u8; 32];
-            result.copy_from_slice(tree_hash::merkle_root(&container, 4).as_bytes());
-            Ok(result)
-        }
-
         match self {
+            // Altair/Bellatrix have no LightClientHeader container (it arrived in
+            // Capella); the header root is the beacon root.
             Self::Altair(h) => h.beacon.hash_tree_root(),
             Self::Bellatrix(h) => h.beacon.hash_tree_root(),
-            Self::Capella(h) => {
-                execution_header_root(&h.beacon, h.execution.hash_tree_root(), &h.execution_branch)
-            }
-            Self::Deneb(h) => {
-                execution_header_root(&h.beacon, h.execution.hash_tree_root(), &h.execution_branch)
-            }
+            // Capella/Deneb are 3-field containers `{beacon, execution,
+            // execution_branch}` — the derived TreeHash does the merkleization.
+            Self::Capella(h) => Ok(h.tree_hash_root().0),
+            Self::Deneb(h) => Ok(h.tree_hash_root().0),
         }
     }
 }
