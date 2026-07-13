@@ -1,7 +1,38 @@
 # `src/` — module map
 
-How to think about each top-level module. Currently covers `config`; more
-modules to be documented over time.
+A map of the crate: first how it's layered as a whole, then how to think about
+each module. Per-module coverage starts with `config`; more added over time.
+
+## Architecture — how the crate is layered
+Nearly all of this crate is verification machinery, kept private in `consensus/` behind a thin `LightClient` facade. The other modules — `config` (network rules), `types`, and `error` — exist to feed that verification. The stack runs from the foundational floor (stable, correctness-critical) up to the public surface:
+
+```mermaid
+flowchart TD
+    fac["'light_client'<br/>public FACADE —<br/>'LightClient', 'UpdateOutcome'"]
+    eng["'consensus/'<br/>verification ENGINE —<br/>'merkle', 'bls', 'sync_committee'<br/>(private)"]
+    ct["'types::consensus'<br/>headers, committees,<br/>updates, 'Store'"]
+    cfg["'config'<br/>'ChainSpec' —<br/>fork + param oracle"]
+    prim["'types::primitives'<br/>leaf aliases — 'Slot', 'Root', …"]
+    err["'error'<br/>'Error' / 'Result' — no deps, underlies all"]
+
+    fac --> eng --> ct --> cfg --> prim
+    prim -.-> err
+```
+
+| Module | Layer | Role |
+|--------|-------|------|
+| `error` | floor | `Error` / `Result` |
+| `types::primitives` | leaf | byte-array type aliases |
+| `config` | oracle | `ChainSpec`: fork schedule + network params |
+| `types::consensus` | data | fork-aware headers, committees, updates, store |
+| `consensus/` | engine | SSZ / Merkle / BLS verification (private) |
+| `light_client` | facade | `LightClient`, `UpdateOutcome` (public entry) |
+
+**Facade vs engine.** `LightClient` (`src/light_client.rs`) is a thin public wrapper; the real work lives in `LightClientProcessor` (`src/consensus/light_client.rs`, `pub(crate)`). `process_update` delegates to the processor and wraps its `bool` into the richer `UpdateOutcome`. Consumers touch only the facade — `consensus/` is private. (Two files named `light_client.rs` at different layers is a known navigability wrinkle.)
+
+**The `types` umbrella spans two layers.** `types::primitives` sits *below* config (leaf aliases, no deps); `types::consensus` sits *above* it (its types carry a `&ChainSpec`). So `config` depends on `types::primitives` while `types::consensus` depends on `config`, which makes the crate-level `config ↔ types` edge *look* circular. It isn't — the real order is `primitives → config → consensus`; only the shared `types` name blurs it.
+
+<br/>
 
 ## `config` — the network rulebook & fork oracle
 The `config` module is the single source of truth for **network parameters** and the **fork schedule**. The rest of the crate consults it for two things:
