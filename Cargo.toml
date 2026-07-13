@@ -24,7 +24,6 @@ ethereum_ssz = "0.5"        # SSZ encoding/decoding
 ethereum_ssz_derive = "0.5" # SSZ derive macros
 tree_hash = "0.5"           # TreeHash trait and merkle root computation
 tree_hash_derive = "0.5"    # Derive macros for TreeHash
-ssz_rs = "0.9"              # SSZ decode of wire bytes into public types (see README "SSZ libraries", #69)
 
 # Error handling
 thiserror = "1.0"
@@ -50,7 +49,6 @@ optional = true
 serde_yaml = "0.9"  # For parsing test metadata (meta.yaml, steps.yaml)
 walkdir = "2.4"     # For recursively finding BLS test cases
 snap = "1.1"        # For decompressing .ssz_snappy files
-ssz_rs = "0.9"      # For test vector encoding (test vectors generated with ssz_rs)
 
 [profile.release]
 opt-level = 3

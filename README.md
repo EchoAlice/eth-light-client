@@ -98,13 +98,18 @@ For local testnets or devnets, use `ChainSpecConfig` with `ChainSpec::try_from_c
   - `512` for mainnet
 - SSZ tree layouts and generalized indices are not fully generic inputs; proof paths are implemented explicitly for each supported fork
 
-### SSZ libraries
-The crate deliberately uses **two** SSZ implementations, each for a different job:
+### SSZ
+The crate uses a single SSZ implementation — the Sigma Prime / Lighthouse
+stack: **`ethereum_ssz`** (encode/decode) + **`ssz_types`** (length-bounded
+collections: `FixedVector`, `VariableList`, `BitVector`) + **`tree_hash`**
+(`hash_tree_root`). Public types carry their SSZ traits by deriving them
+(`#[derive(Encode, Decode, TreeHash)]`), so there is no hand-written
+merkleization and no second SSZ library.
 
-- **`ethereum_ssz`** (+ `tree_hash`) — for the production types' encoding and `hash_tree_root` (the verification path). It keeps the public types ergonomic by using plain arrays (`[u8; 48]`, not `FixedVector<u8, U48>`) plus a few hand-written `hash_tree_root` impls, rather than pulling in `ssz_types`' typenum-generic collections.
-- **`ssz_rs`** — for **decoding** wire/fixture bytes into those types (currently behind the `test-utils` feature). It bundles all the SSZ container types (fixed vectors, bitvectors, bounded lists, `U256`) in one crate, so the decode path needs neither `ssz_types` nor hand-written decoders.
-
-This is a choice, not an oversight. The two cross-check each other: bytes are decoded with `ssz_rs`, then `hash_tree_root`'d with `ethereum_ssz` and compared against the fixtures' expected roots — a disagreement fails the tests. Consolidating onto one implementation is possible but would mean adopting the `ssz_types` machinery both layers intentionally avoid, so it is not currently planned.
+The one bespoke SSZ code is the wire-decode adapter in `src/types/ssz.rs`: it
+decodes fork-specific wire layouts and adapts them to the ergonomic public
+types (fork-enum headers, `Option` fields, the spec-sized sync committee) — the
+parts that cannot be a plain derive. It uses `ethereum_ssz` like everything else.
 
 ## Testing
 This library is end-to-end tested against official Ethereum Consensus light client spec tests for Altair, Bellatrix, and Capella hardforks.  Tests exercise the full verification flow through the public API:
