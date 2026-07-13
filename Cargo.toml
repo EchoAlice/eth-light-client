@@ -19,9 +19,6 @@ hex = "0.4"
 sha2 = "0.10"
 blst = "0.3.10"  # BLS signatures for beacon chain
 
-# Ethereum-specific types
-ruint = { version = "1.8", features = ["serde"] }
-
 # SSZ and Tree Hashing - Production-grade libraries used by Lighthouse
 ethereum_ssz = "0.5"        # SSZ encoding/decoding
 ethereum_ssz_derive = "0.5" # SSZ derive macros
@@ -31,6 +28,8 @@ ssz_rs = "0.9"              # SSZ decode of wire bytes into public types (see RE
 
 # Error handling
 thiserror = "1.0"
+ssz_types = "0.5"
+ethereum-types = "0.14"
 
 [features]
 default = []

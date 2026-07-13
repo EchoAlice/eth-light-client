@@ -1,9 +1,10 @@
 use crate::config::{ChainSpec, Fork};
 use crate::error::{Error, Result};
-use crate::types::primitives::{
-    Address, BLSPublicKey, BLSSignature, Bloom, Epoch, ExtraData, Root, Slot, ValidatorIndex, U256,
-};
+use crate::types::primitives::{BLSPublicKey, BLSSignature, Epoch, Root, Slot, ValidatorIndex};
+use ethereum_types::{Address, U256};
 use ssz_derive::{Decode, Encode};
+use ssz_types::typenum::{U256 as BloomLen, U32 as MaxExtraData};
+use ssz_types::{FixedVector, VariableList};
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
 
@@ -62,7 +63,7 @@ impl BeaconBlockHeader {
 ///
 /// Verification logic accesses the inner `BeaconBlockHeader` through
 /// [`beacon()`](Self::beacon), keeping the pipeline fork-agnostic.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 #[allow(clippy::large_enum_variant)]
 pub enum LightClientHeader {
     Altair(AltairLightClientHeader),
@@ -91,7 +92,7 @@ pub struct BellatrixLightClientHeader {
 /// Starting at Capella, the `LightClientHeader` includes an execution
 /// payload header and a merkle branch proving it is embedded in
 /// `beacon.body_root` at `EXECUTION_PAYLOAD_GINDEX` (25).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CapellaLightClientHeader {
     pub beacon: BeaconBlockHeader,
     pub execution: ExecutionPayloadHeaderCapella,
@@ -104,20 +105,20 @@ pub struct CapellaLightClientHeader {
 ///
 /// This is the execution-layer block header embedded in the beacon block.
 /// Capella adds `withdrawals_root` compared to Bellatrix.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
 pub struct ExecutionPayloadHeaderCapella {
     pub parent_hash: Root,
     pub fee_recipient: Address,
     pub state_root: Root,
     pub receipts_root: Root,
-    pub logs_bloom: Bloom,
+    pub logs_bloom: FixedVector<u8, BloomLen>,
     pub prev_randao: Root,
     pub block_number: u64,
     pub gas_limit: u64,
     pub gas_used: u64,
     pub timestamp: u64,
-    /// Variable-length extra data (`ByteList[32]`). Bound-enforced at construction.
-    pub extra_data: ExtraData,
+    /// `ByteList[32]` — the 32-byte bound is enforced by the `VariableList` type.
+    pub extra_data: VariableList<u8, MaxExtraData>,
     pub base_fee_per_gas: U256,
     pub block_hash: Root,
     pub transactions_root: Root,
@@ -125,60 +126,10 @@ pub struct ExecutionPayloadHeaderCapella {
 }
 
 impl ExecutionPayloadHeaderCapella {
-    /// Compute the SSZ `hash_tree_root` of this 15-field container.
-    ///
-    /// Uses `TreeHash::tree_hash_root()` for fields that implement it
-    /// (`u64`, `[u8; 32]`, `Bloom`, `ExtraData`). Two field types still
-    /// need custom hashing because `tree_hash` lacks impls:
-    ///
-    /// - `[u8; 20]` (Address): right-padded to 32 bytes
-    /// - `ruint::U256`: 32-byte little-endian value (single chunk)
+    /// SSZ `hash_tree_root` as a [`Root`] — thin wrapper over the derived
+    /// [`TreeHash`] impl (the field-by-field merkleization is now generated).
     pub fn hash_tree_root(&self) -> Root {
-        use tree_hash::TreeHash;
-
-        fn to_root(h: tree_hash::Hash256) -> Root {
-            let mut r = [0u8; 32];
-            r.copy_from_slice(h.as_bytes());
-            r
-        }
-
-        // [u8; 20]: right-padded to 32 bytes (no tree_hash impl exists).
-        fn address_root(addr: &[u8; 20]) -> Root {
-            let mut buf = [0u8; 32];
-            buf[..20].copy_from_slice(addr);
-            buf
-        }
-
-        // ruint::U256: 32-byte little-endian value (single chunk).
-        fn u256_root(v: &U256) -> Root {
-            v.to_le_bytes()
-        }
-
-        let field_roots: [Root; 15] = [
-            self.parent_hash,                            // 0: [u8; 32]
-            address_root(&self.fee_recipient),           // 1: [u8; 20]
-            self.state_root,                             // 2: [u8; 32]
-            self.receipts_root,                          // 3: [u8; 32]
-            to_root(self.logs_bloom.tree_hash_root()),   // 4: Bloom (TreeHash)
-            self.prev_randao,                            // 5: [u8; 32]
-            to_root(self.block_number.tree_hash_root()), // 6: u64
-            to_root(self.gas_limit.tree_hash_root()),    // 7: u64
-            to_root(self.gas_used.tree_hash_root()),     // 8: u64
-            to_root(self.timestamp.tree_hash_root()),    // 9: u64
-            to_root(self.extra_data.tree_hash_root()),   // 10: ExtraData (TreeHash)
-            u256_root(&self.base_fee_per_gas),           // 11: U256
-            self.block_hash,                             // 12: [u8; 32]
-            self.transactions_root,                      // 13: [u8; 32]
-            self.withdrawals_root,                       // 14: [u8; 32]
-        ];
-
-        // 15-field container → pad to 16 leaves and merkleize.
-        let mut leaf_bytes = [0u8; 32 * 16];
-        for (i, root) in field_roots.iter().enumerate() {
-            leaf_bytes[i * 32..(i + 1) * 32].copy_from_slice(root);
-        }
-
-        to_root(tree_hash::merkle_root(&leaf_bytes, 16))
+        self.tree_hash_root().0
     }
 }
 
@@ -186,7 +137,7 @@ impl ExecutionPayloadHeaderCapella {
 ///
 /// The execution branch length is unchanged: `EXECUTION_PAYLOAD_GINDEX` (25) is
 /// constant from Capella through Electra, so `floorlog2(25) = 4`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct DenebLightClientHeader {
     pub beacon: BeaconBlockHeader,
     pub execution: ExecutionPayloadHeaderDeneb,
@@ -199,20 +150,20 @@ pub struct DenebLightClientHeader {
 /// Adds `blob_gas_used` and `excess_blob_gas` to the Capella shape, increasing
 /// the SSZ container field count from 15 to 17. Merkleization pads to 32 leaves
 /// (next power of two ≥ 17), which differs from Capella's 16-leaf padding.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
 pub struct ExecutionPayloadHeaderDeneb {
     pub parent_hash: Root,
     pub fee_recipient: Address,
     pub state_root: Root,
     pub receipts_root: Root,
-    pub logs_bloom: Bloom,
+    pub logs_bloom: FixedVector<u8, BloomLen>,
     pub prev_randao: Root,
     pub block_number: u64,
     pub gas_limit: u64,
     pub gas_used: u64,
     pub timestamp: u64,
-    /// Variable-length extra data (`ByteList[32]`). Bound-enforced at construction.
-    pub extra_data: ExtraData,
+    /// `ByteList[32]` — the 32-byte bound is enforced by the `VariableList` type.
+    pub extra_data: VariableList<u8, MaxExtraData>,
     pub base_fee_per_gas: U256,
     pub block_hash: Root,
     pub transactions_root: Root,
@@ -222,58 +173,10 @@ pub struct ExecutionPayloadHeaderDeneb {
 }
 
 impl ExecutionPayloadHeaderDeneb {
-    /// Compute the SSZ `hash_tree_root` of this 17-field container.
-    ///
-    /// Mirrors the Capella implementation — same custom hashing for `[u8; 20]`
-    /// (Address, right-padded to 32) and `ruint::U256` (32-byte little-endian
-    /// single chunk) — but with two extra `u64` field roots and 32-leaf padding
-    /// (next power of two ≥ 17).
+    /// SSZ `hash_tree_root` as a [`Root`] — thin wrapper over the derived
+    /// [`TreeHash`] impl.
     pub fn hash_tree_root(&self) -> Root {
-        use tree_hash::TreeHash;
-
-        fn to_root(h: tree_hash::Hash256) -> Root {
-            let mut r = [0u8; 32];
-            r.copy_from_slice(h.as_bytes());
-            r
-        }
-
-        fn address_root(addr: &[u8; 20]) -> Root {
-            let mut buf = [0u8; 32];
-            buf[..20].copy_from_slice(addr);
-            buf
-        }
-
-        fn u256_root(v: &U256) -> Root {
-            v.to_le_bytes()
-        }
-
-        let field_roots: [Root; 17] = [
-            self.parent_hash,                               // 0:  [u8; 32]
-            address_root(&self.fee_recipient),              // 1:  [u8; 20]
-            self.state_root,                                // 2:  [u8; 32]
-            self.receipts_root,                             // 3:  [u8; 32]
-            to_root(self.logs_bloom.tree_hash_root()),      // 4:  Bloom (TreeHash)
-            self.prev_randao,                               // 5:  [u8; 32]
-            to_root(self.block_number.tree_hash_root()),    // 6:  u64
-            to_root(self.gas_limit.tree_hash_root()),       // 7:  u64
-            to_root(self.gas_used.tree_hash_root()),        // 8:  u64
-            to_root(self.timestamp.tree_hash_root()),       // 9:  u64
-            to_root(self.extra_data.tree_hash_root()),      // 10: ExtraData (TreeHash)
-            u256_root(&self.base_fee_per_gas),              // 11: U256
-            self.block_hash,                                // 12: [u8; 32]
-            self.transactions_root,                         // 13: [u8; 32]
-            self.withdrawals_root,                          // 14: [u8; 32]
-            to_root(self.blob_gas_used.tree_hash_root()),   // 15: u64
-            to_root(self.excess_blob_gas.tree_hash_root()), // 16: u64
-        ];
-
-        // 17-field container → pad to 32 leaves and merkleize.
-        let mut leaf_bytes = [0u8; 32 * 32];
-        for (i, root) in field_roots.iter().enumerate() {
-            leaf_bytes[i * 32..(i + 1) * 32].copy_from_slice(root);
-        }
-
-        to_root(tree_hash::merkle_root(&leaf_bytes, 32))
+        self.tree_hash_root().0
     }
 }
 
@@ -491,7 +394,7 @@ impl SyncAggregate {
 /// Light client update containing all data needed for verification.
 ///
 /// Headers are fork-aware [`LightClientHeader`] values.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct LightClientUpdate {
     /// The header being attested to (fork-aware).
     pub attested_header: LightClientHeader,
@@ -609,7 +512,7 @@ impl LightClientUpdate {
 /// - The genesis validators root for the chain (used in signature domain computation)
 ///
 /// Corresponds to the `LightClientBootstrap` object in the Ethereum consensus specs.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct LightClientBootstrap {
     /// The trusted header (fork-aware).
     pub header: LightClientHeader,
