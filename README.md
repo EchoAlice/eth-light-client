@@ -58,19 +58,25 @@ eth-light-client = "0.1"
 
 **Example** 
 ```rust,ignore
-use eth_light_client::{ChainSpec, LightClient, LightClientBootstrap};
+use eth_light_client::{ChainSpec, Fork, LightClient, LightClientBootstrap, LightClientUpdate};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Fetch bootstrap from a trusted endpoint:
+    // Fetch the bootstrap as SSZ bytes from a trusted endpoint, plus the
+    // genesis validators root (GET /eth/v1/beacon/genesis):
     // GET /eth/v1/beacon/light_client/bootstrap/{block_root}
-    let bootstrap: LightClientBootstrap = /* fetch from bootstrap endpoint */;
+    let bootstrap_bytes: Vec<u8> = /* fetch */;
+    let genesis_validators_root = /* fetch */;
+    let bootstrap =
+        LightClientBootstrap::from_ssz(&bootstrap_bytes, Fork::Capella, genesis_validators_root)?;
 
-    // Create light client 
+    // Create light client
     let mut client = LightClient::new(ChainSpec::mainnet(), bootstrap)?;
 
-    // Then fetch updates from any source and verify them:
+    // Then fetch updates from any source and verify them. The fork comes from
+    // the response context (Eth-Consensus-Version header / fork-version prefix):
     // GET /eth/v1/beacon/light_client/updates?start_period=X&count=1
-    let update = /* fetch from updates endpoint */;
+    let update_bytes: Vec<u8> = /* fetch */;
+    let update = LightClientUpdate::from_ssz(&update_bytes, Fork::Capella)?;
     client.process_update(update)?;
 
     println!("Finalized slot: {}", client.finalized_header().slot);
@@ -90,8 +96,15 @@ For local testnets or devnets, use `ChainSpecConfig` with `ChainSpec::try_from_c
 - `sync_committee_size` currently supports only the standard Ethereum consensus preset values:
   - `32` for the minimal preset
   - `512` for mainnet
-- the library currently assumes the light client protocol is active from the network’s starting point, so `altair_fork_epoch` must be `0`
 - SSZ tree layouts and generalized indices are not fully generic inputs; proof paths are implemented explicitly for each supported fork
+
+### SSZ libraries
+The crate deliberately uses **two** SSZ implementations, each for a different job:
+
+- **`ethereum_ssz`** (+ `tree_hash`) — for the production types' encoding and `hash_tree_root` (the verification path). It keeps the public types ergonomic by using plain arrays (`[u8; 48]`, not `FixedVector<u8, U48>`) plus a few hand-written `hash_tree_root` impls, rather than pulling in `ssz_types`' typenum-generic collections.
+- **`ssz_rs`** — for **decoding** wire/fixture bytes into those types (currently behind the `test-utils` feature). It bundles all the SSZ container types (fixed vectors, bitvectors, bounded lists, `U256`) in one crate, so the decode path needs neither `ssz_types` nor hand-written decoders.
+
+This is a choice, not an oversight. The two cross-check each other: bytes are decoded with `ssz_rs`, then `hash_tree_root`'d with `ethereum_ssz` and compared against the fixtures' expected roots — a disagreement fails the tests. Consolidating onto one implementation is possible but would mean adopting the `ssz_types` machinery both layers intentionally avoid, so it is not currently planned.
 
 ## Testing
 This library is end-to-end tested against official Ethereum Consensus light client spec tests for Altair, Bellatrix, and Capella hardforks.  Tests exercise the full verification flow through the public API:

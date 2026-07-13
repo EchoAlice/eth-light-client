@@ -1,14 +1,8 @@
 //! Fixture loader: reads spec test files and builds production light client types.
 
-use super::raw_ssz::{
-    nodes_to_roots, raw_beacon_only_header_to_pub, raw_beacon_only_update_to_pub,
-    raw_capella_header_to_pub, raw_capella_update_to_pub, RawCapellaLightClientBootstrap,
-    RawCapellaLightClientUpdate, RawLightClientBootstrap, RawLightClientUpdate,
-};
 use super::steps::{TestMeta, TestStep};
 use super::{MinimalPresetFork, TestUtilsResult};
 use crate::types::consensus::{LightClientBootstrap, LightClientUpdate};
-use ssz_rs::prelude::*;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -48,53 +42,20 @@ impl LightClientSyncTest {
 
     pub fn load_bootstrap(&self) -> TestUtilsResult<LightClientBootstrap> {
         let meta = self.load_meta()?;
-        let genesis_validators_root = meta.genesis_validators_root;
-        let bootstrap_path = self.test_dir.join("bootstrap.ssz_snappy");
-
-        match self.fork {
-            MinimalPresetFork::Altair | MinimalPresetFork::Bellatrix => {
-                let bootstrap: RawLightClientBootstrap = load_ssz_snappy(&bootstrap_path)?;
-                let sync_committee = bootstrap.current_sync_committee.into_sync_committee();
-                let branch = nodes_to_roots(&bootstrap.current_sync_committee_branch);
-                let header = raw_beacon_only_header_to_pub(self.fork, bootstrap.header);
-
-                Ok(LightClientBootstrap::from_header(
-                    header,
-                    sync_committee,
-                    branch,
-                    genesis_validators_root,
-                ))
-            }
-            MinimalPresetFork::Capella => {
-                let bootstrap: RawCapellaLightClientBootstrap = load_ssz_snappy(&bootstrap_path)?;
-                let sync_committee = bootstrap.current_sync_committee.into_sync_committee();
-                let branch = nodes_to_roots(&bootstrap.current_sync_committee_branch);
-                let header = raw_capella_header_to_pub(bootstrap.header)?;
-
-                Ok(LightClientBootstrap::from_header(
-                    header,
-                    sync_committee,
-                    branch,
-                    genesis_validators_root,
-                ))
-            }
-        }
+        let bytes = snappy_decompress(&self.test_dir.join("bootstrap.ssz_snappy"))?;
+        // Drive the public decode path (dogfoods `from_ssz`); snappy framing is
+        // a fixture concern, so it stays here — the beacon API serves raw SSZ.
+        Ok(LightClientBootstrap::from_ssz(
+            &bytes,
+            self.fork.into(),
+            meta.genesis_validators_root,
+        )?)
     }
 
     /// `name` must not include the `.ssz_snappy` extension.
     pub fn load_update(&self, name: &str) -> TestUtilsResult<LightClientUpdate> {
-        let update_path = self.test_dir.join(format!("{}.ssz_snappy", name));
-
-        match self.fork {
-            MinimalPresetFork::Altair | MinimalPresetFork::Bellatrix => {
-                let raw: RawLightClientUpdate = load_ssz_snappy(&update_path)?;
-                Ok(raw_beacon_only_update_to_pub(self.fork, raw))
-            }
-            MinimalPresetFork::Capella => {
-                let raw: RawCapellaLightClientUpdate = load_ssz_snappy(&update_path)?;
-                raw_capella_update_to_pub(raw)
-            }
-        }
+        let bytes = snappy_decompress(&self.test_dir.join(format!("{name}.ssz_snappy")))?;
+        Ok(LightClientUpdate::from_ssz(&bytes, self.fork.into())?)
     }
 
     pub(crate) fn load_meta(&self) -> TestUtilsResult<TestMeta> {
@@ -121,14 +82,10 @@ pub(crate) fn load_altair_bootstrap() -> LightClientBootstrap {
         .expect("Failed to load bootstrap")
 }
 
-fn load_ssz_snappy<T>(file_path: &Path) -> TestUtilsResult<T>
-where
-    T: Deserialize,
-{
+/// Decompress a `.ssz_snappy` fixture into raw SSZ bytes. Snappy framing is a
+/// fixture/gossip detail; the public `from_ssz` decoders take raw SSZ.
+fn snappy_decompress(file_path: &Path) -> TestUtilsResult<Vec<u8>> {
     let compressed = fs::read(file_path)?;
     let mut decoder = snap::raw::Decoder::new();
-    let decompressed = decoder.decompress_vec(&compressed)?;
-    let decoded =
-        T::deserialize(&decompressed).map_err(|e| format!("SSZ decode error: {:?}", e))?;
-    Ok(decoded)
+    Ok(decoder.decompress_vec(&compressed)?)
 }

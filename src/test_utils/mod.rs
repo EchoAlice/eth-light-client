@@ -2,7 +2,6 @@
 
 mod fork;
 mod loader;
-mod raw_ssz;
 mod steps;
 
 pub use loader::LightClientSyncTest;

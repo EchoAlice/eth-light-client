@@ -1,4 +1,4 @@
-use crate::config::ChainSpec;
+use crate::config::{ChainSpec, Fork};
 use crate::error::{Error, Result};
 use crate::types::primitives::{
     Address, BLSPublicKey, BLSSignature, Bloom, Epoch, ExtraData, Root, Slot, ValidatorIndex, U256,
@@ -510,6 +510,17 @@ pub struct LightClientUpdate {
 }
 
 impl LightClientUpdate {
+    /// Decode an SSZ-encoded light client update for `fork`.
+    ///
+    /// `bytes` is raw SSZ as served by the beacon API (not snappy-framed).
+    /// `fork` selects the wire layout — obtain it from the beacon API's
+    /// `Eth-Consensus-Version` header, or the per-item fork-version prefix on
+    /// `/eth/v1/beacon/light_client/updates`. (SSZ is not self-describing, so
+    /// the fork cannot be inferred from the bytes.)
+    pub fn from_ssz(bytes: &[u8], fork: Fork) -> Result<Self> {
+        crate::types::ssz::decode_update(bytes, fork)
+    }
+
     /// Create a new update wrapping a `BeaconBlockHeader` as Altair.
     pub fn new(
         attested_header: BeaconBlockHeader,
@@ -612,6 +623,16 @@ pub struct LightClientBootstrap {
 }
 
 impl LightClientBootstrap {
+    /// Decode an SSZ-encoded light client bootstrap for `fork`.
+    ///
+    /// `bytes` is raw SSZ as served by the beacon API (not snappy-framed).
+    /// `fork` selects the wire layout (see [`LightClientUpdate::from_ssz`]).
+    /// `genesis_validators_root` is supplied out-of-band (from beacon genesis);
+    /// it is not part of the bootstrap message.
+    pub fn from_ssz(bytes: &[u8], fork: Fork, genesis_validators_root: Root) -> Result<Self> {
+        crate::types::ssz::decode_bootstrap(bytes, fork, genesis_validators_root)
+    }
+
     /// Create a new bootstrap package from a `BeaconBlockHeader` (convenience, wraps as Altair).
     pub fn new(
         header: BeaconBlockHeader,

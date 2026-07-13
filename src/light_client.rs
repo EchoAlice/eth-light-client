@@ -41,7 +41,7 @@
 //! ```
 
 use crate::config::ChainSpec;
-use crate::consensus::light_client::LightClientProcessor;
+use crate::consensus::processor::LightClientProcessor;
 use crate::error::Result;
 use crate::types::consensus::{
     BeaconBlockHeader, LightClientBootstrap, LightClientUpdate, SyncCommittee,

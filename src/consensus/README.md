@@ -16,7 +16,7 @@ third property, *whether a test uses official spec fixtures*, cuts across both.
 
 | Scope | What it does | Where |
 |-------|--------------|-------|
-| **Unit** | Exercises one function/method in isolation. | `bls.rs`, `merkle.rs`, `sync_committee.rs`, `light_client.rs` |
+| **Unit** | Exercises one function/method in isolation. | `bls.rs`, `merkle.rs`, `sync_committee.rs`, `processor.rs` |
 | **Conformance replay** | Bootstraps a store and replays the official `light_client_sync` step sequence (updates + expected post-state) end-to-end. | `light_client_spec_tests.rs` (+ its public-API counterpart under `tests/`) |
 
 A conformance replay is *not* a unit test even though it lives in a
