@@ -111,12 +111,12 @@ pub(crate) fn learn_next_sync_committee_from_update(
 /// The caller supplies the correct committee (via `committee_for_slot`)
 /// and the `genesis_validators_root` from the store.
 ///
-/// TODO(#21): make sync committee bits spec-sized (use ChainSpec::sync_committee_size()).
+/// `sync_committee_bits` is spec-sized (its length must match the committee).
 pub(crate) fn verify_sync_aggregate(
     committee: &SyncCommittee,
     signature_slot: Slot,
     attested_header_root: Root,
-    sync_committee_bits: &[bool; 512],
+    sync_committee_bits: &[bool],
     sync_committee_signature: &BLSSignature,
     genesis_validators_root: Root,
     chain_spec: &ChainSpec,
@@ -372,32 +372,26 @@ mod tests {
         Ok(result)
     }
 
-    fn create_test_sync_committee() -> SyncCommittee {
-        let pubkeys = Box::new([[1u8; 48]; SyncCommittee::SYNC_COMMITTEE_SIZE]);
-        let aggregate_pubkey = [2u8; 48];
-        SyncCommittee::new(pubkeys, aggregate_pubkey)
+    fn test_committee(agg: u8) -> SyncCommittee {
+        SyncCommittee::from_minimal_parts(vec![[1u8; 48]; 32], [agg; 48]).unwrap()
     }
 
     #[test]
     fn test_committee_for_slot_selection() {
         let chain_spec = ChainSpec::mainnet();
-        let current = create_test_sync_committee();
-        let next = {
-            let mut c = create_test_sync_committee();
-            c.aggregate_pubkey = [3u8; 48]; // distinguishable
-            c
-        };
+        let current = test_committee(2);
+        let next = test_committee(3); // distinguishable by aggregate
 
         // Current period slots → current committee
         let got = committee_for_slot(0, 0, &current, Some(&next), &chain_spec).unwrap();
-        assert_eq!(got.aggregate_pubkey, current.aggregate_pubkey);
+        assert_eq!(got.aggregate_pubkey(), current.aggregate_pubkey());
 
         let got = committee_for_slot(8191, 0, &current, Some(&next), &chain_spec).unwrap();
-        assert_eq!(got.aggregate_pubkey, current.aggregate_pubkey);
+        assert_eq!(got.aggregate_pubkey(), current.aggregate_pubkey());
 
         // Next period slots → next committee (when known)
         let got = committee_for_slot(8192, 0, &current, Some(&next), &chain_spec).unwrap();
-        assert_eq!(got.aggregate_pubkey, next.aggregate_pubkey);
+        assert_eq!(got.aggregate_pubkey(), next.aggregate_pubkey());
 
         // Next period slots → error when next is None
         assert!(committee_for_slot(8192, 0, &current, None, &chain_spec).is_err());
@@ -789,13 +783,13 @@ mod tests {
     fn test_rejects_next_period_update_when_next_committee_unknown() {
         use crate::types::consensus::{BeaconBlockHeader, SyncAggregate};
 
-        let committee = create_test_sync_committee();
+        let committee = test_committee(2);
         let chain_spec = ChainSpec::mainnet();
         let finalized_period = 0;
 
         // Create an update with attested_header in period 1 (slot 8192 on mainnet)
         let attested_header = BeaconBlockHeader::new(8192, 42, [1u8; 32], [2u8; 32], [3u8; 32]);
-        let bits = Box::new([true; SyncCommittee::SYNC_COMMITTEE_SIZE]);
+        let bits = vec![true; 32];
         let sync_aggregate = SyncAggregate::new(bits, [0u8; 96]);
         let update = LightClientUpdate::new(attested_header, sync_aggregate, 8193)
             .with_next_sync_committee(committee, vec![[0u8; 32]; 5]);
