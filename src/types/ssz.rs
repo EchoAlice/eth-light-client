@@ -54,20 +54,23 @@ pub(crate) struct RawSyncCommittee {
 
 impl RawSyncCommittee {
     pub(crate) fn into_sync_committee(self) -> SyncCommittee {
-        // Minimal fixtures hold 32 pubkeys; production is mainnet-sized (512).
-        // Padding is inert: root + signature checks read only pubkeys[..N] (N from ChainSpec).
-        // The 32-element count is guaranteed by the SSZ `Vector<_, 32>` decode.
-        let mut pubkeys_array = Box::new([[0u8; 48]; 512]);
-        for (i, pk) in self.pubkeys.iter().enumerate() {
-            let mut key = [0u8; 48];
-            key.copy_from_slice(pk.as_ref());
-            pubkeys_array[i] = key;
-        }
+        // Minimal fixtures hold exactly 32 pubkeys (guaranteed by the SSZ
+        // `Vector<_, 32>` decode) — the spec-sized minimal committee, no padding.
+        let pubkeys: Vec<[u8; 48]> = self
+            .pubkeys
+            .iter()
+            .map(|pk| {
+                let mut key = [0u8; 48];
+                key.copy_from_slice(pk.as_ref());
+                key
+            })
+            .collect();
 
         let mut aggregate = [0u8; 48];
         aggregate.copy_from_slice(self.aggregate_pubkey.as_ref());
 
-        SyncCommittee::new(pubkeys_array, aggregate)
+        SyncCommittee::from_minimal_parts(pubkeys, aggregate)
+            .expect("minimal fixture committee is 32 valid pubkeys")
     }
 }
 
@@ -79,15 +82,13 @@ struct RawSyncAggregate {
 
 impl RawSyncAggregate {
     fn into_sync_aggregate(self) -> SyncAggregate {
-        let mut bits_array = Box::new([false; 512]);
-        for (i, bit) in self.sync_committee_bits.iter().enumerate() {
-            bits_array[i] = *bit;
-        }
+        // Spec-sized bits (32 for minimal fixtures), no padding.
+        let bits: Vec<bool> = self.sync_committee_bits.iter().map(|b| *b).collect();
 
         let mut signature = [0u8; 96];
         signature.copy_from_slice(self.sync_committee_signature.as_ref());
 
-        SyncAggregate::new(bits_array, signature)
+        SyncAggregate::new(bits, signature)
     }
 }
 
@@ -242,7 +243,7 @@ fn assemble_update(
 ) -> LightClientUpdate {
     let has_finality = finalized_header.is_some();
     let has_sync_committee = !sync_committee
-        .pubkeys
+        .pubkeys()
         .iter()
         .all(|pk| pk.iter().all(|&b| b == 0));
 

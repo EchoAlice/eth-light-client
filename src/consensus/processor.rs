@@ -154,7 +154,7 @@ impl LightClientProcessor {
             committee,
             update.signature_slot,
             attested_header_root,
-            update.sync_aggregate.sync_committee_bits.as_ref(),
+            &update.sync_aggregate.sync_committee_bits,
             &update.sync_aggregate.sync_committee_signature,
             self.store.genesis_validators_root,
             &self.chain_spec,
@@ -308,8 +308,7 @@ mod tests {
     }
 
     fn create_test_sync_aggregate() -> SyncAggregate {
-        let sync_committee_bits = Box::new([true; SyncCommittee::SYNC_COMMITTEE_SIZE]);
-        SyncAggregate::new(sync_committee_bits, [1u8; 96])
+        SyncAggregate::new(vec![true; 32], [1u8; 96])
     }
 
     #[test]
@@ -416,10 +415,8 @@ mod tests {
         assert!(processor.store.next_sync_committee.is_none());
 
         // Inject a distinguishable "next" committee directly on the store
-        let next = SyncCommittee::new(
-            Box::new([[0xAA; 48]; SyncCommittee::SYNC_COMMITTEE_SIZE]),
-            [0xBB; 48],
-        );
+        let next =
+            SyncCommittee::from_minimal_parts(vec![[0xAA; 48]; 32], [0xBB; 48]).unwrap();
         processor.store.next_sync_committee = Some(next.clone());
 
         // Store period is still initial_period (finalized header not yet updated)
@@ -445,7 +442,8 @@ mod tests {
 
         // Assertions: store state is correct after rotation
         assert_eq!(
-            processor.store.current_sync_committee.aggregate_pubkey, [0xBB; 48],
+            processor.store.current_sync_committee.aggregate_pubkey().as_ref(),
+            &[0xBB; 48],
             "store current committee should be what was next"
         );
         assert!(

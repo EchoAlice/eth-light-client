@@ -3,7 +3,7 @@ use crate::error::{Error, Result};
 use crate::types::primitives::{BLSPublicKey, BLSSignature, Epoch, Root, Slot, ValidatorIndex};
 use ethereum_types::{Address, U256};
 use ssz_derive::{Decode, Encode};
-use ssz_types::typenum::{U256 as BloomLen, U32 as MaxExtraData};
+use ssz_types::typenum::{U256 as BloomLen, U32, U48, U512};
 use ssz_types::{FixedVector, VariableList};
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
@@ -118,7 +118,7 @@ pub struct ExecutionPayloadHeaderCapella {
     pub gas_used: u64,
     pub timestamp: u64,
     /// `ByteList[32]` — the 32-byte bound is enforced by the `VariableList` type.
-    pub extra_data: VariableList<u8, MaxExtraData>,
+    pub extra_data: VariableList<u8, U32>,
     pub base_fee_per_gas: U256,
     pub block_hash: Root,
     pub transactions_root: Root,
@@ -163,7 +163,7 @@ pub struct ExecutionPayloadHeaderDeneb {
     pub gas_used: u64,
     pub timestamp: u64,
     /// `ByteList[32]` — the 32-byte bound is enforced by the `VariableList` type.
-    pub extra_data: VariableList<u8, MaxExtraData>,
+    pub extra_data: VariableList<u8, U32>,
     pub base_fee_per_gas: U256,
     pub block_hash: Root,
     pub transactions_root: Root,
@@ -291,89 +291,130 @@ impl LightClientHeader {
 // SyncCommittee
 // =============================================================================
 
-/// Sync committee with 512 validators
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// A single BLS public key as SSZ bytes (`Vector[byte, 48]`).
+pub type PubkeyBytes = FixedVector<u8, U48>;
+
+/// Sync committee: a spec-sized list of BLS pubkeys plus the aggregate.
+///
+/// The list length *is* the committee size (32 minimal / 512 mainnet), so there
+/// is no zero-padding (#21). The SSZ size — which the network preset fixes and
+/// [`ChainSpec`] owns — is not carried on the value; the root is computed by
+/// dispatching on the list length to a size-specific SSZ-native helper below.
+#[derive(Debug, Clone, PartialEq)]
 pub struct SyncCommittee {
-    /// 512 BLS public keys (heap-allocated to avoid stack overflow)
-    pub pubkeys: Box<[BLSPublicKey; 512]>,
-    /// Aggregate public key for the committee
-    pub aggregate_pubkey: BLSPublicKey,
+    pubkeys: Vec<PubkeyBytes>,
+    aggregate_pubkey: PubkeyBytes,
+}
+
+// Size-specific SSZ-native views used only to derive the committee root
+// (`Vector[pubkey, N]`); the library does the merkleization, not hand-rolled.
+#[derive(TreeHash)]
+struct CommitteeRoot512 {
+    pubkeys: FixedVector<PubkeyBytes, U512>,
+    aggregate_pubkey: PubkeyBytes,
+}
+#[derive(TreeHash)]
+struct CommitteeRoot32 {
+    pubkeys: FixedVector<PubkeyBytes, U32>,
+    aggregate_pubkey: PubkeyBytes,
 }
 
 impl SyncCommittee {
-    pub const SYNC_COMMITTEE_SIZE: usize = 512;
-
-    pub fn new(pubkeys: Box<[BLSPublicKey; 512]>, aggregate_pubkey: BLSPublicKey) -> Self {
-        Self {
-            pubkeys,
-            aggregate_pubkey,
+    /// SSZ `hash_tree_root`, dispatched on the (spec-sized) committee length.
+    pub fn hash_tree_root(&self) -> Root {
+        let agg = self.aggregate_pubkey.clone();
+        match self.pubkeys.len() {
+            512 => CommitteeRoot512 {
+                pubkeys: FixedVector::new(self.pubkeys.clone()).expect("len checked"),
+                aggregate_pubkey: agg,
+            }
+            .tree_hash_root()
+            .0,
+            32 => CommitteeRoot32 {
+                pubkeys: FixedVector::new(self.pubkeys.clone()).expect("len checked"),
+                aggregate_pubkey: agg,
+            }
+            .tree_hash_root()
+            .0,
+            n => unreachable!("sync committee is 32 or 512 members, got {n}"),
         }
     }
 
-    /// TODO(#21): delete once SyncCommittee is spec-sized (no zero-padding).
-    ///
-    /// Count the number of actual (non-zero) pubkeys in the committee
-    /// This handles both minimal preset (32 keys) and mainnet (512 keys)
-    pub fn actual_committee_size(&self) -> usize {
-        self.pubkeys
-            .iter()
-            .filter(|pk| !pk.iter().all(|&b| b == 0))
-            .count()
+    /// The committee members (spec-sized: 32 or 512, no padding).
+    pub fn pubkeys(&self) -> &[PubkeyBytes] {
+        &self.pubkeys
     }
 
-    /// Check if we have the minimum threshold for a valid sync committee signature
-    /// Uses actual committee size (non-zero pubkeys) rather than hardcoded 512
+    pub fn aggregate_pubkey(&self) -> &PubkeyBytes {
+        &self.aggregate_pubkey
+    }
+
+    /// Number of committee members (spec-sized; no padding).
+    pub fn len(&self) -> usize {
+        self.pubkeys.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.pubkeys.is_empty()
+    }
+
+    /// 2/3 supermajority over the spec-sized committee.
     pub fn has_supermajority_participation(&self, participation_bits: &[bool]) -> bool {
-        if participation_bits.len() != Self::SYNC_COMMITTEE_SIZE {
+        if participation_bits.len() != self.len() {
             return false;
         }
-
-        let participant_count = participation_bits.iter().filter(|&&bit| bit).count();
-        let actual_size = self.actual_committee_size();
-
-        // Need 2/3+ of actual committee members, not the padded size
-        participant_count >= (actual_size * 2 / 3)
+        let participants = participation_bits.iter().filter(|&&b| b).count();
+        participants >= (self.len() * 2 / 3)
     }
 
-    /// Get participating public keys based on participation bits
-    /// Filters out zero pubkeys to handle minimal preset (32 keys) vs mainnet (512 keys)
+    /// Bit-selected participating pubkeys as raw 48-byte keys (for BLS).
     pub fn participating_pubkeys(&self, participation_bits: &[bool]) -> Result<Vec<BLSPublicKey>> {
-        if participation_bits.len() != Self::SYNC_COMMITTEE_SIZE {
+        if participation_bits.len() != self.len() {
             return Err(Error::InvalidInput(
                 "Participation bits length mismatch".to_string(),
             ));
         }
-
-        let mut participating_pubkeys = Vec::new();
+        let mut out = Vec::new();
         for (i, &bit) in participation_bits.iter().enumerate() {
             if bit {
-                let pubkey = self.pubkeys[i];
-                // Filter out zero pubkeys (padding for minimal preset)
-                if !pubkey.iter().all(|&b| b == 0) {
-                    participating_pubkeys.push(pubkey);
-                }
+                let mut key = [0u8; 48];
+                key.copy_from_slice(&self.pubkeys[i]);
+                out.push(key);
             }
         }
+        Ok(out)
+    }
 
-        Ok(participating_pubkeys)
+    /// Build a minimal-preset (32-key) committee from raw pubkey bytes.
+    /// The fixture decoder uses this; mainnet committee decode is not yet wired.
+    pub(crate) fn from_minimal_parts(
+        pubkeys: Vec<BLSPublicKey>,
+        aggregate_pubkey: BLSPublicKey,
+    ) -> Result<Self> {
+        Ok(SyncCommittee {
+            pubkeys: pubkeys
+                .into_iter()
+                .map(|pk| PubkeyBytes::new(pk.to_vec()).expect("48-byte pubkey"))
+                .collect(),
+            aggregate_pubkey: PubkeyBytes::new(aggregate_pubkey.to_vec()).expect("48-byte pubkey"),
+        })
     }
 }
 
-/// Sync aggregate data for light client updates
-/// Note: Cannot derive SSZ Decode because [bool; 512] and [u8; 96] aren't supported by ethereum_ssz
+/// Sync aggregate data for light client updates.
+///
+/// `sync_committee_bits` is spec-sized (32 or 512, no padding) — one bit per
+/// committee member. The aggregate is never `hash_tree_root`'d, so it needs no
+/// SSZ derive; it's decoded off the wire and used for participation + BLS.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyncAggregate {
-    /// Participation bits for 512 sync committee members (heap-allocated to avoid stack overflow)
-    pub sync_committee_bits: Box<[bool; 512]>,
+    pub sync_committee_bits: Vec<bool>,
     /// BLS aggregate signature
     pub sync_committee_signature: BLSSignature,
 }
 
 impl SyncAggregate {
-    pub fn new(
-        sync_committee_bits: Box<[bool; 512]>,
-        sync_committee_signature: BLSSignature,
-    ) -> Self {
+    pub fn new(sync_committee_bits: Vec<bool>, sync_committee_signature: BLSSignature) -> Self {
         Self {
             sync_committee_bits,
             sync_committee_signature,
@@ -645,38 +686,32 @@ mod tests {
     }
 
     fn create_test_sync_committee() -> SyncCommittee {
-        let pubkeys = Box::new([[1u8; 48]; 512]);
-        let aggregate_pubkey = [2u8; 48];
-        SyncCommittee::new(pubkeys, aggregate_pubkey)
+        SyncCommittee::from_minimal_parts(vec![[1u8; 48]; 32], [2u8; 48]).unwrap()
     }
 
     #[test]
     fn test_sync_committee_supermajority() {
         let committee = create_test_sync_committee();
+        let threshold = 32 * 2 / 3; // 21 of 32
 
-        // Test with exactly 2/3 participation (341 out of 512)
-        let mut participation = [false; 512];
-        for i in 0..341 {
-            participation[i] = true;
-        }
+        // Exactly 2/3 passes.
+        let mut participation = vec![false; 32];
+        participation.iter_mut().take(threshold).for_each(|p| *p = true);
         assert!(committee.has_supermajority_participation(&participation));
 
-        // Test with less than 2/3 participation
-        let mut participation = [false; 512];
-        for i in 0..340 {
-            participation[i] = true;
-        }
+        // One below 2/3 fails.
+        let mut participation = vec![false; 32];
+        participation.iter_mut().take(threshold - 1).for_each(|p| *p = true);
         assert!(!committee.has_supermajority_participation(&participation));
 
-        // Test with full participation
-        let participation = [true; 512];
-        assert!(committee.has_supermajority_participation(&participation));
+        // Full participation passes.
+        assert!(committee.has_supermajority_participation(&vec![true; 32]));
     }
 
     #[test]
     fn test_light_client_update_validation() {
         let attested_header = create_test_beacon_header();
-        let sync_committee_bits = Box::new([true; 512]); // Full participation
+        let sync_committee_bits = vec![true; 32]; // Full participation
         let sync_committee_signature = [1u8; 96];
         let sync_aggregate = SyncAggregate::new(sync_committee_bits, sync_committee_signature);
 

@@ -13,40 +13,6 @@ use crate::error::{Error, Result};
 use crate::types::consensus::{LightClientHeader, SyncCommittee};
 use crate::types::primitives::Root;
 use crate::types::primitives::Slot;
-use tree_hash::TreeHash;
-
-/// Compute SSZ hash_tree_root for SyncCommittee using tree_hash library.
-///     (SyncCommittee is an SSZ Container:)
-fn compute_sync_committee_root(spec: &ChainSpec, committee: &SyncCommittee) -> Root {
-    let n = spec.sync_committee_size();
-
-    // Step 1 & 2: Compute hash_tree_root for each of the first N pubkeys directly into a single buffer.
-    let mut pubkeys_bytes = Vec::with_capacity(32 * n);
-    for pk in &committee.pubkeys.as_ref()[..n] {
-        pubkeys_bytes.extend_from_slice(pk.tree_hash_root().as_bytes());
-    }
-
-    // Merkleize pubkey roots as Vector[BLSPubkey, N]
-    let pubkeys_root_hash = tree_hash::merkle_root(&pubkeys_bytes, n);
-    let mut pubkeys_root = [0u8; 32];
-    pubkeys_root.copy_from_slice(pubkeys_root_hash.as_bytes());
-
-    // Step 3: Compute hash_tree_root for aggregate_pubkey
-    let aggregate_hash = committee.aggregate_pubkey.tree_hash_root();
-    let mut aggregate_root = [0u8; 32];
-    aggregate_root.copy_from_slice(aggregate_hash.as_bytes());
-
-    // Step 4: Container root = hash(pubkeys_root || aggregate_root)
-    // Use tree_hash::merkle_root on 64 bytes with 2 leaves
-    let mut container_data = [0u8; 64];
-    container_data[..32].copy_from_slice(&pubkeys_root);
-    container_data[32..].copy_from_slice(&aggregate_root);
-    let container_hash = tree_hash::merkle_root(&container_data, 2);
-
-    let mut result = [0u8; 32];
-    result.copy_from_slice(container_hash.as_bytes());
-    result
-}
 
 /// Verify that a sync committee is properly embedded in a beacon state root
 /// using the provided merkle branch proof (bootstrap verification).
@@ -59,7 +25,7 @@ pub(crate) fn verify_bootstrap_sync_committee(
     finalized_state_root: &Root,
     spec: &ChainSpec,
 ) -> Result<()> {
-    let sync_committee_root = compute_sync_committee_root(spec, sync_committee);
+    let sync_committee_root = sync_committee.hash_tree_root();
     let gindex = spec.current_sync_committee_gindex(header_slot);
 
     let is_valid = is_valid_merkle_branch(
@@ -86,7 +52,7 @@ pub(crate) fn verify_next_sync_committee(
     attested_state_root: &Root,
     spec: &ChainSpec,
 ) -> Result<()> {
-    let sync_committee_root = compute_sync_committee_root(spec, next_sync_committee);
+    let sync_committee_root = next_sync_committee.hash_tree_root();
     let gindex = spec.next_sync_committee_gindex(attested_header_slot);
 
     let is_valid = is_valid_merkle_branch(
@@ -331,47 +297,23 @@ mod tests {
         assert_ne!(result, result_reversed);
     }
 
-    #[test]
-    fn test_sync_committee_root_deterministic() {
-        let spec = ChainSpec::minimal();
-        let committee = SyncCommittee::new(
-            Box::new([[1u8; 48]; SyncCommittee::SYNC_COMMITTEE_SIZE]),
-            [2u8; 48],
-        );
-
-        let root1 = compute_sync_committee_root(&spec, &committee);
-        let root2 = compute_sync_committee_root(&spec, &committee);
-
-        assert_eq!(root1, root2);
-        assert_ne!(root1, [0u8; 32]);
+    /// Build a minimal-preset (32-key) committee for tests.
+    fn test_committee(pk: u8, agg: u8) -> SyncCommittee {
+        SyncCommittee::from_minimal_parts(vec![[pk; 48]; 32], [agg; 48]).unwrap()
     }
 
     #[test]
-    fn test_sync_committee_root_uses_declared_n() {
-        // Minimal uses N=32, mainnet uses N=SYNC_COMMITTEE_SIZE (512)
-        // Even with same data, roots should differ due to different N
-        let minimal_spec = ChainSpec::minimal();
-        let mainnet_spec = ChainSpec::mainnet();
-
-        let committee = SyncCommittee::new(
-            Box::new([[1u8; 48]; SyncCommittee::SYNC_COMMITTEE_SIZE]),
-            [2u8; 48],
-        );
-
-        let minimal_root = compute_sync_committee_root(&minimal_spec, &committee);
-        let mainnet_root = compute_sync_committee_root(&mainnet_spec, &committee);
-
-        // Roots should be different because minimal uses only first 32 pubkeys
-        assert_ne!(minimal_root, mainnet_root);
+    fn test_sync_committee_root_deterministic() {
+        let committee = test_committee(1, 2);
+        // Derived TreeHash: deterministic and non-zero.
+        assert_eq!(committee.hash_tree_root(), committee.hash_tree_root());
+        assert_ne!(committee.hash_tree_root(), [0u8; 32]);
     }
 
     #[test]
     fn test_bootstrap_verification_structure() {
         let spec = ChainSpec::minimal();
-        let sync_committee = SyncCommittee::new(
-            Box::new([[0u8; 48]; SyncCommittee::SYNC_COMMITTEE_SIZE]),
-            [0u8; 48],
-        );
+        let sync_committee = test_committee(0, 0);
 
         let empty_branch: Vec<Root> = vec![];
         let slot = 1000;
@@ -391,10 +333,7 @@ mod tests {
     #[test]
     fn test_next_sync_committee_verification_structure() {
         let spec = ChainSpec::minimal();
-        let sync_committee = SyncCommittee::new(
-            Box::new([[1u8; 48]; SyncCommittee::SYNC_COMMITTEE_SIZE]),
-            [2u8; 48],
-        );
+        let sync_committee = test_committee(1, 2);
 
         let empty_branch: Vec<Root> = vec![];
         let slot = 1000;
@@ -437,8 +376,8 @@ mod tests {
             .load_bootstrap()
             .expect("Failed to load bootstrap");
 
-        // Compute sync committee root using our hardened function
-        let computed_root = compute_sync_committee_root(&spec, &bootstrap.current_sync_committee);
+        // Compute sync committee root via the derived TreeHash.
+        let computed_root = bootstrap.current_sync_committee.hash_tree_root();
 
         // Verify against the state root using the branch
         let gindex = spec.current_sync_committee_gindex(bootstrap.header.slot());
