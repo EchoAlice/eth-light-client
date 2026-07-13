@@ -1,9 +1,14 @@
-//! Raw SSZ fixture types and their conversions into production light client types.
+//! Raw SSZ wire types and their conversions into the public light client types.
+//!
+//! These `Raw*` structs mirror the on-the-wire SSZ layout (decoded with
+//! `ssz_rs`); the converters adapt them to the ergonomic public types. See the
+//! crate README ("SSZ libraries") for why decode lives on `ssz_rs`, and issue
+//! #69 for the eventual SSZ-native consolidation.
 
-use super::{MinimalPresetFork, TestUtilsResult};
+use crate::config::Fork;
 use crate::types::consensus::{
-    BeaconBlockHeader, ExecutionPayloadHeaderCapella, LightClientHeader, LightClientUpdate,
-    SyncAggregate, SyncCommittee,
+    BeaconBlockHeader, ExecutionPayloadHeaderCapella, LightClientBootstrap, LightClientHeader,
+    LightClientUpdate, SyncAggregate, SyncCommittee,
 };
 use crate::types::primitives::{Bloom, ExtraData, Root};
 use ssz_rs::prelude::*;
@@ -118,7 +123,7 @@ struct RawExecutionPayloadHeader {
 }
 
 impl RawExecutionPayloadHeader {
-    fn into_execution_payload_header(self) -> TestUtilsResult<ExecutionPayloadHeaderCapella> {
+    fn into_execution_payload_header(self) -> crate::error::Result<ExecutionPayloadHeaderCapella> {
         let mut fee_recipient = [0u8; 20];
         fee_recipient.copy_from_slice(self.fee_recipient.as_ref());
 
@@ -183,20 +188,22 @@ pub(crate) struct RawCapellaLightClientUpdate {
 /// Convert a beacon-only fixture header into the matching production
 /// `LightClientHeader` variant. Only valid for Altair/Bellatrix.
 pub(crate) fn raw_beacon_only_header_to_pub(
-    fork: MinimalPresetFork,
+    fork: Fork,
     raw: RawLightClientHeader,
 ) -> LightClientHeader {
     let beacon = raw.beacon.into_beacon_block_header();
     match fork {
-        MinimalPresetFork::Altair => LightClientHeader::altair(beacon),
-        MinimalPresetFork::Bellatrix => LightClientHeader::bellatrix(beacon),
-        MinimalPresetFork::Capella => unreachable!("beacon-only converter called for Capella"),
+        Fork::Altair => LightClientHeader::altair(beacon),
+        Fork::Bellatrix => LightClientHeader::bellatrix(beacon),
+        Fork::Capella | Fork::Deneb | Fork::Electra => {
+            unreachable!("beacon-only converter called for {fork:?}")
+        }
     }
 }
 
 pub(crate) fn raw_capella_header_to_pub(
     raw: RawCapellaLightClientHeader,
-) -> TestUtilsResult<LightClientHeader> {
+) -> crate::error::Result<LightClientHeader> {
     let beacon = raw.beacon.into_beacon_block_header();
     let execution = raw.execution.into_execution_payload_header()?;
     let mut execution_branch = [[0u8; 32]; 4];
@@ -261,7 +268,7 @@ fn assemble_update(
 }
 
 pub(crate) fn raw_beacon_only_update_to_pub(
-    fork: MinimalPresetFork,
+    fork: Fork,
     raw: RawLightClientUpdate,
 ) -> LightClientUpdate {
     let sync_committee = raw.next_sync_committee.into_sync_committee();
@@ -290,7 +297,7 @@ pub(crate) fn raw_beacon_only_update_to_pub(
 
 pub(crate) fn raw_capella_update_to_pub(
     raw: RawCapellaLightClientUpdate,
-) -> TestUtilsResult<LightClientUpdate> {
+) -> crate::error::Result<LightClientUpdate> {
     let sync_committee = raw.next_sync_committee.into_sync_committee();
     let sync_aggregate = raw.sync_aggregate.into_sync_aggregate();
     let finality_branch = nodes_to_roots(&raw.finality_branch);
@@ -312,5 +319,66 @@ pub(crate) fn raw_capella_update_to_pub(
         next_sync_committee_branch,
         sync_aggregate,
         raw.signature_slot,
+    ))
+}
+
+// Fork-dispatched SSZ decode: raw bytes -> public type. `bytes` is raw SSZ (not
+// snappy-framed). Fork selects the wire layout (SSZ is not self-describing).
+
+pub(crate) fn decode_update(bytes: &[u8], fork: Fork) -> crate::error::Result<LightClientUpdate> {
+    match fork {
+        Fork::Altair | Fork::Bellatrix => {
+            let raw = RawLightClientUpdate::deserialize(bytes).map_err(decode_err)?;
+            Ok(raw_beacon_only_update_to_pub(fork, raw))
+        }
+        Fork::Capella => {
+            let raw = RawCapellaLightClientUpdate::deserialize(bytes).map_err(decode_err)?;
+            raw_capella_update_to_pub(raw)
+        }
+        Fork::Deneb | Fork::Electra => Err(unsupported(fork)),
+    }
+}
+
+pub(crate) fn decode_bootstrap(
+    bytes: &[u8],
+    fork: Fork,
+    genesis_validators_root: Root,
+) -> crate::error::Result<LightClientBootstrap> {
+    match fork {
+        Fork::Altair | Fork::Bellatrix => {
+            let raw = RawLightClientBootstrap::deserialize(bytes).map_err(decode_err)?;
+            let sync_committee = raw.current_sync_committee.into_sync_committee();
+            let branch = nodes_to_roots(&raw.current_sync_committee_branch);
+            let header = raw_beacon_only_header_to_pub(fork, raw.header);
+            Ok(LightClientBootstrap::from_header(
+                header,
+                sync_committee,
+                branch,
+                genesis_validators_root,
+            ))
+        }
+        Fork::Capella => {
+            let raw = RawCapellaLightClientBootstrap::deserialize(bytes).map_err(decode_err)?;
+            let sync_committee = raw.current_sync_committee.into_sync_committee();
+            let branch = nodes_to_roots(&raw.current_sync_committee_branch);
+            let header = raw_capella_header_to_pub(raw.header)?;
+            Ok(LightClientBootstrap::from_header(
+                header,
+                sync_committee,
+                branch,
+                genesis_validators_root,
+            ))
+        }
+        Fork::Deneb | Fork::Electra => Err(unsupported(fork)),
+    }
+}
+
+fn decode_err(e: ssz_rs::DeserializeError) -> crate::error::Error {
+    crate::error::Error::Serialization(format!("SSZ decode: {e:?}"))
+}
+
+fn unsupported(fork: Fork) -> crate::error::Error {
+    crate::error::Error::InvalidInput(format!(
+        "SSZ decode not supported for {fork:?} (supported through Capella)"
     ))
 }

@@ -1,9 +1,12 @@
 use crate::error::{Error, Result};
 use crate::types::primitives::Slot;
 
-/// Each fork may change the BeaconState structure, affecting generalized indices and the LightClientHeader format.
+/// Identifies a consensus fork, selecting the light client wire layout / rules
+/// that apply. Used by [`ChainSpec`] internally and by the public
+/// `LightClient{Update,Bootstrap}::from_ssz` decoders to pick the wire format.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum Fork {
+#[non_exhaustive]
+pub enum Fork {
     Altair,    // Light client protocol introduced (Oct 2021)
     Bellatrix, // The Merge (Sep 2022). No LC header changes.
     Capella,   // Withdrawals (Apr 2023). LC header gains execution payload.

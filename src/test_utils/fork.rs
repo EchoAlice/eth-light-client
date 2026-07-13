@@ -10,6 +10,16 @@ pub(crate) enum MinimalPresetFork {
     Capella,
 }
 
+impl From<MinimalPresetFork> for crate::config::Fork {
+    fn from(fork: MinimalPresetFork) -> Self {
+        match fork {
+            MinimalPresetFork::Altair => crate::config::Fork::Altair,
+            MinimalPresetFork::Bellatrix => crate::config::Fork::Bellatrix,
+            MinimalPresetFork::Capella => crate::config::Fork::Capella,
+        }
+    }
+}
+
 impl MinimalPresetFork {
     /// Spec name / fixture directory for this fork.
     pub(crate) fn name(&self) -> &'static str {

@@ -19,7 +19,7 @@ pub use crate::types::consensus::SyncAggregate;
 /// The types most light-client usage needs. Omits [`ChainSpecConfig`] (custom
 /// networks) and [`SyncAggregate`]; import those from the crate root.
 pub mod prelude {
-    pub use crate::config::ChainSpec;
+    pub use crate::config::{ChainSpec, Fork};
     pub use crate::error::{Error, Result};
     pub use crate::light_client::{LightClient, UpdateOutcome};
     pub use crate::types::{
