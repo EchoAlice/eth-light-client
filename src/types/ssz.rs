@@ -10,7 +10,7 @@ use crate::types::consensus::{
     BeaconBlockHeader, ExecutionPayloadHeaderCapella, LightClientBootstrap, LightClientHeader,
     LightClientUpdate, SyncAggregate, SyncCommittee,
 };
-use crate::types::primitives::{Bloom, ExtraData, Root};
+use crate::types::primitives::Root;
 use ssz_rs::prelude::*;
 
 #[derive(Default, SimpleSerialize)]
@@ -127,32 +127,30 @@ impl RawExecutionPayloadHeader {
         let mut fee_recipient = [0u8; 20];
         fee_recipient.copy_from_slice(self.fee_recipient.as_ref());
 
-        let mut bloom_bytes = [0u8; 256];
-        bloom_bytes.copy_from_slice(self.logs_bloom.as_ref());
-
-        // Convert ssz_rs::U256 to ruint::U256 via LE bytes
+        // ssz_rs::U256 -> ethereum_types::U256 via LE bytes.
         let le_bytes = self.base_fee_per_gas.to_bytes_le();
         let mut u256_bytes = [0u8; 32];
         let len = le_bytes.len().min(32);
         u256_bytes[..len].copy_from_slice(&le_bytes[..len]);
-        let base_fee = ruint::aliases::U256::from_le_bytes(u256_bytes);
 
-        let extra_data_vec: Vec<u8> = self.extra_data.to_vec();
-        let extra_data = ExtraData::try_new(extra_data_vec)?;
+        let logs_bloom = ssz_types::FixedVector::new(self.logs_bloom.as_ref().to_vec())
+            .map_err(|e| crate::error::Error::Serialization(format!("logs_bloom: {e:?}")))?;
+        let extra_data = ssz_types::VariableList::new(self.extra_data.to_vec())
+            .map_err(|e| crate::error::Error::Serialization(format!("extra_data: {e:?}")))?;
 
         Ok(ExecutionPayloadHeaderCapella {
             parent_hash: node_to_root(&self.parent_hash),
-            fee_recipient,
+            fee_recipient: ethereum_types::H160(fee_recipient),
             state_root: node_to_root(&self.state_root),
             receipts_root: node_to_root(&self.receipts_root),
-            logs_bloom: Bloom(bloom_bytes),
+            logs_bloom,
             prev_randao: node_to_root(&self.prev_randao),
             block_number: self.block_number,
             gas_limit: self.gas_limit,
             gas_used: self.gas_used,
             timestamp: self.timestamp,
             extra_data,
-            base_fee_per_gas: base_fee,
+            base_fee_per_gas: ethereum_types::U256::from_little_endian(&u256_bytes),
             block_hash: node_to_root(&self.block_hash),
             transactions_root: node_to_root(&self.transactions_root),
             withdrawals_root: node_to_root(&self.withdrawals_root),
