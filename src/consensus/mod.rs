@@ -1,8 +1,8 @@
 #![doc = include_str!("README.md")]
 
 pub mod bls;
-pub mod light_client;
 pub mod merkle;
+pub mod processor;
 pub mod sync_committee;
 
 #[cfg(test)]

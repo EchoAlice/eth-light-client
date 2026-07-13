@@ -8,7 +8,7 @@
 //! asserting store state against the fixture. Stops at the first `force_update`:
 //! it's unimplemented and later steps depend on its state transition.
 
-use crate::consensus::light_client::LightClientProcessor;
+use crate::consensus::processor::LightClientProcessor;
 use crate::test_utils::{beacon_header_matches, LightClientSyncTest, ProcessUpdateStep, TestStep};
 use crate::types::consensus::LightClientHeader;
 use crate::types::primitives::Root;
