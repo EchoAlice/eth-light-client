@@ -26,7 +26,7 @@ const DST: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
 ///
 /// Per the spec, an empty pubkey set is invalid, and a set containing the
 /// infinity pubkey (or any non-subgroup key) is rejected outright, not filtered.
-pub(crate) fn verify_aggregate(
+pub(crate) fn verify_aggregate_signature(
     pubkeys: &[[u8; 48]],
     message: &[u8],
     signature: &[u8; 96],

@@ -76,6 +76,8 @@ LightClientProcessor::process_update_at_slot(update, current_slot)
               └─ update optimistic header, participation tracking
 ```
 
+**Note:** BLS signature verification answers one thing - did a supermajority of the sync committee we already trust actually sign this new header?
+
 ## Critical Invariants
 
 These properties must hold after every successful `apply_light_client_update`.

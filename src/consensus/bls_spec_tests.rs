@@ -12,7 +12,7 @@
 //! Setup: clone consensus-spec-tests into `tests/fixtures/consensus-spec-tests/`
 //! or set `CONSENSUS_SPEC_TESTS_PATH`.
 
-use crate::consensus::bls::verify_aggregate;
+use crate::consensus::bls::verify_aggregate_signature;
 use serde::Deserialize;
 use std::path::PathBuf;
 use std::{env, fs};
@@ -90,7 +90,7 @@ fn fast_aggregate_verify_spec_vectors() {
         let message = parse_hex(&case.input.message);
         let signature: [u8; 96] = fixed(&parse_hex(&case.input.signature));
 
-        let actual = verify_aggregate(&pubkeys, &message, &signature);
+        let actual = verify_aggregate_signature(&pubkeys, &message, &signature);
         if actual != case.output {
             failures.push(format!("{name}: expected {}, got {actual}", case.output));
         }
