@@ -373,7 +373,7 @@ mod tests {
     }
 
     fn test_committee(agg: u8) -> SyncCommittee {
-        SyncCommittee::from_minimal_parts(vec![[1u8; 48]; 32], [agg; 48]).unwrap()
+        SyncCommittee::from_parts(vec![[1u8; 48]; 32], [agg; 48]).unwrap()
     }
 
     #[test]
