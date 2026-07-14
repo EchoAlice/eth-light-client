@@ -12,18 +12,21 @@ use blst::{
 // Ethereum consensus DST (domain separation tag)
 const DST: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
 
-/// Same-message aggregate verification — the sole BLS entry point.
+/// Same-message aggregate signature verification — the sole BLS entry point.
 ///
-/// All sync committee signature checks go through this. It parses and
-/// `KeyValidate`s the participating pubkeys and parses the aggregate signature,
-/// then defers to blst's native `fast_aggregate_verify`, which is the complete
-/// primitive for the one-message/many-signers case. Any parse failure or
-/// non-success status is a verification failure (`false`).
+/// Named to distinguish it from blst's `Signature::fast_aggregate_verify`, which
+/// it wraps: our version additionally `KeyValidate`s the pubkeys (blst's does
+/// not), so it implements the consensus-spec `FastAggregateVerify`. All sync
+/// committee signature checks go through this.
 ///
-/// Per the consensus-spec `FastAggregateVerify`, an empty pubkey set is invalid,
-/// and each pubkey is `KeyValidate`d — a set containing the infinity pubkey (or
-/// any non-subgroup key) is rejected outright, not filtered.
-pub(crate) fn fast_aggregate_verify(
+/// It parses and `KeyValidate`s the participating pubkeys and parses the
+/// aggregate signature, then defers to blst's native `fast_aggregate_verify` for
+/// the one-message/many-signers pairing. Any parse failure or non-success status
+/// is a verification failure (`false`).
+///
+/// Per the spec, an empty pubkey set is invalid, and a set containing the
+/// infinity pubkey (or any non-subgroup key) is rejected outright, not filtered.
+pub(crate) fn verify_aggregate(
     pubkeys: &[[u8; 48]],
     message: &[u8],
     signature: &[u8; 96],

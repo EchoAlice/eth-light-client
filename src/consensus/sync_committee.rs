@@ -138,12 +138,13 @@ pub(crate) fn verify_sync_aggregate(
     )
 }
 
-/// Check if rotation should happen for the given update.
+/// Whether committee rotation should happen for this update (invariant I-2).
 ///
-/// Returns true when the update's finalized period equals `store_period + 1`
-/// and the next committee is known.
-#[cfg(test)]
-pub fn should_rotate(
+/// Rotation happens iff the update's finalized period is exactly one past the
+/// store period and the next committee is known. This is the single predicate
+/// used by both `apply_light_client_update` and the rotation tests — keep it the
+/// only place this condition is expressed.
+pub(crate) fn should_rotate(
     update_finalized_slot: Slot,
     store_period: u64,
     has_next_committee: bool,
@@ -217,58 +218,7 @@ pub fn compute_beacon_domain(
     compute_domain(domain_type, fork_version, genesis_validators_root)
 }
 
-/// Validate a BLS public key (exposed for testing)
-#[cfg(test)]
-pub fn validate_bls_public_key(pubkey_bytes: &BLSPublicKey) -> Result<()> {
-    use blst::{min_pk::PublicKey, BLST_ERROR};
-
-    let pubkey = PublicKey::from_bytes(pubkey_bytes).map_err(|e| match e {
-        BLST_ERROR::BLST_BAD_ENCODING => {
-            Error::InvalidInput("Invalid public key encoding".to_string())
-        }
-        BLST_ERROR::BLST_POINT_NOT_ON_CURVE => {
-            Error::InvalidInput("Public key point not on curve".to_string())
-        }
-        BLST_ERROR::BLST_POINT_NOT_IN_GROUP => {
-            Error::InvalidInput("Public key point not in group".to_string())
-        }
-        _ => Error::InvalidInput(format!("BLS public key error: {:?}", e)),
-    })?;
-
-    if pubkey.validate().is_err() {
-        return Err(Error::InvalidInput("Invalid BLS public key".to_string()));
-    }
-
-    Ok(())
-}
-
-/// Validate a BLS signature (exposed for testing)
-#[cfg(test)]
-pub fn validate_bls_signature(signature_bytes: &BLSSignature) -> Result<()> {
-    use blst::{min_pk::Signature, BLST_ERROR};
-
-    let sig = Signature::from_bytes(signature_bytes).map_err(|e| match e {
-        BLST_ERROR::BLST_BAD_ENCODING => {
-            Error::InvalidInput("Invalid signature encoding".to_string())
-        }
-        BLST_ERROR::BLST_POINT_NOT_ON_CURVE => {
-            Error::InvalidInput("Signature point not on curve".to_string())
-        }
-        BLST_ERROR::BLST_POINT_NOT_IN_GROUP => {
-            Error::InvalidInput("Signature point not in group".to_string())
-        }
-        _ => Error::InvalidInput(format!("BLS signature error: {:?}", e)),
-    })?;
-
-    if sig.validate(false).is_err() {
-        return Err(Error::InvalidInput("Invalid BLS signature".to_string()));
-    }
-
-    Ok(())
-}
-
-/// Verify BLS aggregate signature for sync committee using our tested bls module
-/// Uses fast_aggregate_verify as per Ethereum consensus spec
+/// Verify the sync committee's aggregate signature over the signing root.
 fn verify_sync_committee_signature(
     participating_pubkeys: &[BLSPublicKey],
     message: Root,
@@ -281,12 +231,9 @@ fn verify_sync_committee_signature(
         return Ok(false);
     }
 
-    // Compute the signing root using our spec-compliant function
     let signing_root = compute_signing_root(message, domain)?;
 
-    // Use our tested fast_aggregate_verify from bls module
-    // This passes all official Ethereum consensus spec BLS tests
-    Ok(bls::fast_aggregate_verify(
+    Ok(bls::verify_aggregate(
         participating_pubkeys,
         &signing_root,
         signature,
@@ -321,56 +268,6 @@ fn compute_signing_root(object_root: Root, domain: Domain) -> Result<Root> {
 mod tests {
     use super::*;
     use crate::types::consensus::SyncCommittee;
-
-    /// Aggregate BLS public keys using blst library (test-only helper)
-    fn aggregate_public_keys(pubkeys: &[BLSPublicKey]) -> Result<BLSPublicKey> {
-        use blst::{
-            min_pk::{AggregatePublicKey, PublicKey},
-            BLST_ERROR,
-        };
-
-        if pubkeys.is_empty() {
-            return Err(Error::InvalidInput(
-                "Cannot aggregate empty pubkey list".to_string(),
-            ));
-        }
-
-        let mut aggregate = if let Ok(first_pubkey) = PublicKey::from_bytes(&pubkeys[0]) {
-            AggregatePublicKey::from_public_key(&first_pubkey)
-        } else {
-            return Err(Error::InvalidInput("Invalid first public key".to_string()));
-        };
-
-        for pubkey_bytes in &pubkeys[1..] {
-            let pubkey = PublicKey::from_bytes(pubkey_bytes).map_err(|e| match e {
-                BLST_ERROR::BLST_BAD_ENCODING => {
-                    Error::InvalidInput("Invalid public key encoding".to_string())
-                }
-                BLST_ERROR::BLST_POINT_NOT_ON_CURVE => {
-                    Error::InvalidInput("Public key point not on curve".to_string())
-                }
-                BLST_ERROR::BLST_POINT_NOT_IN_GROUP => {
-                    Error::InvalidInput("Public key point not in group".to_string())
-                }
-                _ => Error::InvalidInput(format!("BLS public key error: {:?}", e)),
-            })?;
-
-            if pubkey.validate().is_err() {
-                return Err(Error::InvalidInput("Invalid BLS public key".to_string()));
-            }
-
-            aggregate.add_public_key(&pubkey, false).map_err(|e| {
-                Error::InvalidInput(format!("Failed to aggregate public key: {:?}", e))
-            })?;
-        }
-
-        let aggregated_pubkey = aggregate.to_public_key();
-        let compressed_bytes = aggregated_pubkey.compress();
-        let mut result = [0u8; 48];
-        result.copy_from_slice(&compressed_bytes);
-
-        Ok(result)
-    }
 
     fn test_committee(agg: u8) -> SyncCommittee {
         SyncCommittee::from_parts(vec![[1u8; 48]; 32], [agg; 48]).unwrap()
@@ -507,92 +404,6 @@ mod tests {
         let different_domain = [10u8; 32];
         let signing_root4 = compute_signing_root(message, different_domain).unwrap();
         assert_ne!(signing_root1, signing_root4);
-    }
-
-    #[test]
-    fn test_blst_sizes() {
-        use blst::min_pk::SecretKey;
-        let sk = SecretKey::key_gen(&[1u8; 32], &[]).unwrap();
-        let pk = sk.sk_to_pk();
-        let pk_bytes = pk.to_bytes();
-        println!("Public key size: {}", pk_bytes.len());
-
-        let message = b"test message";
-        let sig = sk.sign(message, b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_", &[]);
-        let sig_bytes = sig.to_bytes();
-        println!("Signature size: {}", sig_bytes.len());
-    }
-
-    #[test]
-    fn test_bls_key_validation() {
-        // Test with zero key (should fail)
-        let zero_key = [0u8; 48];
-        assert!(validate_bls_public_key(&zero_key).is_err());
-
-        // Test with invalid encoding (should fail)
-        let invalid_key = [255u8; 48];
-        assert!(validate_bls_public_key(&invalid_key).is_err());
-
-        // Generate a valid BLS key pair for testing
-        use blst::min_pk::SecretKey;
-        let sk = SecretKey::key_gen(&[1u8; 32], &[]).unwrap();
-        let pk = sk.sk_to_pk();
-        let pk_bytes = pk.compress();
-
-        // Valid key should pass validation
-        assert!(validate_bls_public_key(&pk_bytes).is_ok());
-    }
-
-    #[test]
-    fn test_bls_signature_validation() {
-        // Test with zero signature (should fail)
-        let zero_sig = [0u8; 96];
-        assert!(validate_bls_signature(&zero_sig).is_err());
-
-        // Test with invalid encoding (should fail)
-        let invalid_sig = [255u8; 96];
-        assert!(validate_bls_signature(&invalid_sig).is_err());
-
-        // Generate a valid BLS signature for testing
-        use blst::min_pk::SecretKey;
-        let sk = SecretKey::key_gen(&[1u8; 32], &[]).unwrap();
-        let message = b"test message";
-        let sig = sk.sign(message, b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_", &[]);
-        let sig_bytes = sig.compress();
-
-        // Valid signature should pass validation
-        assert!(validate_bls_signature(&sig_bytes).is_ok());
-    }
-
-    #[test]
-    fn test_bls_public_key_aggregation() {
-        use blst::min_pk::SecretKey;
-
-        // Generate multiple valid BLS key pairs
-        let mut secret_keys = Vec::new();
-        let mut public_keys = Vec::new();
-
-        for i in 0..3 {
-            let mut seed = [0u8; 32];
-            seed[0] = i as u8 + 1; // Ensure different seeds
-            let sk = SecretKey::key_gen(&seed, &[]).unwrap();
-            let pk = sk.sk_to_pk();
-            secret_keys.push(sk);
-            public_keys.push(pk.compress());
-        }
-
-        // Test aggregation with valid keys
-        let aggregated = aggregate_public_keys(&public_keys);
-        assert!(aggregated.is_ok());
-
-        // Test with empty list (should fail)
-        let empty_keys = Vec::new();
-        assert!(aggregate_public_keys(&empty_keys).is_err());
-
-        // Test with invalid key mixed in (should fail)
-        let mut mixed_keys = public_keys.clone();
-        mixed_keys.push([0u8; 48]); // Invalid zero key
-        assert!(aggregate_public_keys(&mixed_keys).is_err());
     }
 
     #[test]
