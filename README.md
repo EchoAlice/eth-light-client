@@ -61,22 +61,29 @@ eth-light-client = "0.1"
 use eth_light_client::{ChainSpec, Fork, LightClient, LightClientBootstrap, LightClientUpdate};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let spec = ChainSpec::mainnet();
+
     // Fetch the bootstrap as SSZ bytes from a trusted endpoint, plus the
     // genesis validators root (GET /eth/v1/beacon/genesis):
     // GET /eth/v1/beacon/light_client/bootstrap/{block_root}
     let bootstrap_bytes: Vec<u8> = /* fetch */;
     let genesis_validators_root = /* fetch */;
-    let bootstrap =
-        LightClientBootstrap::from_ssz(&bootstrap_bytes, Fork::Capella, genesis_validators_root)?;
+    // `sync_committee_size` is the network preset's committee width (512 mainnet).
+    let bootstrap = LightClientBootstrap::from_ssz(
+        &bootstrap_bytes,
+        Fork::Capella,
+        spec.sync_committee_size(),
+        genesis_validators_root,
+    )?;
 
     // Create light client
-    let mut client = LightClient::new(ChainSpec::mainnet(), bootstrap)?;
+    let mut client = LightClient::new(spec, bootstrap)?;
 
     // Then fetch updates from any source and verify them. The fork comes from
     // the response context (Eth-Consensus-Version header / fork-version prefix):
     // GET /eth/v1/beacon/light_client/updates?start_period=X&count=1
     let update_bytes: Vec<u8> = /* fetch */;
-    let update = LightClientUpdate::from_ssz(&update_bytes, Fork::Capella)?;
+    let update = LightClientUpdate::from_ssz(&update_bytes, Fork::Capella, spec.sync_committee_size())?;
     client.process_update(update)?;
 
     println!("Finalized slot: {}", client.finalized_header().slot);

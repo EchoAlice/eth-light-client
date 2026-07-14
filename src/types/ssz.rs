@@ -6,8 +6,10 @@
 //! [`LightClientHeader`] enum, the spec-sized sync committee / aggregate (which
 //! can't be a plain derive), and the spec's optional-field collapse.
 //!
-//! The mirror is minimal-preset only: it decodes 32-key committees. Mainnet
-//! committee decode is not yet wired.
+//! The sync committee / aggregate size (32 minimal, 512 mainnet) is a preset
+//! constant the wire layout depends on but the bytes don't carry, so the `Raw*`
+//! structs are generic over it (`N`) and the caller supplies
+//! `sync_committee_size`. These generics stay internal to this module.
 
 use crate::config::Fork;
 use crate::types::consensus::{
@@ -16,20 +18,18 @@ use crate::types::consensus::{
 };
 use crate::types::primitives::Root;
 use ssz::Decode as _;
-use ssz_derive::Decode;
-use ssz_types::typenum::{U32, U48, U5, U6, U96};
+use ssz_derive::{Decode, Encode};
+use ssz_types::typenum::{Unsigned, U32, U48, U5, U512, U6, U96};
 use ssz_types::{BitVector, FixedVector};
 
-#[derive(Decode)]
-pub(crate) struct RawSyncCommittee {
-    pubkeys: FixedVector<FixedVector<u8, U48>, U32>,
+#[derive(Encode, Decode)]
+struct RawSyncCommittee<N: Unsigned> {
+    pubkeys: FixedVector<FixedVector<u8, U48>, N>,
     aggregate_pubkey: FixedVector<u8, U48>,
 }
 
-impl RawSyncCommittee {
+impl<N: Unsigned> RawSyncCommittee<N> {
     fn into_sync_committee(self) -> SyncCommittee {
-        // Minimal fixtures hold exactly 32 pubkeys (SSZ `Vector<_, 32>` decode) —
-        // the spec-sized minimal committee, no padding.
         let pubkeys: Vec<[u8; 48]> = self
             .pubkeys
             .iter()
@@ -43,20 +43,18 @@ impl RawSyncCommittee {
         let mut aggregate = [0u8; 48];
         aggregate.copy_from_slice(self.aggregate_pubkey.as_ref());
 
-        SyncCommittee::from_minimal_parts(pubkeys, aggregate)
-            .expect("minimal fixture committee is 32 valid pubkeys")
+        SyncCommittee::from_parts(pubkeys, aggregate).expect("wire committee is spec-sized")
     }
 }
 
-#[derive(Decode)]
-struct RawSyncAggregate {
-    sync_committee_bits: BitVector<U32>,
+#[derive(Encode, Decode)]
+struct RawSyncAggregate<N: Unsigned> {
+    sync_committee_bits: BitVector<N>,
     sync_committee_signature: FixedVector<u8, U96>,
 }
 
-impl RawSyncAggregate {
+impl<N: Unsigned> RawSyncAggregate<N> {
     fn into_sync_aggregate(self) -> SyncAggregate {
-        // Spec-sized bits (32 for minimal fixtures), no padding.
         let bits: Vec<bool> = self.sync_committee_bits.iter().collect();
 
         let mut signature = [0u8; 96];
@@ -68,40 +66,40 @@ impl RawSyncAggregate {
 
 // Beacon-only (Altair/Bellatrix): the header is a `BeaconBlockHeader` on the wire
 // (the 1-field LightClientHeader wrapper is serialization-transparent).
-#[derive(Decode)]
-struct RawLightClientUpdate {
+#[derive(Encode, Decode)]
+struct RawLightClientUpdate<N: Unsigned> {
     attested_header: BeaconBlockHeader,
-    next_sync_committee: RawSyncCommittee,
+    next_sync_committee: RawSyncCommittee<N>,
     next_sync_committee_branch: FixedVector<Root, U5>,
     finalized_header: BeaconBlockHeader,
     finality_branch: FixedVector<Root, U6>,
-    sync_aggregate: RawSyncAggregate,
+    sync_aggregate: RawSyncAggregate<N>,
     signature_slot: u64,
 }
 
-#[derive(Decode)]
-struct RawLightClientBootstrap {
+#[derive(Encode, Decode)]
+struct RawLightClientBootstrap<N: Unsigned> {
     header: BeaconBlockHeader,
-    current_sync_committee: RawSyncCommittee,
+    current_sync_committee: RawSyncCommittee<N>,
     current_sync_committee_branch: FixedVector<Root, U5>,
 }
 
 // Capella+: the header is the public `CapellaLightClientHeader` container.
-#[derive(Decode)]
-struct RawCapellaLightClientUpdate {
+#[derive(Encode, Decode)]
+struct RawCapellaLightClientUpdate<N: Unsigned> {
     attested_header: CapellaLightClientHeader,
-    next_sync_committee: RawSyncCommittee,
+    next_sync_committee: RawSyncCommittee<N>,
     next_sync_committee_branch: FixedVector<Root, U5>,
     finalized_header: CapellaLightClientHeader,
     finality_branch: FixedVector<Root, U6>,
-    sync_aggregate: RawSyncAggregate,
+    sync_aggregate: RawSyncAggregate<N>,
     signature_slot: u64,
 }
 
-#[derive(Decode)]
-struct RawCapellaLightClientBootstrap {
+#[derive(Encode, Decode)]
+struct RawCapellaLightClientBootstrap<N: Unsigned> {
     header: CapellaLightClientHeader,
-    current_sync_committee: RawSyncCommittee,
+    current_sync_committee: RawSyncCommittee<N>,
     current_sync_committee_branch: FixedVector<Root, U5>,
 }
 
@@ -154,7 +152,10 @@ fn assemble_update(
     }
 }
 
-fn raw_beacon_only_update_to_pub(fork: Fork, raw: RawLightClientUpdate) -> LightClientUpdate {
+fn raw_beacon_only_update_to_pub<N: Unsigned>(
+    fork: Fork,
+    raw: RawLightClientUpdate<N>,
+) -> LightClientUpdate {
     // A default (slot-0) finalized header means the update carries no finality.
     let finalized_header =
         (raw.finalized_header.slot != 0).then_some(wrap_beacon_only(fork, raw.finalized_header));
@@ -170,7 +171,7 @@ fn raw_beacon_only_update_to_pub(fork: Fork, raw: RawLightClientUpdate) -> Light
     )
 }
 
-fn raw_capella_update_to_pub(raw: RawCapellaLightClientUpdate) -> LightClientUpdate {
+fn raw_capella_update_to_pub<N: Unsigned>(raw: RawCapellaLightClientUpdate<N>) -> LightClientUpdate {
     let finalized_header = (raw.finalized_header.beacon.slot != 0)
         .then_some(LightClientHeader::Capella(raw.finalized_header));
 
@@ -185,47 +186,88 @@ fn raw_capella_update_to_pub(raw: RawCapellaLightClientUpdate) -> LightClientUpd
     )
 }
 
-// Fork-dispatched SSZ decode: raw bytes -> public type. `bytes` is raw SSZ (not
-// snappy-framed). Fork selects the wire layout (SSZ is not self-describing).
+// Fork- and size-dispatched SSZ decode: raw bytes -> public type. `bytes` is raw
+// SSZ (not snappy-framed). `fork` selects the wire layout and `sync_committee_size`
+// (32 minimal / 512 mainnet) the committee/aggregate width — neither is carried
+// by the bytes.
 
-pub(crate) fn decode_update(bytes: &[u8], fork: Fork) -> crate::error::Result<LightClientUpdate> {
+fn decode_beacon_only_update<N: Unsigned>(
+    bytes: &[u8],
+    fork: Fork,
+) -> crate::error::Result<LightClientUpdate> {
+    let raw = RawLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
+    Ok(raw_beacon_only_update_to_pub(fork, raw))
+}
+
+fn decode_capella_update<N: Unsigned>(bytes: &[u8]) -> crate::error::Result<LightClientUpdate> {
+    let raw = RawCapellaLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
+    Ok(raw_capella_update_to_pub(raw))
+}
+
+pub(crate) fn decode_update(
+    bytes: &[u8],
+    fork: Fork,
+    sync_committee_size: usize,
+) -> crate::error::Result<LightClientUpdate> {
     match fork {
-        Fork::Altair | Fork::Bellatrix => {
-            let raw = RawLightClientUpdate::from_ssz_bytes(bytes).map_err(decode_err)?;
-            Ok(raw_beacon_only_update_to_pub(fork, raw))
-        }
-        Fork::Capella => {
-            let raw = RawCapellaLightClientUpdate::from_ssz_bytes(bytes).map_err(decode_err)?;
-            Ok(raw_capella_update_to_pub(raw))
-        }
+        Fork::Altair | Fork::Bellatrix => match sync_committee_size {
+            32 => decode_beacon_only_update::<U32>(bytes, fork),
+            512 => decode_beacon_only_update::<U512>(bytes, fork),
+            n => Err(bad_size(n)),
+        },
+        Fork::Capella => match sync_committee_size {
+            32 => decode_capella_update::<U32>(bytes),
+            512 => decode_capella_update::<U512>(bytes),
+            n => Err(bad_size(n)),
+        },
         Fork::Deneb | Fork::Electra => Err(unsupported(fork)),
     }
+}
+
+fn decode_beacon_only_bootstrap<N: Unsigned>(
+    bytes: &[u8],
+    fork: Fork,
+    genesis_validators_root: Root,
+) -> crate::error::Result<LightClientBootstrap> {
+    let raw = RawLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
+    Ok(LightClientBootstrap::from_header(
+        wrap_beacon_only(fork, raw.header),
+        raw.current_sync_committee.into_sync_committee(),
+        raw.current_sync_committee_branch.to_vec(),
+        genesis_validators_root,
+    ))
+}
+
+fn decode_capella_bootstrap<N: Unsigned>(
+    bytes: &[u8],
+    genesis_validators_root: Root,
+) -> crate::error::Result<LightClientBootstrap> {
+    let raw = RawCapellaLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
+    Ok(LightClientBootstrap::from_header(
+        LightClientHeader::Capella(raw.header),
+        raw.current_sync_committee.into_sync_committee(),
+        raw.current_sync_committee_branch.to_vec(),
+        genesis_validators_root,
+    ))
 }
 
 pub(crate) fn decode_bootstrap(
     bytes: &[u8],
     fork: Fork,
+    sync_committee_size: usize,
     genesis_validators_root: Root,
 ) -> crate::error::Result<LightClientBootstrap> {
     match fork {
-        Fork::Altair | Fork::Bellatrix => {
-            let raw = RawLightClientBootstrap::from_ssz_bytes(bytes).map_err(decode_err)?;
-            Ok(LightClientBootstrap::from_header(
-                wrap_beacon_only(fork, raw.header),
-                raw.current_sync_committee.into_sync_committee(),
-                raw.current_sync_committee_branch.to_vec(),
-                genesis_validators_root,
-            ))
-        }
-        Fork::Capella => {
-            let raw = RawCapellaLightClientBootstrap::from_ssz_bytes(bytes).map_err(decode_err)?;
-            Ok(LightClientBootstrap::from_header(
-                LightClientHeader::Capella(raw.header),
-                raw.current_sync_committee.into_sync_committee(),
-                raw.current_sync_committee_branch.to_vec(),
-                genesis_validators_root,
-            ))
-        }
+        Fork::Altair | Fork::Bellatrix => match sync_committee_size {
+            32 => decode_beacon_only_bootstrap::<U32>(bytes, fork, genesis_validators_root),
+            512 => decode_beacon_only_bootstrap::<U512>(bytes, fork, genesis_validators_root),
+            n => Err(bad_size(n)),
+        },
+        Fork::Capella => match sync_committee_size {
+            32 => decode_capella_bootstrap::<U32>(bytes, genesis_validators_root),
+            512 => decode_capella_bootstrap::<U512>(bytes, genesis_validators_root),
+            n => Err(bad_size(n)),
+        },
         Fork::Deneb | Fork::Electra => Err(unsupported(fork)),
     }
 }
@@ -234,8 +276,48 @@ fn decode_err(e: ssz::DecodeError) -> crate::error::Error {
     crate::error::Error::Serialization(format!("SSZ decode: {e:?}"))
 }
 
+fn bad_size(n: usize) -> crate::error::Error {
+    crate::error::Error::InvalidInput(format!(
+        "sync_committee_size must be 32 or 512, got {n}"
+    ))
+}
+
 fn unsupported(fork: Fork) -> crate::error::Error {
     crate::error::Error::InvalidInput(format!(
         "SSZ decode not supported for {fork:?} (supported through Capella)"
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ssz::Encode;
+
+    // No official mainnet fixtures exist, so the 512-committee decode path is
+    // validated by an SSZ round-trip: encode a mainnet-sized bootstrap, decode
+    // it back through the public `from_ssz`, and check the committee width.
+    #[test]
+    fn decodes_mainnet_sized_512_committee() {
+        let committee = RawSyncCommittee::<U512> {
+            pubkeys: FixedVector::new(vec![FixedVector::new(vec![7u8; 48]).unwrap(); 512]).unwrap(),
+            aggregate_pubkey: FixedVector::new(vec![9u8; 48]).unwrap(),
+        };
+        let raw = RawLightClientBootstrap::<U512> {
+            header: BeaconBlockHeader::new(1, 2, [3u8; 32], [4u8; 32], [5u8; 32]),
+            current_sync_committee: committee,
+            current_sync_committee_branch: FixedVector::new(vec![[0u8; 32]; 5]).unwrap(),
+        };
+
+        let bytes = raw.as_ssz_bytes();
+        let bootstrap =
+            LightClientBootstrap::from_ssz(&bytes, Fork::Altair, 512, [0u8; 32]).unwrap();
+
+        assert_eq!(bootstrap.current_sync_committee.len(), 512);
+    }
+
+    #[test]
+    fn rejects_bad_committee_size() {
+        let err = LightClientBootstrap::from_ssz(&[], Fork::Altair, 64, [0u8; 32]);
+        assert!(err.is_err());
+    }
 }

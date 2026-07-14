@@ -299,7 +299,7 @@ mod tests {
 
     /// Build a minimal-preset (32-key) committee for tests.
     fn test_committee(pk: u8, agg: u8) -> SyncCommittee {
-        SyncCommittee::from_minimal_parts(vec![[pk; 48]; 32], [agg; 48]).unwrap()
+        SyncCommittee::from_parts(vec![[pk; 48]; 32], [agg; 48]).unwrap()
     }
 
     #[test]

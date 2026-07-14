@@ -402,7 +402,7 @@ mod tests {
         let bootstrap_slot = bootstrap.header.slot();
 
         let mut processor = LightClientProcessor::new(
-            chain_spec.clone(),
+            chain_spec,
             bootstrap.header.clone(),
             bootstrap.current_sync_committee.clone(),
             &bootstrap.current_sync_committee_branch,
@@ -416,7 +416,7 @@ mod tests {
 
         // Inject a distinguishable "next" committee directly on the store
         let next =
-            SyncCommittee::from_minimal_parts(vec![[0xAA; 48]; 32], [0xBB; 48]).unwrap();
+            SyncCommittee::from_parts(vec![[0xAA; 48]; 32], [0xBB; 48]).unwrap();
         processor.store.next_sync_committee = Some(next.clone());
 
         // Store period is still initial_period (finalized header not yet updated)

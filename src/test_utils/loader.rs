@@ -48,6 +48,7 @@ impl LightClientSyncTest {
         Ok(LightClientBootstrap::from_ssz(
             &bytes,
             self.fork.into(),
+            self.chain_spec().sync_committee_size(),
             meta.genesis_validators_root,
         )?)
     }
@@ -55,7 +56,11 @@ impl LightClientSyncTest {
     /// `name` must not include the `.ssz_snappy` extension.
     pub fn load_update(&self, name: &str) -> TestUtilsResult<LightClientUpdate> {
         let bytes = snappy_decompress(&self.test_dir.join(format!("{name}.ssz_snappy")))?;
-        Ok(LightClientUpdate::from_ssz(&bytes, self.fork.into())?)
+        Ok(LightClientUpdate::from_ssz(
+            &bytes,
+            self.fork.into(),
+            self.chain_spec().sync_committee_size(),
+        )?)
     }
 
     pub(crate) fn load_meta(&self) -> TestUtilsResult<TestMeta> {

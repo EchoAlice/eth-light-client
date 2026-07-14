@@ -358,12 +358,20 @@ impl SyncCommittee {
         Ok(out)
     }
 
-    /// Build a minimal-preset (32-key) committee from raw pubkey bytes.
-    /// The fixture decoder uses this; mainnet committee decode is not yet wired.
-    pub(crate) fn from_minimal_parts(
+    /// Build a spec-sized committee (32 or 512 keys) from raw pubkey bytes.
+    ///
+    /// Enforces the `{32, 512}` size invariant at construction, so the size
+    /// dispatch in [`hash_tree_root`](Self::hash_tree_root) is total.
+    pub(crate) fn from_parts(
         pubkeys: Vec<BLSPublicKey>,
         aggregate_pubkey: BLSPublicKey,
     ) -> Result<Self> {
+        if pubkeys.len() != 32 && pubkeys.len() != 512 {
+            return Err(Error::InvalidInput(format!(
+                "sync committee must have 32 or 512 members, got {}",
+                pubkeys.len()
+            )));
+        }
         Ok(SyncCommittee {
             pubkeys: pubkeys
                 .into_iter()
@@ -432,10 +440,12 @@ impl LightClientUpdate {
     /// `bytes` is raw SSZ as served by the beacon API (not snappy-framed).
     /// `fork` selects the wire layout — obtain it from the beacon API's
     /// `Eth-Consensus-Version` header, or the per-item fork-version prefix on
-    /// `/eth/v1/beacon/light_client/updates`. (SSZ is not self-describing, so
-    /// the fork cannot be inferred from the bytes.)
-    pub fn from_ssz(bytes: &[u8], fork: Fork) -> Result<Self> {
-        crate::types::ssz::decode_update(bytes, fork)
+    /// `/eth/v1/beacon/light_client/updates`. `sync_committee_size` is the
+    /// network preset's committee width (`32` minimal / `512` mainnet — use
+    /// [`ChainSpec::sync_committee_size`]); the wire layout depends on it but
+    /// the bytes don't carry it. (SSZ is not self-describing.)
+    pub fn from_ssz(bytes: &[u8], fork: Fork, sync_committee_size: usize) -> Result<Self> {
+        crate::types::ssz::decode_update(bytes, fork, sync_committee_size)
     }
 
     /// Create a new update wrapping a `BeaconBlockHeader` as Altair.
@@ -543,11 +553,16 @@ impl LightClientBootstrap {
     /// Decode an SSZ-encoded light client bootstrap for `fork`.
     ///
     /// `bytes` is raw SSZ as served by the beacon API (not snappy-framed).
-    /// `fork` selects the wire layout (see [`LightClientUpdate::from_ssz`]).
-    /// `genesis_validators_root` is supplied out-of-band (from beacon genesis);
-    /// it is not part of the bootstrap message.
-    pub fn from_ssz(bytes: &[u8], fork: Fork, genesis_validators_root: Root) -> Result<Self> {
-        crate::types::ssz::decode_bootstrap(bytes, fork, genesis_validators_root)
+    /// `fork` and `sync_committee_size` select the wire layout (see
+    /// [`LightClientUpdate::from_ssz`]). `genesis_validators_root` is supplied
+    /// out-of-band (from beacon genesis); it is not part of the bootstrap message.
+    pub fn from_ssz(
+        bytes: &[u8],
+        fork: Fork,
+        sync_committee_size: usize,
+        genesis_validators_root: Root,
+    ) -> Result<Self> {
+        crate::types::ssz::decode_bootstrap(bytes, fork, sync_committee_size, genesis_validators_root)
     }
 
     /// Create a new bootstrap package from a `BeaconBlockHeader` (convenience, wraps as Altair).
@@ -659,7 +674,7 @@ mod tests {
     }
 
     fn create_test_sync_committee() -> SyncCommittee {
-        SyncCommittee::from_minimal_parts(vec![[1u8; 48]; 32], [2u8; 48]).unwrap()
+        SyncCommittee::from_parts(vec![[1u8; 48]; 32], [2u8; 48]).unwrap()
     }
 
     #[test]
@@ -678,7 +693,7 @@ mod tests {
         assert!(!committee.has_supermajority_participation(&participation));
 
         // Full participation passes.
-        assert!(committee.has_supermajority_participation(&vec![true; 32]));
+        assert!(committee.has_supermajority_participation(&[true; 32]));
     }
 
     #[test]
