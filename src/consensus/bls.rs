@@ -14,14 +14,15 @@ const DST: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
 
 /// Same-message aggregate verification — the sole BLS entry point.
 ///
-/// All sync committee signature checks go through this. It parses the
-/// participating pubkeys and the aggregate signature, then defers to blst's
-/// native `fast_aggregate_verify`, which is the complete primitive for the
-/// one-message/many-signers case. Any parse error or non-success status is a
-/// verification failure (`false`).
+/// All sync committee signature checks go through this. It parses and
+/// `KeyValidate`s the participating pubkeys and parses the aggregate signature,
+/// then defers to blst's native `fast_aggregate_verify`, which is the complete
+/// primitive for the one-message/many-signers case. Any parse failure or
+/// non-success status is a verification failure (`false`).
 ///
-/// Infinity handling follows the consensus spec: all-zero pubkeys are skipped,
-/// and an empty participating set verifies only against an infinity signature.
+/// Per the consensus-spec `FastAggregateVerify`, an empty pubkey set is invalid,
+/// and each pubkey is `KeyValidate`d — a set containing the infinity pubkey (or
+/// any non-subgroup key) is rejected outright, not filtered.
 pub(crate) fn fast_aggregate_verify(
     pubkeys: &[[u8; 48]],
     message: &[u8],
@@ -31,21 +32,18 @@ pub(crate) fn fast_aggregate_verify(
         return false;
     }
 
-    // Parse pubkeys, skipping infinity (all-zero) entries.
+    // Parse and KeyValidate every pubkey. KeyValidate rejects the infinity point
+    // and non-subgroup keys, so any such key fails the whole verification.
     let mut pks: Vec<PublicKey> = Vec::with_capacity(pubkeys.len());
     for pk_bytes in pubkeys {
-        if pk_bytes.iter().all(|&b| b == 0) {
-            continue;
-        }
-        match PublicKey::from_bytes(pk_bytes) {
-            Ok(pk) => pks.push(pk),
+        let pk = match PublicKey::from_bytes(pk_bytes) {
+            Ok(pk) => pk,
             Err(_) => return false,
+        };
+        if pk.validate().is_err() {
+            return false;
         }
-    }
-
-    // Empty participating set: valid only if the signature is also infinity.
-    if pks.is_empty() {
-        return signature.iter().all(|&b| b == 0);
+        pks.push(pk);
     }
 
     let sig = match Signature::from_bytes(signature) {
@@ -53,7 +51,6 @@ pub(crate) fn fast_aggregate_verify(
         Err(_) => return false,
     };
 
-    // blst's `fast_aggregate_verify` performs the group checks internally.
     let pk_refs: Vec<&PublicKey> = pks.iter().collect();
     matches!(
         sig.fast_aggregate_verify(true, message, DST, &pk_refs),

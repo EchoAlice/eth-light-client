@@ -47,12 +47,6 @@ fn fixed<const N: usize>(bytes: &[u8]) -> [u8; N] {
     bytes.try_into().expect("unexpected fixture field length")
 }
 
-/// Known non-conformance, fixed in the follow-up commit: `fast_aggregate_verify`
-/// does not yet run `KeyValidate`, so it accepts a pubkey set containing the
-/// infinity point. Tolerated here to keep the mechanical slim-down green; the
-/// follow-up adds the fix and removes this allowance. See issue #76.
-const KNOWN_NONCONFORMANCE: &[&str] = &["fast_aggregate_verify_infinity_pubkey"];
-
 /// Run every official `fast_aggregate_verify` vector through our production
 /// path. Strict: any mismatch fails the suite (all mismatches are reported).
 #[test]
@@ -97,7 +91,7 @@ fn fast_aggregate_verify_spec_vectors() {
         let signature: [u8; 96] = fixed(&parse_hex(&case.input.signature));
 
         let actual = fast_aggregate_verify(&pubkeys, &message, &signature);
-        if actual != case.output && !KNOWN_NONCONFORMANCE.contains(&name.as_str()) {
+        if actual != case.output {
             failures.push(format!("{name}: expected {}, got {actual}", case.output));
         }
         checked += 1;
