@@ -28,7 +28,7 @@ flowchart TD
 | `consensus/` | engine | SSZ / Merkle / BLS verification (private) |
 | `light_client` | facade | `LightClient`, `UpdateOutcome` (public entry) |
 
-**Facade vs engine.** `LightClient` (`src/light_client.rs`) is a thin public wrapper; the real work lives in `LightClientProcessor` (`src/consensus/processor.rs`, `pub(crate)`). `process_update` delegates to the processor and wraps its `bool` into the richer `UpdateOutcome`. Consumers touch only the facade — `consensus/` is private.
+**Facade vs engine.** `LightClient` (`src/light_client.rs`) is a thin public wrapper; the real work lives in `LightClientProcessor` (`src/consensus/processor.rs`, `pub(crate)`). `process_update` delegates to the processor and wraps its `bool` into the richer `UpdateOutcome`. Consumers touch only the facade — `consensus/` is private. For the end-to-end verification **data flow** and the **correctness invariants** the engine maintains, see [`consensus/README.md`](consensus/README.md).
 
 **The `types` umbrella spans two layers.** `types::primitives` sits *below* config (leaf aliases, no deps); `types::consensus` sits *above* it (its types carry a `&ChainSpec`). So `config` depends on `types::primitives` while `types::consensus` depends on `config`, which makes the crate-level `config ↔ types` edge *look* circular. It isn't — the real order is `primitives → config → consensus`; only the shared `types` name blurs it.
 
