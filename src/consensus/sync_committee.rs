@@ -1,8 +1,9 @@
 use crate::config::ChainSpec;
+use crate::consensus::bls;
 use crate::consensus::merkle::verify_next_sync_committee;
 use crate::error::{Error, Result};
 use crate::types::consensus::{LightClientUpdate, SyncCommittee};
-use crate::types::primitives::{BLSPublicKey, BLSSignature, Domain, ForkVersion, Root, Slot};
+use crate::types::primitives::{BLSSignature, Domain, ForkVersion, Root, Slot};
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
 
@@ -125,12 +126,13 @@ pub(crate) fn verify_sync_aggregate(
 
     let domain =
         compute_sync_committee_domain_for_slot(signature_slot, genesis_validators_root, chain_spec);
+    let signing_root = compute_signing_root(attested_header_root, domain);
 
-    Ok(verify_sync_committee_signature(
+    // An empty pubkey set is handled by `verify_aggregate_signature` (returns false).
+    Ok(bls::verify_aggregate_signature(
         &participating_pubkeys,
-        attested_header_root,
+        &signing_root,
         sync_committee_signature,
-        domain,
     ))
 }
 
@@ -212,22 +214,6 @@ pub fn compute_beacon_domain(
     genesis_validators_root: Root,
 ) -> Domain {
     compute_domain(domain_type, fork_version, genesis_validators_root)
-}
-
-/// Verify the sync committee's aggregate signature over the signing root.
-///
-/// An empty pubkey set is handled by `bls::verify_aggregate` (returns `false`).
-fn verify_sync_committee_signature(
-    participating_pubkeys: &[BLSPublicKey],
-    message: Root,
-    signature: &BLSSignature,
-    domain: Domain,
-) -> bool {
-    use crate::consensus::bls;
-
-    let signing_root = compute_signing_root(message, domain);
-
-    bls::verify_aggregate(participating_pubkeys, &signing_root, signature)
 }
 
 /// SigningData container as per Ethereum consensus spec
@@ -443,27 +429,29 @@ mod tests {
         let final_signature = aggregate_sig.to_signature();
         let signature_bytes = final_signature.compress();
 
-        // Verify the signature using our implementation
+        // Verify against the signing root via the production BLS path.
         assert!(
-            verify_sync_committee_signature(&public_keys, message, &signature_bytes, domain),
+            bls::verify_aggregate_signature(&public_keys, &signing_root, &signature_bytes),
             "should verify successfully"
         );
 
-        // Test with wrong message (should fail)
+        // Wrong message -> different signing root -> fails.
         let wrong_message = [43u8; 32];
+        let wrong_message_root = compute_signing_root(wrong_message, domain);
         assert!(
-            !verify_sync_committee_signature(&public_keys, wrong_message, &signature_bytes, domain),
+            !bls::verify_aggregate_signature(&public_keys, &wrong_message_root, &signature_bytes),
             "wrong message should fail verification"
         );
 
-        // Test with wrong domain (should fail)
+        // Wrong domain -> different signing root -> fails.
         let wrong_domain = compute_beacon_domain(
             DOMAIN_BEACON_PROPOSER,
             fork_version,
             genesis_validators_root,
         );
+        let wrong_domain_root = compute_signing_root(message, wrong_domain);
         assert!(
-            !verify_sync_committee_signature(&public_keys, message, &signature_bytes, wrong_domain),
+            !bls::verify_aggregate_signature(&public_keys, &wrong_domain_root, &signature_bytes),
             "wrong domain should fail verification"
         );
     }
