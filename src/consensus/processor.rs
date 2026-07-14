@@ -196,21 +196,20 @@ impl LightClientProcessor {
             }
         }
 
-        // Rotate when the update's finalized period == store_period + 1
-        // and next committee is known.
+        // Rotate when the update's finalized period == store_period + 1 and the
+        // next committee is known (invariant I-2, via `should_rotate`).
         if let Some(ref finalized_header) = update.finalized_header {
-            let update_finalized_period = self
-                .chain_spec
-                .slot_to_sync_committee_period(finalized_header.slot());
-
-            if update_finalized_period == store_period + 1
-                && self.store.next_sync_committee.is_some()
-            {
+            if sync_committee::should_rotate(
+                finalized_header.slot(),
+                store_period,
+                self.store.next_sync_committee.is_some(),
+                &self.chain_spec,
+            ) {
                 self.store.current_sync_committee = self
                     .store
                     .next_sync_committee
                     .take()
-                    .expect("checked is_some above");
+                    .expect("should_rotate checked next is_some");
                 state_changed = true;
             }
         }
@@ -428,14 +427,19 @@ mod tests {
         let finalized = create_test_beacon_header(next_period_slot);
 
         // Exercise rotation directly (can't do full process_update because
-        // BLS/merkle proofs would fail with synthetic data).
-        let update_fin_period = chain_spec.slot_to_sync_committee_period(finalized.slot);
-        if update_fin_period == store_period + 1 && processor.store.next_sync_committee.is_some() {
+        // BLS/merkle proofs would fail with synthetic data). Uses the same
+        // `should_rotate` predicate as production.
+        if sync_committee::should_rotate(
+            finalized.slot,
+            store_period,
+            processor.store.next_sync_committee.is_some(),
+            &chain_spec,
+        ) {
             processor.store.current_sync_committee = processor
                 .store
                 .next_sync_committee
                 .take()
-                .expect("checked is_some");
+                .expect("should_rotate checked next is_some");
             // Advance finalized header to match (as apply_light_client_update does)
             processor.store.finalized_header = LightClientHeader::altair(finalized);
         }
