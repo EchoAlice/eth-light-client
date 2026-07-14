@@ -31,7 +31,7 @@ The library currently supports fork-aware light client verification through **Ca
 | Altair    | Yes          | Yes                | Yes                  | Supported |
 | Bellatrix | Yes          | Yes                | Yes                  | Supported |
 | Capella   | Yes          | Yes                | Yes                  | Supported |
-| Deneb     | Partial      | No                 | No                   | WIP       |
+| Deneb     | No           | No                 | No                   | Planned   |
 | Electra   | No           | No                 | No                   | Planned   |
 | Fulu      | No           | No                 | No                   | Planned   |
 
@@ -105,25 +105,17 @@ For local testnets or devnets, use `ChainSpecConfig` with `ChainSpec::try_from_c
 
 ### Current Scope and Constraints:
 - `sync_committee_size` currently supports only the standard Ethereum consensus preset values:
-  - `32` for the minimal preset
   - `512` for mainnet
+  - `32` for the minimal preset
 - SSZ tree layouts and generalized indices are not fully generic inputs; proof paths are implemented explicitly for each supported fork
 
 ### SSZ
-The crate uses a single SSZ implementation — the Sigma Prime / Lighthouse
-stack: **`ethereum_ssz`** (encode/decode) + **`ssz_types`** (length-bounded
-collections: `FixedVector`, `VariableList`, `BitVector`) + **`tree_hash`**
-(`hash_tree_root`). Public types carry their SSZ traits by deriving them
-(`#[derive(Encode, Decode, TreeHash)]`), so there is no hand-written
-merkleization and no second SSZ library.
+The crate uses a single SSZ implementation — the Sigma Prime / Lighthouse stack: **`ethereum_ssz`** (encode/decode) + **`ssz_types`** (length-bounded collections: `FixedVector`, `VariableList`, `BitVector`) + **`tree_hash`** (`hash_tree_root`). Public types carry their SSZ traits by deriving them (`#[derive(Encode, Decode, TreeHash)]`), so there is no hand-written merkleization.
 
-The one bespoke SSZ code is the wire-decode adapter in `src/types/ssz.rs`: it
-decodes fork-specific wire layouts and adapts them to the ergonomic public
-types (fork-enum headers, `Option` fields, the spec-sized sync committee) — the
-parts that cannot be a plain derive. It uses `ethereum_ssz` like everything else.
+The one piece of custom SSZ code is the wire-decode adapter in `src/types/ssz.rs`: it decodes fork-specific wire layouts and adapts them to the library's public types (fork-enum headers, `Option` fields, the spec-sized sync committee).  The wire adapter leverages `ethereum_ssz` where it can.
 
 ## Testing
-This library is end-to-end tested against official Ethereum Consensus light client spec tests for Altair, Bellatrix, and Capella hardforks.  Tests exercise the full verification flow through the public API:
+This library is end-to-end tested against official Ethereum Consensus minimal-preset light client spec tests for Altair, Bellatrix, and Capella hardforks.  Tests exercise the full verification flow through the public API:
 `LightClient::new` (bootstrap verification) and `process_update` (update verification).
 
 ```bash
@@ -147,7 +139,7 @@ BLS signature verification is covered by official Ethereum consensus spec test v
 - [x] Altair
 - [x] Bellatrix
 - [x] Capella
-- [~] Deneb
+- [ ] Deneb
 - [ ] Electra
 - [ ] Fulu
 2. Expand the module READMEs (esp. [`src/consensus/README.md`](src/consensus/README.md)).  Discuss major Ethereum Consensus concepts and repository design
