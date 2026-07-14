@@ -192,6 +192,13 @@ pub struct LightClient {
     inner: LightClientProcessor,
 }
 
+/// Snapshot of the observable state, used to diff an update's effect.
+struct StateSnapshot {
+    finalized_slot: Slot,
+    optimistic_slot: Slot,
+    period: u64,
+}
+
 impl LightClient {
     /// Creates a new light client from bootstrap data.
     ///
@@ -253,28 +260,9 @@ impl LightClient {
     /// - The update references unknown sync committees
     /// - Merkle proofs don't verify
     pub fn process_update(&mut self, update: LightClientUpdate) -> Result<UpdateOutcome> {
-        // Snapshot current state to detect changes
-        let old_finalized_slot = self.inner.finalized_header().slot;
-        let old_optimistic_slot = self.inner.optimistic_header().slot;
-        let old_period = self.inner.current_period();
-
-        // Process the update (may mutate internal state)
+        let before = self.snapshot();
         let state_changed = self.inner.process_update(update)?;
-
-        if !state_changed {
-            return Ok(UpdateOutcome::NoChange);
-        }
-
-        // Determine what specifically changed
-        let new_finalized_slot = self.inner.finalized_header().slot;
-        let new_optimistic_slot = self.inner.optimistic_header().slot;
-        let new_period = self.inner.current_period();
-
-        Ok(UpdateOutcome::StateAdvanced {
-            finalized_updated: new_finalized_slot != old_finalized_slot,
-            optimistic_updated: new_optimistic_slot != old_optimistic_slot,
-            sync_committee_updated: new_period != old_period,
-        })
+        Ok(self.outcome(before, state_changed))
     }
 
     /// Processes a light client update with an explicit current slot.
@@ -303,28 +291,9 @@ impl LightClient {
         update: LightClientUpdate,
         current_slot: Slot,
     ) -> Result<UpdateOutcome> {
-        // Snapshot current state to detect changes
-        let old_finalized_slot = self.inner.finalized_header().slot;
-        let old_optimistic_slot = self.inner.optimistic_header().slot;
-        let old_period = self.inner.current_period();
-
-        // Process the update with explicit slot (may mutate internal state)
+        let before = self.snapshot();
         let state_changed = self.inner.process_update_at_slot(update, current_slot)?;
-
-        if !state_changed {
-            return Ok(UpdateOutcome::NoChange);
-        }
-
-        // Determine what specifically changed
-        let new_finalized_slot = self.inner.finalized_header().slot;
-        let new_optimistic_slot = self.inner.optimistic_header().slot;
-        let new_period = self.inner.current_period();
-
-        Ok(UpdateOutcome::StateAdvanced {
-            finalized_updated: new_finalized_slot != old_finalized_slot,
-            optimistic_updated: new_optimistic_slot != old_optimistic_slot,
-            sync_committee_updated: new_period != old_period,
-        })
+        Ok(self.outcome(before, state_changed))
     }
 
     /// Returns the current finalized beacon block header.
@@ -376,6 +345,28 @@ impl LightClient {
     #[inline]
     pub fn chain_spec(&self) -> &ChainSpec {
         self.inner.chain_spec()
+    }
+
+    /// Snapshot the observable state (header slots + period) for change detection.
+    fn snapshot(&self) -> StateSnapshot {
+        StateSnapshot {
+            finalized_slot: self.inner.finalized_header().slot,
+            optimistic_slot: self.inner.optimistic_header().slot,
+            period: self.inner.current_period(),
+        }
+    }
+
+    /// Diff the post-update state against `before` into an [`UpdateOutcome`].
+    fn outcome(&self, before: StateSnapshot, state_changed: bool) -> UpdateOutcome {
+        if !state_changed {
+            return UpdateOutcome::NoChange;
+        }
+        let after = self.snapshot();
+        UpdateOutcome::StateAdvanced {
+            finalized_updated: after.finalized_slot != before.finalized_slot,
+            optimistic_updated: after.optimistic_slot != before.optimistic_slot,
+            sync_committee_updated: after.period != before.period,
+        }
     }
 }
 
