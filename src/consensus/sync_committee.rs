@@ -123,19 +123,15 @@ pub(crate) fn verify_sync_aggregate(
 ) -> Result<bool> {
     let participating_pubkeys = committee.participating_pubkeys(sync_committee_bits)?;
 
-    if participating_pubkeys.is_empty() {
-        return Ok(false);
-    }
-
     let domain =
         compute_sync_committee_domain_for_slot(signature_slot, genesis_validators_root, chain_spec);
 
-    verify_sync_committee_signature(
+    Ok(verify_sync_committee_signature(
         &participating_pubkeys,
         attested_header_root,
         sync_committee_signature,
         domain,
-    )
+    ))
 }
 
 /// Whether committee rotation should happen for this update (invariant I-2).
@@ -219,25 +215,19 @@ pub fn compute_beacon_domain(
 }
 
 /// Verify the sync committee's aggregate signature over the signing root.
+///
+/// An empty pubkey set is handled by `bls::verify_aggregate` (returns `false`).
 fn verify_sync_committee_signature(
     participating_pubkeys: &[BLSPublicKey],
     message: Root,
     signature: &BLSSignature,
     domain: Domain,
-) -> Result<bool> {
+) -> bool {
     use crate::consensus::bls;
 
-    if participating_pubkeys.is_empty() {
-        return Ok(false);
-    }
+    let signing_root = compute_signing_root(message, domain);
 
-    let signing_root = compute_signing_root(message, domain)?;
-
-    Ok(bls::verify_aggregate(
-        participating_pubkeys,
-        &signing_root,
-        signature,
-    ))
+    bls::verify_aggregate(participating_pubkeys, &signing_root, signature)
 }
 
 /// SigningData container as per Ethereum consensus spec
@@ -250,7 +240,7 @@ struct SigningData {
 
 /// Compute signing root for BLS signature as per beacon chain specification
 /// Uses TreeHash derive for spec-compliant hash_tree_root computation
-fn compute_signing_root(object_root: Root, domain: Domain) -> Result<Root> {
+fn compute_signing_root(object_root: Root, domain: Domain) -> Root {
     use tree_hash::TreeHash;
 
     let signing_data = SigningData {
@@ -261,7 +251,7 @@ fn compute_signing_root(object_root: Root, domain: Domain) -> Result<Root> {
 
     let mut signing_root = [0u8; 32];
     signing_root.copy_from_slice(root.as_bytes());
-    Ok(signing_root)
+    signing_root
 }
 
 #[cfg(test)]
@@ -389,20 +379,20 @@ mod tests {
         let message = [7u8; 32];
         let domain = [8u8; 32];
 
-        let signing_root1 = compute_signing_root(message, domain).unwrap();
-        let signing_root2 = compute_signing_root(message, domain).unwrap();
+        let signing_root1 = compute_signing_root(message, domain);
+        let signing_root2 = compute_signing_root(message, domain);
 
         // Should be deterministic
         assert_eq!(signing_root1, signing_root2);
 
         // Should change with different message
         let different_message = [9u8; 32];
-        let signing_root3 = compute_signing_root(different_message, domain).unwrap();
+        let signing_root3 = compute_signing_root(different_message, domain);
         assert_ne!(signing_root1, signing_root3);
 
         // Should change with different domain
         let different_domain = [10u8; 32];
-        let signing_root4 = compute_signing_root(message, different_domain).unwrap();
+        let signing_root4 = compute_signing_root(message, different_domain);
         assert_ne!(signing_root1, signing_root4);
     }
 
@@ -431,7 +421,7 @@ mod tests {
             compute_beacon_domain(DOMAIN_SYNC_COMMITTEE, fork_version, genesis_validators_root);
 
         // Compute signing root. (A real-world signing root would be a hashed beaconblockheader + domain)
-        let signing_root = compute_signing_root(message, domain).unwrap();
+        let signing_root = compute_signing_root(message, domain);
 
         // Create individual signatures for the signing root
         // DST uses G2 curve for Ethereum beacon chain
@@ -454,18 +444,17 @@ mod tests {
         let signature_bytes = final_signature.compress();
 
         // Verify the signature using our implementation
-        let verification_result =
-            verify_sync_committee_signature(&public_keys, message, &signature_bytes, domain);
-
-        assert!(verification_result.is_ok());
-        assert!(verification_result.unwrap()); // Should verify successfully
+        assert!(
+            verify_sync_committee_signature(&public_keys, message, &signature_bytes, domain),
+            "should verify successfully"
+        );
 
         // Test with wrong message (should fail)
         let wrong_message = [43u8; 32];
-        let wrong_verification =
-            verify_sync_committee_signature(&public_keys, wrong_message, &signature_bytes, domain);
-        assert!(wrong_verification.is_ok());
-        assert!(!wrong_verification.unwrap()); // Should fail verification
+        assert!(
+            !verify_sync_committee_signature(&public_keys, wrong_message, &signature_bytes, domain),
+            "wrong message should fail verification"
+        );
 
         // Test with wrong domain (should fail)
         let wrong_domain = compute_beacon_domain(
@@ -473,10 +462,10 @@ mod tests {
             fork_version,
             genesis_validators_root,
         );
-        let wrong_domain_verification =
-            verify_sync_committee_signature(&public_keys, message, &signature_bytes, wrong_domain);
-        assert!(wrong_domain_verification.is_ok());
-        assert!(!wrong_domain_verification.unwrap()); // Should fail verification
+        assert!(
+            !verify_sync_committee_signature(&public_keys, message, &signature_bytes, wrong_domain),
+            "wrong domain should fail verification"
+        );
     }
 
     /// Test that domain computation uses the fork version for the epoch of signature_slot.
