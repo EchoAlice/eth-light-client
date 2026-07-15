@@ -16,6 +16,16 @@ pub(crate) struct LightClientProcessor {
     store: LightClientStore,
 }
 
+/// What a processed update changed in the store. The engine reports this
+/// directly; the `LightClient` facade maps it to the public `UpdateOutcome`.
+#[derive(Default)]
+pub(crate) struct UpdateChanges {
+    pub finalized_updated: bool,
+    pub optimistic_updated: bool,
+    pub rotated: bool,
+    pub next_committee_learned: bool,
+}
+
 impl LightClientProcessor {
     pub(crate) fn new(
         chain_spec: ChainSpec,
@@ -46,7 +56,7 @@ impl LightClientProcessor {
         &mut self,
         update: LightClientUpdate,
         current_slot: Slot,
-    ) -> Result<bool> {
+    ) -> Result<UpdateChanges> {
         // Validate basic update properties: fail fast principle
         self.validate_light_client_update(&update, current_slot)?;
 
@@ -133,8 +143,8 @@ impl LightClientProcessor {
         Ok(())
     }
 
-    fn apply_light_client_update(&mut self, update: LightClientUpdate) -> Result<bool> {
-        let mut state_changed = false;
+    fn apply_light_client_update(&mut self, update: LightClientUpdate) -> Result<UpdateChanges> {
+        let mut changes = UpdateChanges::default();
 
         // Capture store period BEFORE any finalized-header mutation.
         let store_period = self.store.finalized_sync_committee_period(&self.chain_spec);
@@ -154,13 +164,11 @@ impl LightClientProcessor {
                 )?;
 
                 self.store.finalized_header = finalized_header.clone();
-                state_changed = true;
+                changes.finalized_updated = true;
             }
-        }
 
-        // Rotate when the update's finalized period == store_period + 1 and the
-        // next committee is known (invariant I-2, via `should_rotate`).
-        if let Some(ref finalized_header) = update.finalized_header {
+            // Rotate when the update's finalized period == store_period + 1 and the
+            // next committee is known (invariant I-2, via `should_rotate`).
             if sync_committee::should_rotate(
                 finalized_header.slot(),
                 store_period,
@@ -172,7 +180,7 @@ impl LightClientProcessor {
                     .next_sync_committee
                     .take()
                     .expect("should_rotate checked next is_some");
-                state_changed = true;
+                changes.rotated = true;
             }
         }
 
@@ -191,12 +199,12 @@ impl LightClientProcessor {
             &self.chain_spec,
         )? {
             self.store.next_sync_committee = Some(verified);
-            state_changed = true;
+            changes.next_committee_learned = true;
         }
 
         if update.attested_header.slot() > self.store.optimistic_header.slot() {
             self.store.optimistic_header = update.attested_header.clone();
-            state_changed = true;
+            changes.optimistic_updated = true;
         }
 
         let participation = update.sync_aggregate.participation_count() as u64;
@@ -205,7 +213,7 @@ impl LightClientProcessor {
             .current_max_active_participants
             .max(participation);
 
-        Ok(state_changed)
+        Ok(changes)
     }
 
     pub(crate) fn finalized_header(&self) -> &BeaconBlockHeader {

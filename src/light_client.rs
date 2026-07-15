@@ -7,7 +7,7 @@
 //! for usage, the trust model, and a full example.
 
 use crate::config::ChainSpec;
-use crate::consensus::processor::LightClientProcessor;
+use crate::consensus::processor::{LightClientProcessor, UpdateChanges};
 use crate::error::{Error, Result};
 use crate::types::consensus::{
     BeaconBlockHeader, LightClientBootstrap, LightClientUpdate, SyncCommittee,
@@ -46,9 +46,10 @@ impl LightClient {
         update: LightClientUpdate,
         current_slot: Slot,
     ) -> Result<UpdateOutcome> {
-        let before = self.snapshot();
-        let state_changed = self.inner.process_update_at_slot(update, current_slot)?;
-        Ok(self.outcome(before, state_changed))
+        Ok(self
+            .inner
+            .process_update_at_slot(update, current_slot)?
+            .into())
     }
 
     #[inline]
@@ -83,26 +84,6 @@ impl LightClient {
     pub fn chain_spec(&self) -> &ChainSpec {
         self.inner.chain_spec()
     }
-
-    fn snapshot(&self) -> StateSnapshot {
-        StateSnapshot {
-            finalized_slot: self.inner.finalized_header().slot,
-            optimistic_slot: self.inner.optimistic_header().slot,
-            period: self.inner.current_period(),
-        }
-    }
-
-    fn outcome(&self, before: StateSnapshot, state_changed: bool) -> UpdateOutcome {
-        if !state_changed {
-            return UpdateOutcome::NoChange;
-        }
-        let after = self.snapshot();
-        UpdateOutcome::StateAdvanced {
-            finalized_updated: after.finalized_slot != before.finalized_slot,
-            optimistic_updated: after.optimistic_slot != before.optimistic_slot,
-            sync_committee_updated: after.period != before.period,
-        }
-    }
 }
 
 impl std::fmt::Debug for LightClient {
@@ -116,19 +97,13 @@ impl std::fmt::Debug for LightClient {
     }
 }
 
-/// Used to diff an update's effect.
-struct StateSnapshot {
-    finalized_slot: Slot,
-    optimistic_slot: Slot,
-    period: u64,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UpdateOutcome {
     StateAdvanced {
         finalized_updated: bool,
         optimistic_updated: bool,
-        sync_committee_updated: bool,
+        rotated: bool,
+        next_committee_learned: bool,
     },
     NoChange,
 }
@@ -162,13 +137,36 @@ impl UpdateOutcome {
     }
 
     #[inline]
-    pub fn sync_committee_updated(&self) -> bool {
+    pub fn rotated(&self) -> bool {
+        matches!(
+            self,
+            UpdateOutcome::StateAdvanced { rotated: true, .. }
+        )
+    }
+
+    #[inline]
+    pub fn next_committee_learned(&self) -> bool {
         matches!(
             self,
             UpdateOutcome::StateAdvanced {
-                sync_committee_updated: true,
+                next_committee_learned: true,
                 ..
             }
         )
+    }
+}
+
+impl From<UpdateChanges> for UpdateOutcome {
+    fn from(c: UpdateChanges) -> Self {
+        if !(c.finalized_updated || c.optimistic_updated || c.rotated || c.next_committee_learned) {
+            UpdateOutcome::NoChange
+        } else {
+            UpdateOutcome::StateAdvanced {
+                finalized_updated: c.finalized_updated,
+                optimistic_updated: c.optimistic_updated,
+                rotated: c.rotated,
+                next_committee_learned: c.next_committee_learned,
+            }
+        }
     }
 }
