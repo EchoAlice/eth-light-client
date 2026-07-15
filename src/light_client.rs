@@ -118,11 +118,6 @@ impl LightClient {
         Ok(Self { inner })
     }
 
-    /// Verifies and applies an update using wall-clock time, returning what changed.
-    ///
-    /// Reads the system clock to derive `current_slot`; use
-    /// [`process_update_at_slot`](Self::process_update_at_slot) to supply it
-    /// explicitly (tests, custom clocks).
     pub fn process_update(&mut self, update: LightClientUpdate) -> Result<UpdateOutcome> {
         let current_timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
