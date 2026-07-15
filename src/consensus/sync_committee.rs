@@ -138,7 +138,7 @@ pub(crate) fn verify_sync_aggregate(
 
 /// Whether committee rotation should happen for this update (invariant I-2).
 ///
-/// Rotation happens iff the update's finalized period is exactly one past the
+/// Rotation happens if the update's finalized period is exactly one past the
 /// store period and the next committee is known. This is the single predicate
 /// used by both `apply_light_client_update` and the rotation tests — keep it the
 /// only place this condition is expressed.
