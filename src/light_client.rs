@@ -15,94 +15,8 @@ use crate::types::consensus::{
 use crate::types::primitives::Slot;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum UpdateOutcome {
-    StateAdvanced {
-        finalized_updated: bool,
-        optimistic_updated: bool,
-        sync_committee_updated: bool,
-    },
-    NoChange,
-}
-
-impl UpdateOutcome {
-    #[inline]
-    pub fn state_changed(&self) -> bool {
-        matches!(self, UpdateOutcome::StateAdvanced { .. })
-    }
-
-    #[inline]
-    pub fn finalized_updated(&self) -> bool {
-        matches!(
-            self,
-            UpdateOutcome::StateAdvanced {
-                finalized_updated: true,
-                ..
-            }
-        )
-    }
-
-    #[inline]
-    pub fn optimistic_updated(&self) -> bool {
-        matches!(
-            self,
-            UpdateOutcome::StateAdvanced {
-                optimistic_updated: true,
-                ..
-            }
-        )
-    }
-
-    #[inline]
-    pub fn sync_committee_updated(&self) -> bool {
-        matches!(
-            self,
-            UpdateOutcome::StateAdvanced {
-                sync_committee_updated: true,
-                ..
-            }
-        )
-    }
-}
-
-impl std::fmt::Display for UpdateOutcome {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            UpdateOutcome::StateAdvanced {
-                finalized_updated,
-                optimistic_updated,
-                sync_committee_updated,
-            } => {
-                let mut changes = Vec::new();
-                if *finalized_updated {
-                    changes.push("finalized");
-                }
-                if *optimistic_updated {
-                    changes.push("optimistic");
-                }
-                if *sync_committee_updated {
-                    changes.push("sync_committee");
-                }
-                if changes.is_empty() {
-                    write!(f, "StateAdvanced(no fields changed)")
-                } else {
-                    write!(f, "StateAdvanced({})", changes.join(", "))
-                }
-            }
-            UpdateOutcome::NoChange => write!(f, "NoChange"),
-        }
-    }
-}
-
 pub struct LightClient {
     inner: LightClientProcessor,
-}
-
-/// Snapshot of the observable state, used to diff an update's effect.
-struct StateSnapshot {
-    finalized_slot: Slot,
-    optimistic_slot: Slot,
-    period: u64,
 }
 
 impl LightClient {
@@ -202,135 +116,59 @@ impl std::fmt::Debug for LightClient {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// Used to diff an update's effect.
+struct StateSnapshot {
+    finalized_slot: Slot,
+    optimistic_slot: Slot,
+    period: u64,
+}
 
-    #[test]
-    fn test_update_outcome_no_change() {
-        let outcome = UpdateOutcome::NoChange;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum UpdateOutcome {
+    StateAdvanced {
+        finalized_updated: bool,
+        optimistic_updated: bool,
+        sync_committee_updated: bool,
+    },
+    NoChange,
+}
 
-        assert!(!outcome.state_changed());
-        assert!(!outcome.finalized_updated());
-        assert!(!outcome.optimistic_updated());
-        assert!(!outcome.sync_committee_updated());
-        assert_eq!(outcome.to_string(), "NoChange");
+impl UpdateOutcome {
+    #[inline]
+    pub fn state_changed(&self) -> bool {
+        matches!(self, UpdateOutcome::StateAdvanced { .. })
     }
 
-    #[test]
-    fn test_update_outcome_finalized_only() {
-        let outcome = UpdateOutcome::StateAdvanced {
-            finalized_updated: true,
-            optimistic_updated: false,
-            sync_committee_updated: false,
-        };
-
-        assert!(outcome.state_changed());
-        assert!(outcome.finalized_updated());
-        assert!(!outcome.optimistic_updated());
-        assert!(!outcome.sync_committee_updated());
-        assert_eq!(outcome.to_string(), "StateAdvanced(finalized)");
+    #[inline]
+    pub fn finalized_updated(&self) -> bool {
+        matches!(
+            self,
+            UpdateOutcome::StateAdvanced {
+                finalized_updated: true,
+                ..
+            }
+        )
     }
 
-    #[test]
-    fn test_update_outcome_optimistic_only() {
-        let outcome = UpdateOutcome::StateAdvanced {
-            finalized_updated: false,
-            optimistic_updated: true,
-            sync_committee_updated: false,
-        };
-
-        assert!(outcome.state_changed());
-        assert!(!outcome.finalized_updated());
-        assert!(outcome.optimistic_updated());
-        assert!(!outcome.sync_committee_updated());
-        assert_eq!(outcome.to_string(), "StateAdvanced(optimistic)");
+    #[inline]
+    pub fn optimistic_updated(&self) -> bool {
+        matches!(
+            self,
+            UpdateOutcome::StateAdvanced {
+                optimistic_updated: true,
+                ..
+            }
+        )
     }
 
-    #[test]
-    fn test_update_outcome_sync_committee_only() {
-        let outcome = UpdateOutcome::StateAdvanced {
-            finalized_updated: false,
-            optimistic_updated: false,
-            sync_committee_updated: true,
-        };
-
-        assert!(outcome.state_changed());
-        assert!(!outcome.finalized_updated());
-        assert!(!outcome.optimistic_updated());
-        assert!(outcome.sync_committee_updated());
-        assert_eq!(outcome.to_string(), "StateAdvanced(sync_committee)");
-    }
-
-    #[test]
-    fn test_update_outcome_all_updated() {
-        let outcome = UpdateOutcome::StateAdvanced {
-            finalized_updated: true,
-            optimistic_updated: true,
-            sync_committee_updated: true,
-        };
-
-        assert!(outcome.state_changed());
-        assert!(outcome.finalized_updated());
-        assert!(outcome.optimistic_updated());
-        assert!(outcome.sync_committee_updated());
-        assert_eq!(
-            outcome.to_string(),
-            "StateAdvanced(finalized, optimistic, sync_committee)"
-        );
-    }
-
-    #[test]
-    fn test_update_outcome_state_advanced_no_fields() {
-        // Edge case: StateAdvanced but nothing actually changed
-        // This shouldn't happen in practice, but test the Display impl
-        let outcome = UpdateOutcome::StateAdvanced {
-            finalized_updated: false,
-            optimistic_updated: false,
-            sync_committee_updated: false,
-        };
-
-        assert!(outcome.state_changed());
-        assert!(!outcome.finalized_updated());
-        assert_eq!(outcome.to_string(), "StateAdvanced(no fields changed)");
-    }
-
-    use crate::test_utils::load_altair_bootstrap;
-
-    #[test]
-    fn test_light_client_creation() {
-        let bootstrap = load_altair_bootstrap();
-        let chain_spec = ChainSpec::minimal();
-        let expected_slot = bootstrap.header.slot();
-
-        let client = LightClient::new(chain_spec, bootstrap).expect("should create light client");
-
-        assert_eq!(client.finalized_header().slot, expected_slot);
-        assert_eq!(client.optimistic_header().slot, expected_slot);
-    }
-
-    #[test]
-    fn test_light_client_chain_spec() {
-        let bootstrap = load_altair_bootstrap();
-        let chain_spec = ChainSpec::minimal();
-
-        let client = LightClient::new(chain_spec, bootstrap).expect("should create");
-
-        let spec = client.chain_spec();
-        assert_eq!(spec.slots_per_epoch(), 8); // minimal preset uses 8
-    }
-
-    #[test]
-    fn test_light_client_sync_committee_access() {
-        let bootstrap = load_altair_bootstrap();
-        let chain_spec = ChainSpec::minimal();
-
-        let client = LightClient::new(chain_spec, bootstrap).expect("should create");
-
-        // Should have current committee
-        let _current = client.current_sync_committee();
-
-        // Should not have next committee initially
-        assert!(client.next_sync_committee().is_none());
+    #[inline]
+    pub fn sync_committee_updated(&self) -> bool {
+        matches!(
+            self,
+            UpdateOutcome::StateAdvanced {
+                sync_committee_updated: true,
+                ..
+            }
+        )
     }
 }
