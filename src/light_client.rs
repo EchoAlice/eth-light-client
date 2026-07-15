@@ -15,65 +15,8 @@ use crate::types::consensus::{
 use crate::types::primitives::Slot;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum UpdateOutcome {
-    StateAdvanced {
-        finalized_updated: bool,
-        optimistic_updated: bool,
-        sync_committee_updated: bool,
-    },
-    NoChange,
-}
-
-impl UpdateOutcome {
-    #[inline]
-    pub fn state_changed(&self) -> bool {
-        matches!(self, UpdateOutcome::StateAdvanced { .. })
-    }
-
-    #[inline]
-    pub fn finalized_updated(&self) -> bool {
-        matches!(
-            self,
-            UpdateOutcome::StateAdvanced {
-                finalized_updated: true,
-                ..
-            }
-        )
-    }
-
-    #[inline]
-    pub fn optimistic_updated(&self) -> bool {
-        matches!(
-            self,
-            UpdateOutcome::StateAdvanced {
-                optimistic_updated: true,
-                ..
-            }
-        )
-    }
-
-    #[inline]
-    pub fn sync_committee_updated(&self) -> bool {
-        matches!(
-            self,
-            UpdateOutcome::StateAdvanced {
-                sync_committee_updated: true,
-                ..
-            }
-        )
-    }
-}
-
 pub struct LightClient {
     inner: LightClientProcessor,
-}
-
-/// Snapshot of the observable state, used to diff an update's effect.
-struct StateSnapshot {
-    finalized_slot: Slot,
-    optimistic_slot: Slot,
-    period: u64,
 }
 
 impl LightClient {
@@ -170,5 +113,62 @@ impl std::fmt::Debug for LightClient {
             .field("current_period", &self.current_period())
             .field("has_next_committee", &self.next_sync_committee().is_some())
             .finish()
+    }
+}
+
+/// Used to diff an update's effect.
+struct StateSnapshot {
+    finalized_slot: Slot,
+    optimistic_slot: Slot,
+    period: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum UpdateOutcome {
+    StateAdvanced {
+        finalized_updated: bool,
+        optimistic_updated: bool,
+        sync_committee_updated: bool,
+    },
+    NoChange,
+}
+
+impl UpdateOutcome {
+    #[inline]
+    pub fn state_changed(&self) -> bool {
+        matches!(self, UpdateOutcome::StateAdvanced { .. })
+    }
+
+    #[inline]
+    pub fn finalized_updated(&self) -> bool {
+        matches!(
+            self,
+            UpdateOutcome::StateAdvanced {
+                finalized_updated: true,
+                ..
+            }
+        )
+    }
+
+    #[inline]
+    pub fn optimistic_updated(&self) -> bool {
+        matches!(
+            self,
+            UpdateOutcome::StateAdvanced {
+                optimistic_updated: true,
+                ..
+            }
+        )
+    }
+
+    #[inline]
+    pub fn sync_committee_updated(&self) -> bool {
+        matches!(
+            self,
+            UpdateOutcome::StateAdvanced {
+                sync_committee_updated: true,
+                ..
+            }
+        )
     }
 }
