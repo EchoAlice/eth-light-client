@@ -10,26 +10,13 @@ use crate::types::consensus::{
 use crate::types::primitives::Root;
 use crate::types::primitives::Slot;
 
-/// Light client processor for handling beacon chain updates.
-/// Internal to the crate - not part of the public API.
 #[derive(Debug)]
 pub(crate) struct LightClientProcessor {
-    /// Chain specification (mainnet or minimal)
     chain_spec: ChainSpec,
-    /// Current trusted state
     store: LightClientStore,
 }
 
 impl LightClientProcessor {
-    /// Create a new light client processor with verified bootstrap.
-    ///
-    /// The `current_sync_committee_branch` proves that `current_sync_committee` is
-    /// correctly embedded in `trusted_header.state_root`. This verification is
-    /// mandatory - there is no unverified constructor path.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the sync committee branch proof fails verification.
     pub(crate) fn new(
         chain_spec: ChainSpec,
         trusted_header: LightClientHeader,
@@ -37,7 +24,6 @@ impl LightClientProcessor {
         current_sync_committee_branch: &[Root],
         genesis_validators_root: Root,
     ) -> Result<Self> {
-        // Verify that the sync committee is properly embedded in the trusted state
         verify_bootstrap_sync_committee(
             &current_sync_committee,
             current_sync_committee_branch,
@@ -55,11 +41,7 @@ impl LightClientProcessor {
         Ok(Self { chain_spec, store })
     }
 
-    /// Process a light client update, validating it against `current_slot`.
-    ///
-    /// The engine is time-injectable: the caller supplies `current_slot` (the
-    /// `LightClient` facade reads the wall clock; spec tests inject the fixture's
-    /// slot).
+    /// The engine is time-injectable
     pub(crate) fn process_update_at_slot(
         &mut self,
         update: LightClientUpdate,
@@ -75,8 +57,6 @@ impl LightClientProcessor {
         self.apply_light_client_update(update)
     }
 
-    /// Validate light client update structure and timing.
-    ///
     /// Takes `current_slot` as an explicit parameter for testability.
     fn validate_light_client_update(
         &self,
@@ -119,8 +99,6 @@ impl LightClientProcessor {
         Ok(())
     }
 
-    /// Verify BLS signature on the light client update.
-    ///
     /// The sync committee signs `hash_tree_root(attested_header.beacon)` — the
     /// beacon block root, not the full `LightClientHeader` root (which includes
     /// execution payload fields starting at Capella).
@@ -155,14 +133,12 @@ impl LightClientProcessor {
         Ok(())
     }
 
-    /// Apply verified light client update to our state
     fn apply_light_client_update(&mut self, update: LightClientUpdate) -> Result<bool> {
         let mut state_changed = false;
 
         // Capture store period BEFORE any finalized-header mutation.
         let store_period = self.store.finalized_sync_committee_period(&self.chain_spec);
 
-        // Update finalized header (verify finality proof first)
         if let Some(ref finalized_header) = update.finalized_header {
             if finalized_header.slot() > self.store.finalized_header.slot() {
                 // The finality branch proves that beacon.hash_tree_root() matches
@@ -218,13 +194,11 @@ impl LightClientProcessor {
             state_changed = true;
         }
 
-        // Update optimistic header if this is better
         if update.attested_header.slot() > self.store.optimistic_header.slot() {
             self.store.optimistic_header = update.attested_header.clone();
             state_changed = true;
         }
 
-        // Update participation tracking
         let participation = update.sync_aggregate.participation_count() as u64;
         self.store.current_max_active_participants = self
             .store
@@ -234,7 +208,6 @@ impl LightClientProcessor {
         Ok(state_changed)
     }
 
-    /// Current finalized header (beacon block header, regardless of fork).
     pub(crate) fn finalized_header(&self) -> &BeaconBlockHeader {
         self.store.finalized_header.beacon()
     }
@@ -400,8 +373,7 @@ mod tests {
         assert!(processor.store.next_sync_committee.is_none());
 
         // Inject a distinguishable "next" committee directly on the store
-        let next =
-            SyncCommittee::from_parts(vec![[0xAA; 48]; 32], [0xBB; 48]).unwrap();
+        let next = SyncCommittee::from_parts(vec![[0xAA; 48]; 32], [0xBB; 48]).unwrap();
         processor.store.next_sync_committee = Some(next.clone());
 
         // Store period is still initial_period (finalized header not yet updated)
@@ -432,7 +404,11 @@ mod tests {
 
         // Assertions: store state is correct after rotation
         assert_eq!(
-            processor.store.current_sync_committee.aggregate_pubkey().as_ref(),
+            processor
+                .store
+                .current_sync_committee
+                .aggregate_pubkey()
+                .as_ref(),
             &[0xBB; 48],
             "store current committee should be what was next"
         );
