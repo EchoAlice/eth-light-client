@@ -89,8 +89,8 @@ impl LightClientProcessor {
             ));
         }
 
-        // Attested header should be newer than our current finalized header (with some tolerance)
-        // Allow updates from the same slot if they have sync committee updates
+        // Attested header must be newer than our finalized header — or equal, if
+        // the update carries a sync committee (useful for bootstrapping).
         let has_sync_committee = update.has_sync_committee_update();
         let is_slot_acceptable = if has_sync_committee {
             // Allow equal slots if update contains sync committee (useful for bootstrapping)
