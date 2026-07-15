@@ -65,35 +65,6 @@ impl UpdateOutcome {
     }
 }
 
-impl std::fmt::Display for UpdateOutcome {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            UpdateOutcome::StateAdvanced {
-                finalized_updated,
-                optimistic_updated,
-                sync_committee_updated,
-            } => {
-                let mut changes = Vec::new();
-                if *finalized_updated {
-                    changes.push("finalized");
-                }
-                if *optimistic_updated {
-                    changes.push("optimistic");
-                }
-                if *sync_committee_updated {
-                    changes.push("sync_committee");
-                }
-                if changes.is_empty() {
-                    write!(f, "StateAdvanced(no fields changed)")
-                } else {
-                    write!(f, "StateAdvanced({})", changes.join(", "))
-                }
-            }
-            UpdateOutcome::NoChange => write!(f, "NoChange"),
-        }
-    }
-}
-
 pub struct LightClient {
     inner: LightClientProcessor,
 }
