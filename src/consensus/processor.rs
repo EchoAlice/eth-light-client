@@ -9,7 +9,6 @@ use crate::types::consensus::{
 };
 use crate::types::primitives::Root;
 use crate::types::primitives::Slot;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Light client processor for handling beacon chain updates.
 /// Internal to the crate - not part of the public API.
@@ -56,24 +55,11 @@ impl LightClientProcessor {
         Ok(Self { chain_spec, store })
     }
 
-    /// Process a light client update using wall-clock time for slot validation.
+    /// Process a light client update, validating it against `current_slot`.
     ///
-    /// This is a convenience wrapper that computes `current_slot` from system time.
-    /// For spec-testable behavior, use `process_update_at_slot`.
-    pub(crate) fn process_update(&mut self, update: LightClientUpdate) -> Result<bool> {
-        let current_timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|_| Error::Internal("Failed to get current time".to_string()))?
-            .as_secs();
-        let current_slot = self.chain_spec.timestamp_to_slot(current_timestamp);
-
-        self.process_update_at_slot(update, current_slot)
-    }
-
-    /// Process a light client update with an explicit current slot.
-    ///
-    /// This allows spec tests to inject the fixture's `current_slot` so that
-    /// time-based validation is properly exercised.
+    /// The engine is time-injectable: the caller supplies `current_slot` (the
+    /// `LightClient` facade reads the wall clock; spec tests inject the fixture's
+    /// slot).
     pub(crate) fn process_update_at_slot(
         &mut self,
         update: LightClientUpdate,

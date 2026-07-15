@@ -8,11 +8,12 @@
 
 use crate::config::ChainSpec;
 use crate::consensus::processor::LightClientProcessor;
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::types::consensus::{
     BeaconBlockHeader, LightClientBootstrap, LightClientUpdate, SyncCommittee,
 };
 use crate::types::primitives::Slot;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UpdateOutcome {
@@ -118,10 +119,17 @@ impl LightClient {
     }
 
     /// Verifies and applies an update using wall-clock time, returning what changed.
+    ///
+    /// Reads the system clock to derive `current_slot`; use
+    /// [`process_update_at_slot`](Self::process_update_at_slot) to supply it
+    /// explicitly (tests, custom clocks).
     pub fn process_update(&mut self, update: LightClientUpdate) -> Result<UpdateOutcome> {
-        let before = self.snapshot();
-        let state_changed = self.inner.process_update(update)?;
-        Ok(self.outcome(before, state_changed))
+        let current_timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| Error::Internal("Failed to get current time".to_string()))?
+            .as_secs();
+        let current_slot = self.chain_spec().timestamp_to_slot(current_timestamp);
+        self.process_update_at_slot(update, current_slot)
     }
 
     pub fn process_update_at_slot(
