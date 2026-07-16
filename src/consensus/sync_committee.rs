@@ -82,7 +82,7 @@ pub(crate) fn learn_next_sync_committee_from_update(
     }
 
     let update_period = chain_spec.slot_to_sync_committee_period(update.attested_header.slot());
-    let attested_next_committee = update.next_sync_committee.as_ref().unwrap();
+    let next = update.next_sync_committee.as_ref().unwrap();
 
     // Defensive invariant: only learn `next_sync_committee` when
     // `attested_period == finalized_period` (store period). This should
@@ -97,14 +97,14 @@ pub(crate) fn learn_next_sync_committee_from_update(
 
     // Verify the merkle branch proof
     verify_next_sync_committee(
-        attested_next_committee,
-        &update.next_sync_committee_branch,
+        &next.committee,
+        &next.branch,
         update.attested_header.slot(),
         update.attested_header.state_root(),
         chain_spec,
     )?;
 
-    Ok(Some(attested_next_committee.clone()))
+    Ok(Some(next.committee.clone()))
 }
 
 /// Verify a sync aggregate signature.

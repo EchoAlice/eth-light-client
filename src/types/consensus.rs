@@ -317,15 +317,27 @@ impl SyncAggregate {
 #[derive(Debug, Clone, PartialEq)]
 pub struct LightClientUpdate {
     pub attested_header: LightClientHeader,
-    pub finalized_header: Option<LightClientHeader>,
-    // TODO: Should this be wrapped in an option too?
-    pub finality_branch: Vec<Root>,
-    pub next_sync_committee: Option<SyncCommittee>,
-    // TODO: Should this be wrapped in an option too?
-    pub next_sync_committee_branch: Vec<Root>,
+    /// The finalized header and its finality branch — present together or not at all.
+    pub finalized: Option<FinalityUpdate>,
+    /// The next sync committee and its inclusion branch — present together or not at all.
+    pub next_sync_committee: Option<SyncCommitteeUpdate>,
     pub sync_aggregate: SyncAggregate,
     /// Should be attested_header.slot + 1
     pub signature_slot: Slot,
+}
+
+/// A finalized header paired with the Merkle branch proving it in the attested state.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FinalityUpdate {
+    pub header: LightClientHeader,
+    pub branch: Vec<Root>,
+}
+
+/// A next sync committee paired with the Merkle branch proving it in the attested state.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SyncCommitteeUpdate {
+    pub committee: SyncCommittee,
+    pub branch: Vec<Root>,
 }
 
 impl LightClientUpdate {
@@ -342,23 +354,16 @@ impl LightClientUpdate {
     ) -> Self {
         Self {
             attested_header: LightClientHeader::altair(attested_header),
-            finalized_header: None,
-            finality_branch: Vec::new(),
+            finalized: None,
             next_sync_committee: None,
-            next_sync_committee_branch: Vec::new(),
             sync_aggregate,
             signature_slot,
         }
     }
 
     #[cfg(test)]
-    pub fn with_next_sync_committee(
-        mut self,
-        next_sync_committee: SyncCommittee,
-        next_sync_committee_branch: Vec<Root>,
-    ) -> Self {
-        self.next_sync_committee = Some(next_sync_committee);
-        self.next_sync_committee_branch = next_sync_committee_branch;
+    pub fn with_next_sync_committee(mut self, committee: SyncCommittee, branch: Vec<Root>) -> Self {
+        self.next_sync_committee = Some(SyncCommitteeUpdate { committee, branch });
         self
     }
 
@@ -523,7 +528,7 @@ mod tests {
 
         let sync_committee = create_test_sync_committee();
         assert!(update.validate_basic(&sync_committee).is_ok());
-        assert!(update.finalized_header.is_none());
+        assert!(update.finalized.is_none());
         assert!(!update.has_sync_committee_update());
     }
 

@@ -73,8 +73,8 @@ impl LightClientProcessor {
 
         // Validate header-local consistency (execution branch for Capella+).
         validate_light_client_header(&update.attested_header)?;
-        if let Some(ref finalized) = update.finalized_header {
-            validate_light_client_header(finalized)?;
+        if let Some(ref finalized) = update.finalized {
+            validate_light_client_header(&finalized.header)?;
         }
 
         if update.signature_slot > current_slot {
@@ -140,27 +140,27 @@ impl LightClientProcessor {
         // Capture store period BEFORE any finalized-header mutation.
         let store_period = self.store.finalized_sync_committee_period(&self.chain_spec);
 
-        if let Some(ref finalized_header) = update.finalized_header {
-            if finalized_header.slot() > self.store.finalized_header.slot() {
+        if let Some(ref finalized) = update.finalized {
+            if finalized.header.slot() > self.store.finalized_header.slot() {
                 // The finality branch proves that beacon.hash_tree_root() matches
                 // finalized_checkpoint.root in the attested state — use the beacon
                 // root, not the full LightClientHeader root.
-                let finalized_header_root = finalized_header.beacon().hash_tree_root()?;
+                let finalized_header_root = finalized.header.beacon().hash_tree_root()?;
                 verify_finality_branch(
                     &finalized_header_root,
-                    &update.finality_branch,
+                    &finalized.branch,
                     update.attested_header.slot(),
                     update.attested_header.state_root(),
                     &self.chain_spec,
                 )?;
 
-                self.store.finalized_header = finalized_header.clone();
+                self.store.finalized_header = finalized.header.clone();
                 changes.finalized_updated = true;
             }
 
             // Rotate on finalized-period advance (invariant I-2; see consensus/README).
             if sync_committee::should_rotate(
-                finalized_header.slot(),
+                finalized.header.slot(),
                 store_period,
                 self.store.next_sync_committee.is_some(),
                 &self.chain_spec,
