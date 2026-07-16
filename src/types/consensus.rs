@@ -8,8 +8,8 @@ use ssz_types::{FixedVector, VariableList};
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
 
-/// Beacon block header as per consensus specs
-/// Uses TreeHash derive for proper SSZ hash_tree_root computation
+pub type PubkeyBytes = FixedVector<u8, U48>;
+
 #[derive(Debug, Clone, PartialEq, Eq, TreeHash, Encode, Decode)]
 pub struct BeaconBlockHeader {
     pub slot: Slot,
@@ -50,19 +50,7 @@ impl BeaconBlockHeader {
     }
 }
 
-// =============================================================================
-// LightClientHeader (fork-aware)
-// =============================================================================
-
-/// Fork-aware light client header.
-///
-/// Each consensus fork defines its own `LightClientHeader` shape.
-/// In Altair and Bellatrix the header contains only a `BeaconBlockHeader`.
-/// Later forks (Capella onward) add execution payload header fields;
-/// those variants will be added here as the library gains support.
-///
-/// Verification logic accesses the inner `BeaconBlockHeader` through
-/// [`beacon()`](Self::beacon), keeping the pipeline fork-agnostic.
+/// Verification logic accesses the inner `BeaconBlockHeader` through [`beacon()`](Self::beacon), keeping the pipeline fork-agnostic.
 #[derive(Debug, Clone, PartialEq)]
 #[allow(clippy::large_enum_variant)]
 pub enum LightClientHeader {
@@ -75,36 +63,23 @@ pub enum LightClientHeader {
     // Fulu(FuluLightClientHeader),
 }
 
-/// Altair light client header — beacon header only.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AltairLightClientHeader {
     pub beacon: BeaconBlockHeader,
 }
 
-/// Bellatrix light client header — same shape as Altair.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BellatrixLightClientHeader {
     pub beacon: BeaconBlockHeader,
 }
 
-/// Capella light client header — adds execution payload.
-///
-/// Starting at Capella, the `LightClientHeader` includes an execution
-/// payload header and a merkle branch proving it is embedded in
-/// `beacon.body_root` at `EXECUTION_PAYLOAD_GINDEX` (25).
 #[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
 pub struct CapellaLightClientHeader {
     pub beacon: BeaconBlockHeader,
     pub execution: ExecutionPayloadHeaderCapella,
-    /// Merkle branch proving `execution` is at gindex 25 in `beacon.body_root`.
-    /// Fixed length = floorlog2(EXECUTION_PAYLOAD_GINDEX) = floorlog2(25) = 4.
     pub execution_branch: FixedVector<Root, U4>,
 }
 
-/// Execution payload header for Capella (15 fields).
-///
-/// This is the execution-layer block header embedded in the beacon block.
-/// Capella adds `withdrawals_root` compared to Bellatrix.
 #[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
 pub struct ExecutionPayloadHeaderCapella {
     pub parent_hash: Root,
@@ -117,7 +92,6 @@ pub struct ExecutionPayloadHeaderCapella {
     pub gas_limit: u64,
     pub gas_used: u64,
     pub timestamp: u64,
-    /// `ByteList[32]` — the 32-byte bound is enforced by the `VariableList` type.
     pub extra_data: VariableList<u8, U32>,
     pub base_fee_per_gas: U256,
     pub block_hash: Root,
@@ -125,6 +99,7 @@ pub struct ExecutionPayloadHeaderCapella {
     pub withdrawals_root: Root,
 }
 
+// TODO: Does this method make sense?
 impl ExecutionPayloadHeaderCapella {
     /// SSZ `hash_tree_root` as a [`Root`] — thin wrapper over the derived
     /// [`TreeHash`] impl (the field-by-field merkleization is now generated).
@@ -133,23 +108,12 @@ impl ExecutionPayloadHeaderCapella {
     }
 }
 
-/// Deneb light client header — same shape as Capella, with a Deneb execution payload.
-///
-/// The execution branch length is unchanged: `EXECUTION_PAYLOAD_GINDEX` (25) is
-/// constant from Capella through Electra, so `floorlog2(25) = 4`.
 #[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
 pub struct DenebLightClientHeader {
     pub beacon: BeaconBlockHeader,
     pub execution: ExecutionPayloadHeaderDeneb,
-    /// Merkle branch proving `execution` is at gindex 25 in `beacon.body_root`.
     pub execution_branch: FixedVector<Root, U4>,
 }
-
-/// Execution payload header for Deneb (17 fields).
-///
-/// Adds `blob_gas_used` and `excess_blob_gas` to the Capella shape, increasing
-/// the SSZ container field count from 15 to 17. Merkleization pads to 32 leaves
-/// (next power of two ≥ 17), which differs from Capella's 16-leaf padding.
 #[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
 pub struct ExecutionPayloadHeaderDeneb {
     pub parent_hash: Root,
@@ -162,7 +126,6 @@ pub struct ExecutionPayloadHeaderDeneb {
     pub gas_limit: u64,
     pub gas_used: u64,
     pub timestamp: u64,
-    /// `ByteList[32]` — the 32-byte bound is enforced by the `VariableList` type.
     pub extra_data: VariableList<u8, U32>,
     pub base_fee_per_gas: U256,
     pub block_hash: Root,
@@ -172,6 +135,7 @@ pub struct ExecutionPayloadHeaderDeneb {
     pub excess_blob_gas: u64,
 }
 
+// TODO: Does this method make sense?
 impl ExecutionPayloadHeaderDeneb {
     /// SSZ `hash_tree_root` as a [`Root`] — thin wrapper over the derived
     /// [`TreeHash`] impl.
@@ -181,11 +145,13 @@ impl ExecutionPayloadHeaderDeneb {
 }
 
 impl LightClientHeader {
+    // TODO: Does this method make sense?
     /// Wrap a `BeaconBlockHeader` as an Altair-era header.
     pub(crate) fn altair(beacon: BeaconBlockHeader) -> Self {
         Self::Altair(AltairLightClientHeader { beacon })
     }
 
+    // TODO: Should we delete?
     /// Wrap a `BeaconBlockHeader` as a Bellatrix-era header.
     pub(crate) fn bellatrix(beacon: BeaconBlockHeader) -> Self {
         Self::Bellatrix(BellatrixLightClientHeader { beacon })
@@ -201,30 +167,15 @@ impl LightClientHeader {
         }
     }
 
-    /// The header's slot.
     pub fn slot(&self) -> Slot {
         self.beacon().slot
     }
 
-    /// The header's state root.
     pub fn state_root(&self) -> &Root {
         &self.beacon().state_root
     }
 }
 
-// =============================================================================
-// SyncCommittee
-// =============================================================================
-
-/// A single BLS public key as SSZ bytes (`Vector[byte, 48]`).
-pub type PubkeyBytes = FixedVector<u8, U48>;
-
-/// Sync committee: a spec-sized list of BLS pubkeys plus the aggregate.
-///
-/// The list length *is* the committee size (32 minimal / 512 mainnet), so there
-/// is no zero-padding (#21). The SSZ size — which the network preset fixes and
-/// [`ChainSpec`] owns — is not carried on the value; the root is computed by
-/// dispatching on the list length to a size-specific SSZ-native helper below.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SyncCommittee {
     pubkeys: Vec<PubkeyBytes>,
@@ -244,6 +195,7 @@ struct CommitteeRoot32 {
     aggregate_pubkey: PubkeyBytes,
 }
 
+// TODO: Should any of these methods be scoped to pub(crate)?
 impl SyncCommittee {
     /// SSZ `hash_tree_root`, dispatched on the (spec-sized) committee length.
     pub(crate) fn hash_tree_root(&self) -> Root {
@@ -269,7 +221,6 @@ impl SyncCommittee {
         }
     }
 
-    /// The committee members (spec-sized: 32 or 512, no padding).
     pub fn pubkeys(&self) -> &[PubkeyBytes] {
         &self.pubkeys
     }
@@ -278,7 +229,7 @@ impl SyncCommittee {
         &self.aggregate_pubkey
     }
 
-    /// Number of committee members (spec-sized; no padding).
+    // TODO: Should this be here? can't users call pubkeys.len locally?
     pub fn len(&self) -> usize {
         self.pubkeys.len()
     }
@@ -317,6 +268,7 @@ impl SyncCommittee {
         Ok(out)
     }
 
+    // TODO: Should this method be more explicitly named?
     /// Build a spec-sized committee (32 or 512 keys) from raw pubkey bytes.
     ///
     /// Enforces the `{32, 512}` size invariant at construction, so the size
@@ -341,15 +293,9 @@ impl SyncCommittee {
     }
 }
 
-/// Sync aggregate data for light client updates.
-///
-/// `sync_committee_bits` is spec-sized (32 or 512, no padding) — one bit per
-/// committee member. The aggregate is never `hash_tree_root`'d, so it needs no
-/// SSZ derive; it's decoded off the wire and used for participation + BLS.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyncAggregate {
     pub sync_committee_bits: Vec<bool>,
-    /// BLS aggregate signature
     pub sync_committee_signature: BLSSignature,
 }
 
@@ -368,13 +314,14 @@ impl SyncAggregate {
     }
 }
 
-/// [`LightClientHeader`]s are fork aware.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LightClientUpdate {
     pub attested_header: LightClientHeader,
     pub finalized_header: Option<LightClientHeader>,
+    // TODO: Should this be wrapped in an option too?
     pub finality_branch: Vec<Root>,
     pub next_sync_committee: Option<SyncCommittee>,
+    // TODO: Should this be wrapped in an option too?
     pub next_sync_committee_branch: Vec<Root>,
     pub sync_aggregate: SyncAggregate,
     /// Should be attested_header.slot + 1
@@ -382,15 +329,6 @@ pub struct LightClientUpdate {
 }
 
 impl LightClientUpdate {
-    /// Decode an SSZ-encoded light client update for `fork`.
-    ///
-    /// `bytes` is raw SSZ as served by the beacon API (not snappy-framed).
-    /// `fork` selects the wire layout — obtain it from the beacon API's
-    /// `Eth-Consensus-Version` header, or the per-item fork-version prefix on
-    /// `/eth/v1/beacon/light_client/updates`. `sync_committee_size` is the
-    /// network preset's committee width (`32` minimal / `512` mainnet — use
-    /// [`ChainSpec::sync_committee_size`]); the wire layout depends on it but
-    /// the bytes don't carry it. (SSZ is not self-describing.)
     pub fn from_ssz(bytes: &[u8], fork: Fork, sync_committee_size: usize) -> Result<Self> {
         crate::types::ssz::decode_update(bytes, fork, sync_committee_size)
     }
@@ -451,35 +389,15 @@ impl LightClientUpdate {
     }
 }
 
-/// Bootstrap data for initializing a light client.
-///
-/// This is the trusted anchor from which light client sync begins. It contains:
-/// - A trusted light client header (fork-aware, typically a finalized checkpoint)
-/// - The sync committee active at that header's slot
-/// - A merkle proof that the sync committee is embedded in the header's state root
-/// - The genesis validators root for the chain (used in signature domain computation)
-///
-/// Corresponds to the `LightClientBootstrap` object in the Ethereum consensus specs.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LightClientBootstrap {
-    /// The trusted header (fork-aware).
     pub header: LightClientHeader,
-    /// The current sync committee at the header's slot.
     pub current_sync_committee: SyncCommittee,
-    /// Merkle branch proving `current_sync_committee` is in `header.state_root`.
-    /// Length depends on the fork (Altair: 5 nodes).
     pub current_sync_committee_branch: Vec<Root>,
-    /// Genesis validators root for the chain (network identifier for domain computation).
     pub genesis_validators_root: Root,
 }
 
 impl LightClientBootstrap {
-    /// Decode an SSZ-encoded light client bootstrap for `fork`.
-    ///
-    /// `bytes` is raw SSZ as served by the beacon API (not snappy-framed).
-    /// `fork` and `sync_committee_size` select the wire layout (see
-    /// [`LightClientUpdate::from_ssz`]). `genesis_validators_root` is supplied
-    /// out-of-band (from beacon genesis); it is not part of the bootstrap message.
     pub fn from_ssz(
         bytes: &[u8],
         fork: Fork,
@@ -517,15 +435,10 @@ impl LightClientBootstrap {
 /// Headers are fork-aware [`LightClientHeader`] values.
 #[derive(Debug, Clone)]
 pub(crate) struct LightClientStore {
-    /// Best finalized header we've seen (fork-aware).
     pub finalized_header: LightClientHeader,
-    /// Current sync committee
     pub current_sync_committee: SyncCommittee,
-    /// Next sync committee (if known)
     pub next_sync_committee: Option<SyncCommittee>,
-    /// Optimistic header (may not be finalized, fork-aware).
     pub optimistic_header: LightClientHeader,
-    /// Genesis validators root (chain identity for signature domains)
     pub genesis_validators_root: Root,
 }
 
