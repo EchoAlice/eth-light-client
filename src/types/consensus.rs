@@ -361,10 +361,6 @@ impl SyncAggregate {
         }
     }
 
-    pub(crate) fn participation_count(&self) -> usize {
-        self.sync_committee_bits.iter().filter(|&&bit| bit).count()
-    }
-
     /// Check if sync aggregate has supermajority participation
     /// Uses actual committee size from the provided sync committee
     pub(crate) fn has_supermajority(&self, sync_committee: &SyncCommittee) -> bool {
@@ -531,11 +527,6 @@ pub(crate) struct LightClientStore {
     pub optimistic_header: LightClientHeader,
     /// Genesis validators root (chain identity for signature domains)
     pub genesis_validators_root: Root,
-    /// Previous max active participants (used by force_update - not yet implemented)
-    #[allow(dead_code)]
-    pub previous_max_active_participants: u64,
-    /// Current max active participants
-    pub current_max_active_participants: u64,
 }
 
 impl LightClientStore {
@@ -550,8 +541,6 @@ impl LightClientStore {
             current_sync_committee,
             next_sync_committee: None,
             genesis_validators_root,
-            previous_max_active_participants: 0,
-            current_max_active_participants: 0,
         }
     }
 
@@ -560,20 +549,6 @@ impl LightClientStore {
     /// This is the canonical "store period" per consensus-specs.
     pub(crate) fn finalized_sync_committee_period(&self, spec: &ChainSpec) -> u64 {
         spec.slot_to_sync_committee_period(self.finalized_header.slot())
-    }
-
-    // The following methods are reserved for future force_update implementation
-
-    /// Get the next sync committee period.
-    #[allow(dead_code)]
-    pub fn next_period(&self, spec: &ChainSpec) -> u64 {
-        self.finalized_sync_committee_period(spec) + 1
-    }
-
-    /// Check if we should update the sync committee for the given period.
-    #[allow(dead_code)]
-    pub fn should_update_sync_committee(&self, spec: &ChainSpec, period: u64) -> bool {
-        period == self.next_period(spec) && self.next_sync_committee.is_some()
     }
 }
 
@@ -653,7 +628,6 @@ mod tests {
         );
         // slot 1000 -> epoch 31 -> period 0
         assert_eq!(store.finalized_sync_committee_period(&spec), 0);
-        assert_eq!(store.next_period(&spec), 1);
         assert_eq!(store.genesis_validators_root, genesis_validators_root);
     }
 }

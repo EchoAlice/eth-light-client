@@ -192,12 +192,6 @@ impl LightClientProcessor {
             changes.optimistic_updated = true;
         }
 
-        let participation = update.sync_aggregate.participation_count() as u64;
-        self.store.current_max_active_participants = self
-            .store
-            .current_max_active_participants
-            .max(participation);
-
         Ok(changes)
     }
 
