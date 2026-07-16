@@ -2,10 +2,11 @@ use crate::config::ChainSpec;
 use crate::consensus::merkle::{
     validate_light_client_header, verify_bootstrap_sync_committee, verify_finality_branch,
 };
+use crate::consensus::store::LightClientStore;
 use crate::consensus::sync_committee;
 use crate::error::{Error, Result};
 use crate::types::consensus::{
-    BeaconBlockHeader, LightClientHeader, LightClientStore, LightClientUpdate, SyncCommittee,
+    BeaconBlockHeader, LightClientHeader, LightClientUpdate, SyncCommittee,
 };
 use crate::types::primitives::Root;
 use crate::types::primitives::Slot;
