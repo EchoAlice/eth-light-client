@@ -297,18 +297,22 @@ impl SyncCommittee {
     pub fn hash_tree_root(&self) -> Root {
         let agg = self.aggregate_pubkey.clone();
         match self.pubkeys.len() {
-            512 => CommitteeRoot512 {
-                pubkeys: FixedVector::new(self.pubkeys.clone()).expect("len checked"),
-                aggregate_pubkey: agg,
+            512 => {
+                CommitteeRoot512 {
+                    pubkeys: FixedVector::new(self.pubkeys.clone()).expect("len checked"),
+                    aggregate_pubkey: agg,
+                }
+                .tree_hash_root()
+                .0
             }
-            .tree_hash_root()
-            .0,
-            32 => CommitteeRoot32 {
-                pubkeys: FixedVector::new(self.pubkeys.clone()).expect("len checked"),
-                aggregate_pubkey: agg,
+            32 => {
+                CommitteeRoot32 {
+                    pubkeys: FixedVector::new(self.pubkeys.clone()).expect("len checked"),
+                    aggregate_pubkey: agg,
+                }
+                .tree_hash_root()
+                .0
             }
-            .tree_hash_root()
-            .0,
             n => unreachable!("sync committee is 32 or 512 members, got {n}"),
         }
     }
@@ -413,24 +417,16 @@ impl SyncAggregate {
     }
 }
 
-/// Light client update containing all data needed for verification.
-///
-/// Headers are fork-aware [`LightClientHeader`] values.
+/// [`LightClientHeader`]s are fork aware.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LightClientUpdate {
-    /// The header being attested to (fork-aware).
     pub attested_header: LightClientHeader,
-    /// The finalized header (fork-aware), if present.
     pub finalized_header: Option<LightClientHeader>,
-    /// Merkle proof for finalized header
     pub finality_branch: Vec<Root>,
-    /// Next sync committee (if committee changes)
     pub next_sync_committee: Option<SyncCommittee>,
-    /// Merkle proof for next sync committee
     pub next_sync_committee_branch: Vec<Root>,
-    /// Sync committee aggregate signature and participation
     pub sync_aggregate: SyncAggregate,
-    /// Signature slot (should be attested_header.slot + 1)
+    /// Should be attested_header.slot + 1
     pub signature_slot: Slot,
 }
 
@@ -562,7 +558,12 @@ impl LightClientBootstrap {
         sync_committee_size: usize,
         genesis_validators_root: Root,
     ) -> Result<Self> {
-        crate::types::ssz::decode_bootstrap(bytes, fork, sync_committee_size, genesis_validators_root)
+        crate::types::ssz::decode_bootstrap(
+            bytes,
+            fork,
+            sync_committee_size,
+            genesis_validators_root,
+        )
     }
 
     /// Create a new bootstrap package from a `BeaconBlockHeader` (convenience, wraps as Altair).
@@ -684,12 +685,18 @@ mod tests {
 
         // Exactly 2/3 passes.
         let mut participation = vec![false; 32];
-        participation.iter_mut().take(threshold).for_each(|p| *p = true);
+        participation
+            .iter_mut()
+            .take(threshold)
+            .for_each(|p| *p = true);
         assert!(committee.has_supermajority_participation(&participation));
 
         // One below 2/3 fails.
         let mut participation = vec![false; 32];
-        participation.iter_mut().take(threshold - 1).for_each(|p| *p = true);
+        participation
+            .iter_mut()
+            .take(threshold - 1)
+            .for_each(|p| *p = true);
         assert!(!committee.has_supermajority_participation(&participation));
 
         // Full participation passes.

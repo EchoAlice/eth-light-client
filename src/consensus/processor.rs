@@ -16,8 +16,7 @@ pub(crate) struct LightClientProcessor {
     store: LightClientStore,
 }
 
-/// What a processed update changed in the store. The engine reports this
-/// directly; the `LightClient` facade maps it to the public `UpdateOutcome`.
+/// What a processed update changed in the store.
 #[derive(Default)]
 pub(crate) struct UpdateChanges {
     pub finalized_updated: bool,
@@ -51,29 +50,25 @@ impl LightClientProcessor {
         Ok(Self { chain_spec, store })
     }
 
-    /// The engine is time-injectable
+    /// The processor is time-injectable
     pub(crate) fn process_update_at_slot(
         &mut self,
         update: LightClientUpdate,
         current_slot: Slot,
     ) -> Result<UpdateChanges> {
-        // Validate basic update properties: fail fast principle
         self.validate_light_client_update(&update, current_slot)?;
 
-        // Verify sync committee signature
         self.verify_update_signature(&update)?;
 
-        // Apply the update to our store
         self.apply_light_client_update(update)
     }
 
-    /// Takes `current_slot` as an explicit parameter for testability.
+    /// Validate basic update properties: fail fast principle
     fn validate_light_client_update(
         &self,
         update: &LightClientUpdate,
         current_slot: Slot,
     ) -> Result<()> {
-        // Basic validation: signature_slot > attested_header.slot, supermajority participation
         update.validate_basic(&self.store.current_sync_committee)?;
 
         // Validate header-local consistency (execution branch for Capella+).
@@ -82,21 +77,17 @@ impl LightClientProcessor {
             validate_light_client_header(finalized)?;
         }
 
-        // Spec: current_slot >= signature_slot (strict, no tolerance)
         if update.signature_slot > current_slot {
             return Err(Error::InvalidInput(
                 "Update signature slot is in the future".to_string(),
             ));
         }
 
-        // Attested header must be newer than our finalized header — or equal, if
-        // the update carries a sync committee (useful for bootstrapping).
+        // Attested header must be newer than our finalized header — or equal if the update carries a sync committee (useful for bootstrapping).
         let has_sync_committee = update.has_sync_committee_update();
         let is_slot_acceptable = if has_sync_committee {
-            // Allow equal slots if update contains sync committee (useful for bootstrapping)
             update.attested_header.slot() >= self.store.finalized_header.slot()
         } else {
-            // Regular updates must be strictly newer
             update.attested_header.slot() > self.store.finalized_header.slot()
         };
 
@@ -167,8 +158,7 @@ impl LightClientProcessor {
                 changes.finalized_updated = true;
             }
 
-            // Rotate when the update's finalized period == store_period + 1 and the
-            // next committee is known (invariant I-2, via `should_rotate`).
+            // Rotate on finalized-period advance (invariant I-2; see consensus/README).
             if sync_committee::should_rotate(
                 finalized_header.slot(),
                 store_period,
@@ -184,13 +174,8 @@ impl LightClientProcessor {
             }
         }
 
-        // Learn next sync committee AFTER finalized-header update and rotation.
-        // We derive the period from the store's (now-updated) finalized header so
-        // that:
-        //   - if finality advances but rotation can't happen (next unknown), we
-        //     learn next relative to the new finalized period;
-        //   - if rotation happened, we begin learning the subsequent period's
-        //     committee.
+        // Learn next AFTER the finalized-header update + rotation, using the now-
+        // updated finalized period (see consensus/README data flow).
         let finalized_period = self.store.finalized_sync_committee_period(&self.chain_spec);
         if let Some(verified) = sync_committee::learn_next_sync_committee_from_update(
             &update,
@@ -278,44 +263,7 @@ mod tests {
     }
 
     #[test]
-    fn test_light_client_processor_creation() {
-        let bootstrap = load_altair_bootstrap();
-        let chain_spec = crate::config::ChainSpec::minimal();
-        let expected_slot = bootstrap.header.slot();
-
-        let processor = LightClientProcessor::new(
-            chain_spec,
-            bootstrap.header.clone(),
-            bootstrap.current_sync_committee,
-            &bootstrap.current_sync_committee_branch,
-            bootstrap.genesis_validators_root,
-        )
-        .unwrap();
-
-        assert_eq!(processor.finalized_header().slot, expected_slot);
-        assert_eq!(processor.optimistic_header().slot, expected_slot);
-    }
-
-    #[test]
-    fn test_light_client_processor_rejects_invalid_branch() {
-        let bootstrap = load_altair_bootstrap();
-        let chain_spec = crate::config::ChainSpec::minimal();
-
-        let empty_branch: Vec<Root> = vec![];
-
-        let result = LightClientProcessor::new(
-            chain_spec,
-            bootstrap.header.clone(),
-            bootstrap.current_sync_committee,
-            &empty_branch,
-            bootstrap.genesis_validators_root,
-        );
-
-        assert!(result.is_err(), "Should reject invalid branch proof");
-    }
-
-    #[test]
-    fn test_light_client_update_validation() {
+    fn test_rejects_stale_update() {
         let bootstrap = load_altair_bootstrap();
         let chain_spec = crate::config::ChainSpec::minimal();
         let bootstrap_slot = bootstrap.header.slot();

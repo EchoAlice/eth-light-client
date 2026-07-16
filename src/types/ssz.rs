@@ -171,7 +171,9 @@ fn raw_beacon_only_update_to_pub<N: Unsigned>(
     )
 }
 
-fn raw_capella_update_to_pub<N: Unsigned>(raw: RawCapellaLightClientUpdate<N>) -> LightClientUpdate {
+fn raw_capella_update_to_pub<N: Unsigned>(
+    raw: RawCapellaLightClientUpdate<N>,
+) -> LightClientUpdate {
     let finalized_header = (raw.finalized_header.beacon.slot != 0)
         .then_some(LightClientHeader::Capella(raw.finalized_header));
 
@@ -204,6 +206,8 @@ fn decode_capella_update<N: Unsigned>(bytes: &[u8]) -> crate::error::Result<Ligh
     Ok(raw_capella_update_to_pub(raw))
 }
 
+/// SSZ-decode a light client update for `fork` + `sync_committee_size`
+/// (see [`LightClientUpdate::from_ssz`] for the wire-layout contract).
 pub(crate) fn decode_update(
     bytes: &[u8],
     fork: Fork,
@@ -277,9 +281,7 @@ fn decode_err(e: ssz::DecodeError) -> crate::error::Error {
 }
 
 fn bad_size(n: usize) -> crate::error::Error {
-    crate::error::Error::InvalidInput(format!(
-        "sync_committee_size must be 32 or 512, got {n}"
-    ))
+    crate::error::Error::InvalidInput(format!("sync_committee_size must be 32 or 512, got {n}"))
 }
 
 fn unsupported(fork: Fork) -> crate::error::Error {
