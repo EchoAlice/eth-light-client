@@ -37,7 +37,7 @@ impl BeaconBlockHeader {
     }
 
     /// Compute the hash tree root of the beacon block header using TreeHash
-    pub fn hash_tree_root(&self) -> Result<Root> {
+    pub(crate) fn hash_tree_root(&self) -> Result<Root> {
         let hash256 = TreeHash::tree_hash_root(self);
         let mut result = [0u8; 32];
         result.copy_from_slice(hash256.as_bytes());
@@ -128,7 +128,7 @@ pub struct ExecutionPayloadHeaderCapella {
 impl ExecutionPayloadHeaderCapella {
     /// SSZ `hash_tree_root` as a [`Root`] — thin wrapper over the derived
     /// [`TreeHash`] impl (the field-by-field merkleization is now generated).
-    pub fn hash_tree_root(&self) -> Root {
+    pub(crate) fn hash_tree_root(&self) -> Root {
         self.tree_hash_root().0
     }
 }
@@ -175,49 +175,20 @@ pub struct ExecutionPayloadHeaderDeneb {
 impl ExecutionPayloadHeaderDeneb {
     /// SSZ `hash_tree_root` as a [`Root`] — thin wrapper over the derived
     /// [`TreeHash`] impl.
-    pub fn hash_tree_root(&self) -> Root {
+    pub(crate) fn hash_tree_root(&self) -> Root {
         self.tree_hash_root().0
     }
 }
 
 impl LightClientHeader {
     /// Wrap a `BeaconBlockHeader` as an Altair-era header.
-    pub fn altair(beacon: BeaconBlockHeader) -> Self {
+    pub(crate) fn altair(beacon: BeaconBlockHeader) -> Self {
         Self::Altair(AltairLightClientHeader { beacon })
     }
 
     /// Wrap a `BeaconBlockHeader` as a Bellatrix-era header.
-    #[allow(dead_code)]
-    pub fn bellatrix(beacon: BeaconBlockHeader) -> Self {
+    pub(crate) fn bellatrix(beacon: BeaconBlockHeader) -> Self {
         Self::Bellatrix(BellatrixLightClientHeader { beacon })
-    }
-
-    /// Construct a Capella header with execution payload and inclusion proof.
-    #[allow(dead_code)]
-    pub fn capella(
-        beacon: BeaconBlockHeader,
-        execution: ExecutionPayloadHeaderCapella,
-        execution_branch: [Root; 4],
-    ) -> Self {
-        Self::Capella(CapellaLightClientHeader {
-            beacon,
-            execution,
-            execution_branch: FixedVector::new(execution_branch.to_vec()).expect("branch is 4"),
-        })
-    }
-
-    /// Construct a Deneb header with execution payload and inclusion proof.
-    #[allow(dead_code)]
-    pub fn deneb(
-        beacon: BeaconBlockHeader,
-        execution: ExecutionPayloadHeaderDeneb,
-        execution_branch: [Root; 4],
-    ) -> Self {
-        Self::Deneb(DenebLightClientHeader {
-            beacon,
-            execution,
-            execution_branch: FixedVector::new(execution_branch.to_vec()).expect("branch is 4"),
-        })
     }
 
     /// The inner `BeaconBlockHeader` (available for all forks).
@@ -238,25 +209,6 @@ impl LightClientHeader {
     /// The header's state root.
     pub fn state_root(&self) -> &Root {
         &self.beacon().state_root
-    }
-
-    /// Compute the hash tree root of this header.
-    ///
-    /// - Altair/Bellatrix: `hash_tree_root(beacon)` (1-field container).
-    /// - Capella/Deneb: `hash_tree_root({beacon, execution, execution_branch})`
-    ///   (3-field container). The container shape is identical; only the inner
-    ///   `execution.hash_tree_root()` differs across forks.
-    pub fn hash_tree_root(&self) -> Result<Root> {
-        match self {
-            // Altair/Bellatrix have no LightClientHeader container (it arrived in
-            // Capella); the header root is the beacon root.
-            Self::Altair(h) => h.beacon.hash_tree_root(),
-            Self::Bellatrix(h) => h.beacon.hash_tree_root(),
-            // Capella/Deneb are 3-field containers `{beacon, execution,
-            // execution_branch}` — the derived TreeHash does the merkleization.
-            Self::Capella(h) => Ok(h.tree_hash_root().0),
-            Self::Deneb(h) => Ok(h.tree_hash_root().0),
-        }
     }
 }
 
@@ -294,7 +246,7 @@ struct CommitteeRoot32 {
 
 impl SyncCommittee {
     /// SSZ `hash_tree_root`, dispatched on the (spec-sized) committee length.
-    pub fn hash_tree_root(&self) -> Root {
+    pub(crate) fn hash_tree_root(&self) -> Root {
         let agg = self.aggregate_pubkey.clone();
         match self.pubkeys.len() {
             512 => {
@@ -336,7 +288,7 @@ impl SyncCommittee {
     }
 
     /// 2/3 supermajority over the spec-sized committee.
-    pub fn has_supermajority_participation(&self, participation_bits: &[bool]) -> bool {
+    pub(crate) fn has_supermajority_participation(&self, participation_bits: &[bool]) -> bool {
         if participation_bits.len() != self.len() {
             return false;
         }
@@ -345,7 +297,10 @@ impl SyncCommittee {
     }
 
     /// Bit-selected participating pubkeys as raw 48-byte keys (for BLS).
-    pub fn participating_pubkeys(&self, participation_bits: &[bool]) -> Result<Vec<BLSPublicKey>> {
+    pub(crate) fn participating_pubkeys(
+        &self,
+        participation_bits: &[bool],
+    ) -> Result<Vec<BLSPublicKey>> {
         if participation_bits.len() != self.len() {
             return Err(Error::InvalidInput(
                 "Participation bits length mismatch".to_string(),
@@ -406,13 +361,13 @@ impl SyncAggregate {
         }
     }
 
-    pub fn participation_count(&self) -> usize {
+    pub(crate) fn participation_count(&self) -> usize {
         self.sync_committee_bits.iter().filter(|&&bit| bit).count()
     }
 
     /// Check if sync aggregate has supermajority participation
     /// Uses actual committee size from the provided sync committee
-    pub fn has_supermajority(&self, sync_committee: &SyncCommittee) -> bool {
+    pub(crate) fn has_supermajority(&self, sync_committee: &SyncCommittee) -> bool {
         sync_committee.has_supermajority_participation(self.sync_committee_bits.as_ref())
     }
 }
@@ -444,7 +399,8 @@ impl LightClientUpdate {
         crate::types::ssz::decode_update(bytes, fork, sync_committee_size)
     }
 
-    /// Create a new update wrapping a `BeaconBlockHeader` as Altair.
+    /// Test builder: an Altair-wrapped update with no finality / next committee.
+    #[cfg(test)]
     pub fn new(
         attested_header: BeaconBlockHeader,
         sync_aggregate: SyncAggregate,
@@ -461,16 +417,7 @@ impl LightClientUpdate {
         }
     }
 
-    pub fn with_finalized_header(
-        mut self,
-        finalized_header: BeaconBlockHeader,
-        finality_branch: Vec<Root>,
-    ) -> Self {
-        self.finalized_header = Some(LightClientHeader::altair(finalized_header));
-        self.finality_branch = finality_branch;
-        self
-    }
-
+    #[cfg(test)]
     pub fn with_next_sync_committee(
         mut self,
         next_sync_committee: SyncCommittee,
@@ -486,7 +433,7 @@ impl LightClientUpdate {
     /// Enforces:
     /// - `signature_slot > attested_header.slot`
     /// - supermajority participation
-    pub fn validate_basic(&self, sync_committee: &SyncCommittee) -> Result<()> {
+    pub(crate) fn validate_basic(&self, sync_committee: &SyncCommittee) -> Result<()> {
         if self.signature_slot <= self.attested_header.slot() {
             return Err(Error::InvalidInput(
                 "Signature slot must be after attested header slot".to_string(),
@@ -503,23 +450,8 @@ impl LightClientUpdate {
     }
 
     /// Check if this update contains sync committee changes
-    pub fn has_sync_committee_update(&self) -> bool {
+    pub(crate) fn has_sync_committee_update(&self) -> bool {
         self.next_sync_committee.is_some()
-    }
-
-    /// Check if this update contains finality information
-    pub fn has_finality_update(&self) -> bool {
-        self.finalized_header.is_some()
-    }
-
-    /// Get the period of the attested header.
-    pub fn attested_period(&self, spec: &ChainSpec) -> u64 {
-        spec.slot_to_sync_committee_period(self.attested_header.slot())
-    }
-
-    /// Get the period of the signature slot.
-    pub fn signature_period(&self, spec: &ChainSpec) -> u64 {
-        spec.slot_to_sync_committee_period(self.signature_slot)
     }
 }
 
@@ -566,23 +498,8 @@ impl LightClientBootstrap {
         )
     }
 
-    /// Create a new bootstrap package from a `BeaconBlockHeader` (convenience, wraps as Altair).
-    pub fn new(
-        header: BeaconBlockHeader,
-        current_sync_committee: SyncCommittee,
-        current_sync_committee_branch: Vec<Root>,
-        genesis_validators_root: Root,
-    ) -> Self {
-        Self::from_header(
-            LightClientHeader::altair(header),
-            current_sync_committee,
-            current_sync_committee_branch,
-            genesis_validators_root,
-        )
-    }
-
-    /// Create a new bootstrap package from a fork-aware [`LightClientHeader`].
-    pub fn from_header(
+    /// Assemble a bootstrap from a fork-aware [`LightClientHeader`] (used by decode).
+    pub(crate) fn from_header(
         header: LightClientHeader,
         current_sync_committee: SyncCommittee,
         current_sync_committee_branch: Vec<Root>,
@@ -718,7 +635,7 @@ mod tests {
 
         let sync_committee = create_test_sync_committee();
         assert!(update.validate_basic(&sync_committee).is_ok());
-        assert!(!update.has_finality_update());
+        assert!(update.finalized_header.is_none());
         assert!(!update.has_sync_committee_update());
     }
 

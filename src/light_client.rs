@@ -138,10 +138,7 @@ impl UpdateOutcome {
 
     #[inline]
     pub fn rotated(&self) -> bool {
-        matches!(
-            self,
-            UpdateOutcome::StateAdvanced { rotated: true, .. }
-        )
+        matches!(self, UpdateOutcome::StateAdvanced { rotated: true, .. })
     }
 
     #[inline]
