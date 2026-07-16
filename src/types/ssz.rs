@@ -13,8 +13,8 @@
 
 use crate::config::Fork;
 use crate::types::consensus::{
-    BeaconBlockHeader, CapellaLightClientHeader, LightClientBootstrap, LightClientHeader,
-    LightClientUpdate, SyncAggregate, SyncCommittee,
+    BeaconBlockHeader, CapellaLightClientHeader, FinalityUpdate, LightClientBootstrap,
+    LightClientHeader, LightClientUpdate, SyncAggregate, SyncCommittee, SyncCommitteeUpdate,
 };
 use crate::types::primitives::Root;
 use ssz::Decode as _;
@@ -127,7 +127,6 @@ fn assemble_update(
     sync_aggregate: SyncAggregate,
     signature_slot: u64,
 ) -> LightClientUpdate {
-    let has_finality = finalized_header.is_some();
     let has_sync_committee = !sync_committee
         .pubkeys()
         .iter()
@@ -135,18 +134,14 @@ fn assemble_update(
 
     LightClientUpdate {
         attested_header,
-        finalized_header,
-        finality_branch: if has_finality {
-            finality_branch
-        } else {
-            Vec::new()
-        },
-        next_sync_committee: has_sync_committee.then_some(sync_committee),
-        next_sync_committee_branch: if has_sync_committee {
-            next_sync_committee_branch
-        } else {
-            Vec::new()
-        },
+        finalized: finalized_header.map(|header| FinalityUpdate {
+            header,
+            branch: finality_branch,
+        }),
+        next_sync_committee: has_sync_committee.then_some(SyncCommitteeUpdate {
+            committee: sync_committee,
+            branch: next_sync_committee_branch,
+        }),
         sync_aggregate,
         signature_slot,
     }
