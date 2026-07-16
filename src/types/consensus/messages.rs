@@ -1,5 +1,3 @@
-//! Light client update / bootstrap messages exchanged during sync.
-
 use super::{LightClientHeader, SyncAggregate, SyncCommittee};
 use crate::config::Fork;
 use crate::error::{Error, Result};
@@ -11,9 +9,7 @@ use super::BeaconBlockHeader;
 #[derive(Debug, Clone, PartialEq)]
 pub struct LightClientUpdate {
     pub attested_header: LightClientHeader,
-    /// The finalized header and its finality branch — present together or not at all.
     pub finalized: Option<FinalityUpdate>,
-    /// The next sync committee and its inclusion branch — present together or not at all.
     pub next_sync_committee: Option<SyncCommitteeUpdate>,
     pub sync_aggregate: SyncAggregate,
     /// Should be attested_header.slot + 1
@@ -39,7 +35,6 @@ impl LightClientUpdate {
         crate::types::ssz::decode_update(bytes, fork, sync_committee_size)
     }
 
-    /// Test builder: an Altair-wrapped update with no finality / next committee.
     #[cfg(test)]
     pub fn new(
         attested_header: BeaconBlockHeader,
@@ -61,11 +56,6 @@ impl LightClientUpdate {
         self
     }
 
-    /// Validate basic properties of the light client update.
-    ///
-    /// Enforces:
-    /// - `signature_slot > attested_header.slot`
-    /// - supermajority participation
     pub(crate) fn validate_basic(&self, sync_committee: &SyncCommittee) -> Result<()> {
         if self.signature_slot <= self.attested_header.slot() {
             return Err(Error::InvalidInput(
@@ -82,7 +72,6 @@ impl LightClientUpdate {
         Ok(())
     }
 
-    /// Check if this update contains sync committee changes
     pub(crate) fn has_sync_committee_update(&self) -> bool {
         self.next_sync_committee.is_some()
     }
@@ -111,7 +100,6 @@ impl LightClientBootstrap {
         )
     }
 
-    /// Assemble a bootstrap from a fork-aware [`LightClientHeader`] (used by decode).
     pub(crate) fn from_header(
         header: LightClientHeader,
         current_sync_committee: SyncCommittee,

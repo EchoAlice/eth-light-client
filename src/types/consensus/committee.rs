@@ -1,5 +1,3 @@
-//! Sync committee and sync aggregate.
-
 use crate::error::{Error, Result};
 use crate::types::primitives::{BLSPublicKey, BLSSignature, Root};
 use ssz_types::typenum::{U32, U48, U512};
@@ -29,7 +27,6 @@ struct CommitteeRoot32 {
 }
 
 impl SyncCommittee {
-    /// SSZ `hash_tree_root`, dispatched on the (spec-sized) committee length.
     pub(crate) fn hash_tree_root(&self) -> Root {
         let agg = self.aggregate_pubkey.clone();
         match self.pubkeys.len() {
@@ -65,7 +62,6 @@ impl SyncCommittee {
         self.pubkeys.len()
     }
 
-    /// 2/3 supermajority over the spec-sized committee.
     pub(crate) fn has_supermajority_participation(&self, participation_bits: &[bool]) -> bool {
         if participation_bits.len() != self.len() {
             return false;
@@ -74,7 +70,6 @@ impl SyncCommittee {
         participants >= (self.len() * 2 / 3)
     }
 
-    /// Bit-selected participating pubkeys as raw 48-byte keys (for BLS).
     pub(crate) fn participating_pubkeys(
         &self,
         participation_bits: &[bool],
@@ -95,8 +90,6 @@ impl SyncCommittee {
         Ok(out)
     }
 
-    /// Build a spec-sized committee (32 or 512 keys) from raw pubkey bytes.
-    ///
     /// Enforces the `{32, 512}` size invariant at construction, so the size
     /// dispatch in [`hash_tree_root`](Self::hash_tree_root) is total.
     pub(crate) fn from_parts(
@@ -133,8 +126,6 @@ impl SyncAggregate {
         }
     }
 
-    /// Check if sync aggregate has supermajority participation
-    /// Uses actual committee size from the provided sync committee
     pub(crate) fn has_supermajority(&self, sync_committee: &SyncCommittee) -> bool {
         sync_committee.has_supermajority_participation(self.sync_committee_bits.as_ref())
     }

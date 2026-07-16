@@ -1,5 +1,3 @@
-//! Beacon and fork-aware light-client headers, plus the execution payload headers.
-
 use crate::config::ChainSpec;
 use crate::error::Result;
 use crate::types::primitives::{Epoch, Root, Slot, ValidatorIndex};
@@ -36,7 +34,6 @@ impl BeaconBlockHeader {
         }
     }
 
-    /// Compute the hash tree root of the beacon block header using TreeHash
     pub(crate) fn hash_tree_root(&self) -> Result<Root> {
         let hash256 = TreeHash::tree_hash_root(self);
         let mut result = [0u8; 32];
@@ -44,44 +41,13 @@ impl BeaconBlockHeader {
         Ok(result)
     }
 
-    /// Returns the epoch for this header's slot.
     pub fn epoch(&self, spec: &ChainSpec) -> Epoch {
         spec.slot_to_epoch(self.slot)
     }
 }
 
-/// Verification logic accesses the inner `BeaconBlockHeader` through [`beacon()`](Self::beacon), keeping the pipeline fork-agnostic.
-#[derive(Debug, Clone, PartialEq)]
-#[allow(clippy::large_enum_variant)]
-pub enum LightClientHeader {
-    Altair(AltairLightClientHeader),
-    Bellatrix(BellatrixLightClientHeader),
-    Capella(CapellaLightClientHeader),
-    Deneb(DenebLightClientHeader),
-    // Future variants:
-    // Electra(ElectraLightClientHeader),
-    // Fulu(FuluLightClientHeader),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AltairLightClientHeader {
-    pub beacon: BeaconBlockHeader,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BellatrixLightClientHeader {
-    pub beacon: BeaconBlockHeader,
-}
-
 #[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
-pub struct CapellaLightClientHeader {
-    pub beacon: BeaconBlockHeader,
-    pub execution: ExecutionPayloadHeaderCapella,
-    pub execution_branch: FixedVector<Root, U4>,
-}
-
-#[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
-pub struct ExecutionPayloadHeaderCapella {
+pub struct CapellaExecutionPayloadHeader {
     pub parent_hash: Root,
     pub fee_recipient: Address,
     pub state_root: Root,
@@ -99,22 +65,14 @@ pub struct ExecutionPayloadHeaderCapella {
     pub withdrawals_root: Root,
 }
 
-impl ExecutionPayloadHeaderCapella {
-    /// SSZ `hash_tree_root` as a [`Root`] — thin wrapper over the derived
-    /// [`TreeHash`] impl (the field-by-field merkleization is now generated).
+impl CapellaExecutionPayloadHeader {
     pub(crate) fn hash_tree_root(&self) -> Root {
         self.tree_hash_root().0
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
-pub struct DenebLightClientHeader {
-    pub beacon: BeaconBlockHeader,
-    pub execution: ExecutionPayloadHeaderDeneb,
-    pub execution_branch: FixedVector<Root, U4>,
-}
-#[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
-pub struct ExecutionPayloadHeaderDeneb {
+pub struct DenebExecutionPayloadHeader {
     pub parent_hash: Root,
     pub fee_recipient: Address,
     pub state_root: Root,
@@ -134,26 +92,55 @@ pub struct ExecutionPayloadHeaderDeneb {
     pub excess_blob_gas: u64,
 }
 
-impl ExecutionPayloadHeaderDeneb {
-    /// SSZ `hash_tree_root` as a [`Root`] — thin wrapper over the derived
-    /// [`TreeHash`] impl.
+impl DenebExecutionPayloadHeader {
     pub(crate) fn hash_tree_root(&self) -> Root {
         self.tree_hash_root().0
     }
 }
 
+/// Verification logic accesses the inner `BeaconBlockHeader` through [`beacon()`](Self::beacon), keeping the pipeline fork-agnostic.
+#[derive(Debug, Clone, PartialEq)]
+#[allow(clippy::large_enum_variant)]
+pub enum LightClientHeader {
+    Altair(AltairLightClientHeader),
+    Bellatrix(BellatrixLightClientHeader),
+    Capella(CapellaLightClientHeader),
+    Deneb(DenebLightClientHeader),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AltairLightClientHeader {
+    pub beacon: BeaconBlockHeader,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BellatrixLightClientHeader {
+    pub beacon: BeaconBlockHeader,
+}
+
+#[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
+pub struct CapellaLightClientHeader {
+    pub beacon: BeaconBlockHeader,
+    pub execution: CapellaExecutionPayloadHeader,
+    pub execution_branch: FixedVector<Root, U4>,
+}
+
+#[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
+pub struct DenebLightClientHeader {
+    pub beacon: BeaconBlockHeader,
+    pub execution: DenebExecutionPayloadHeader,
+    pub execution_branch: FixedVector<Root, U4>,
+}
+
 impl LightClientHeader {
-    /// Wrap a `BeaconBlockHeader` as an Altair-era header.
     pub(crate) fn altair(beacon: BeaconBlockHeader) -> Self {
         Self::Altair(AltairLightClientHeader { beacon })
     }
 
-    /// Wrap a `BeaconBlockHeader` as a Bellatrix-era header.
     pub(crate) fn bellatrix(beacon: BeaconBlockHeader) -> Self {
         Self::Bellatrix(BellatrixLightClientHeader { beacon })
     }
 
-    /// The inner `BeaconBlockHeader` (available for all forks).
     pub fn beacon(&self) -> &BeaconBlockHeader {
         match self {
             Self::Altair(h) => &h.beacon,
