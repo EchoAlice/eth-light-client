@@ -99,7 +99,6 @@ pub struct ExecutionPayloadHeaderCapella {
     pub withdrawals_root: Root,
 }
 
-// TODO: Does this method make sense?
 impl ExecutionPayloadHeaderCapella {
     /// SSZ `hash_tree_root` as a [`Root`] — thin wrapper over the derived
     /// [`TreeHash`] impl (the field-by-field merkleization is now generated).
@@ -135,7 +134,6 @@ pub struct ExecutionPayloadHeaderDeneb {
     pub excess_blob_gas: u64,
 }
 
-// TODO: Does this method make sense?
 impl ExecutionPayloadHeaderDeneb {
     /// SSZ `hash_tree_root` as a [`Root`] — thin wrapper over the derived
     /// [`TreeHash`] impl.
@@ -145,13 +143,11 @@ impl ExecutionPayloadHeaderDeneb {
 }
 
 impl LightClientHeader {
-    // TODO: Does this method make sense?
     /// Wrap a `BeaconBlockHeader` as an Altair-era header.
     pub(crate) fn altair(beacon: BeaconBlockHeader) -> Self {
         Self::Altair(AltairLightClientHeader { beacon })
     }
 
-    // TODO: Should we delete?
     /// Wrap a `BeaconBlockHeader` as a Bellatrix-era header.
     pub(crate) fn bellatrix(beacon: BeaconBlockHeader) -> Self {
         Self::Bellatrix(BellatrixLightClientHeader { beacon })
@@ -195,7 +191,6 @@ struct CommitteeRoot32 {
     aggregate_pubkey: PubkeyBytes,
 }
 
-// TODO: Should any of these methods be scoped to pub(crate)?
 impl SyncCommittee {
     /// SSZ `hash_tree_root`, dispatched on the (spec-sized) committee length.
     pub(crate) fn hash_tree_root(&self) -> Root {
@@ -229,13 +224,8 @@ impl SyncCommittee {
         &self.aggregate_pubkey
     }
 
-    // TODO: Should this be here? can't users call pubkeys.len locally?
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.pubkeys.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.pubkeys.is_empty()
     }
 
     /// 2/3 supermajority over the spec-sized committee.
@@ -268,7 +258,6 @@ impl SyncCommittee {
         Ok(out)
     }
 
-    // TODO: Should this method be more explicitly named?
     /// Build a spec-sized committee (32 or 512 keys) from raw pubkey bytes.
     ///
     /// Enforces the `{32, 512}` size invariant at construction, so the size
