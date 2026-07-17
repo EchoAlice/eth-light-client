@@ -1,23 +1,8 @@
-//! Beacon State Merkle Verification
-//!
-//! Implements SSZ merkle verification using production-grade libraries:
-//! - `tree_hash`: TreeHash trait and merkle root computation (from Lighthouse)
-//!
-//! This module handles merkle branch verification for light client sync,
-//! specifically verifying sync committee and finality proofs against beacon state roots.
-//!
-//! Generalized indices are obtained from `ChainSpec` to support future fork transitions.
-
 use crate::config::ChainSpec;
 use crate::error::{Error, Result};
 use crate::types::consensus::{LightClientHeader, SyncCommittee};
-use crate::types::primitives::Root;
-use crate::types::primitives::Slot;
+use crate::types::primitives::{Root, Slot};
 
-/// Verify that a sync committee is properly embedded in a beacon state root
-/// using the provided merkle branch proof (bootstrap verification).
-///
-/// Implements the spec's `is_valid_merkle_branch` check for current_sync_committee.
 pub(crate) fn verify_bootstrap_sync_committee(
     sync_committee: &SyncCommittee,
     sync_committee_branch: &[Root],
@@ -44,7 +29,6 @@ pub(crate) fn verify_bootstrap_sync_committee(
     Ok(())
 }
 
-/// Verify that the next sync committee is properly embedded in the attested header's state root.
 pub(crate) fn verify_next_sync_committee(
     next_sync_committee: &SyncCommittee,
     next_sync_committee_branch: &[Root],
@@ -71,10 +55,6 @@ pub(crate) fn verify_next_sync_committee(
     Ok(())
 }
 
-/// Verify that the finalized header root is properly embedded in the attested header's state root.
-///
-/// The finality branch proves that `finalized_header.hash_tree_root()` equals the
-/// `finalized_checkpoint.root` field in the beacon state at `attested_header.state_root`.
 pub(crate) fn verify_finality_branch(
     finalized_header_root: &Root,
     finality_branch: &[Root],
@@ -100,12 +80,6 @@ pub(crate) fn verify_finality_branch(
     Ok(())
 }
 
-/// Validate that a `LightClientHeader` is internally consistent.
-///
-/// Per the consensus spec's `is_valid_light_client_header`:
-/// - Altair/Bellatrix: no execution payload (nothing to verify).
-/// - Capella+: the `execution_branch` must prove that `execution` is at
-///   `EXECUTION_PAYLOAD_GINDEX` within `beacon.body_root`.
 pub(crate) fn validate_light_client_header(header: &LightClientHeader) -> Result<()> {
     match header {
         LightClientHeader::Altair(_) | LightClientHeader::Bellatrix(_) => Ok(()),
@@ -128,21 +102,12 @@ pub(crate) fn validate_light_client_header(header: &LightClientHeader) -> Result
     }
 }
 
-/// Generalized index for the execution payload within BeaconBlockBody.
-///
-/// This is constant across all forks that include execution payloads
-/// (Capella, Deneb, Electra). Used to verify that the execution payload
-/// header in a `LightClientHeader` is genuinely embedded in `beacon.body_root`.
+/// gindex of `execution_payload` in `BeaconBlockBody`: field index 9 in a
+/// 16-leaf (depth-4) tree, so `16 + 9 = 25`. Constant Bellatrix→Fulu (forks
+/// only append body fields and the count stays ≤ 16); re-derive if the body
+/// ever exceeds 16 fields.
 const EXECUTION_PAYLOAD_GINDEX: u64 = 25;
 
-/// Verify that an execution payload header is embedded in the beacon block body.
-///
-/// For Capella and later forks, the `LightClientHeader` includes an execution
-/// payload header and a merkle branch proving it is at `EXECUTION_PAYLOAD_GINDEX`
-/// (25) within the beacon block body tree.
-///
-/// This is a header-local check: it only uses fields from the header itself
-/// (execution hash, execution_branch, beacon.body_root).
 pub(crate) fn verify_execution_payload_inclusion(
     execution_root: &Root,
     execution_branch: &[Root],
@@ -164,25 +129,16 @@ pub(crate) fn verify_execution_payload_inclusion(
     Ok(())
 }
 
-/// Verify a standard SSZ merkle branch proof.
-///
-/// Implements `is_valid_merkle_branch` from the Ethereum consensus specs.
-/// Reference: https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#is_valid_merkle_branch
-///
-/// The branch length must equal `floor(log2(gindex))` exactly.
 fn is_valid_merkle_branch(leaf: &Root, branch: &[Root], gindex: u64, root: &Root) -> Result<bool> {
     if gindex == 0 {
         return Err(Error::InvalidInput("gindex cannot be 0".to_string()));
     }
 
     if gindex == 1 {
-        // Root node - leaf must equal root
-        return Ok(leaf == root);
+        return Ok(branch.is_empty() && leaf == root);
     }
 
-    // Calculate expected branch length: depth = floor(log2(gindex))
-    // For gindex > 0: floor(log2(gindex)) = 63 - leading_zeros
-    // Use explicit 63u32 for clarity (u64 has 64 bits, minus 1 for 0-indexing)
+    // depth = floor(log2(gindex)) = 63 - leading_zeros
     let expected_depth = 63u32 - gindex.leading_zeros();
 
     if branch.len() != expected_depth as usize {
@@ -194,26 +150,19 @@ fn is_valid_merkle_branch(leaf: &Root, branch: &[Root], gindex: u64, root: &Root
         )));
     }
 
-    // Reconstruct root by walking up the tree
     let mut current_hash = *leaf;
     let mut current_gindex = gindex;
 
     for sibling_hash in branch {
-        // Determine if we're the left or right child
         let is_right_child = (current_gindex % 2) == 1;
-
-        // Hash pair using tree_hash library (no heap allocation)
         current_hash = if is_right_child {
             hash_pair(sibling_hash, &current_hash)
         } else {
             hash_pair(&current_hash, sibling_hash)
         };
-
-        // Move up to parent
         current_gindex /= 2;
     }
 
-    // After traversing the full branch, we should be at the root (gindex 1)
     debug_assert_eq!(
         current_gindex, 1,
         "merkle branch traversal should end at root"
@@ -222,9 +171,6 @@ fn is_valid_merkle_branch(leaf: &Root, branch: &[Root], gindex: u64, root: &Root
     Ok(current_hash == *root)
 }
 
-/// Hash two 32-byte roots together using tree_hash library.
-///
-/// Uses a fixed stack buffer (no heap allocation).
 #[inline]
 fn hash_pair(left: &Root, right: &Root) -> Root {
     let mut data = [0u8; 64];
@@ -238,10 +184,6 @@ fn hash_pair(left: &Root, right: &Root) -> Root {
     result
 }
 
-// =============================================================================
-// Tests
-// =============================================================================
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -249,7 +191,6 @@ mod tests {
     #[test]
     fn test_gindex_from_chain_spec() {
         let spec = ChainSpec::minimal();
-        // Altair gindices
         assert_eq!(spec.current_sync_committee_gindex(0), 54);
         assert_eq!(spec.next_sync_committee_gindex(0), 55);
         assert_eq!(spec.finalized_root_gindex(0), 105);
@@ -261,16 +202,13 @@ mod tests {
         let root = [2u8; 32];
         let empty_branch: Vec<Root> = vec![];
 
-        // Test root node case (gindex = 1)
         let result = is_valid_merkle_branch(&root, &empty_branch, 1, &root);
         assert!(result.unwrap());
 
-        // Test invalid gindex
         let result = is_valid_merkle_branch(&leaf, &empty_branch, 0, &root);
         assert!(result.is_err());
 
-        // Test branch length mismatch
-        // gindex=54 has depth=5 (floor(log2(54)) = 5), so needs exactly 5 elements
+        // gindex 54 has depth 5, so a 3-element branch is rejected.
         let short_branch = vec![[0u8; 32]; 3];
         let result = is_valid_merkle_branch(&leaf, &short_branch, 54, &root);
         assert!(result.is_err());
@@ -282,22 +220,17 @@ mod tests {
         let right = [2u8; 32];
 
         let result = hash_pair(&left, &right);
-
-        // Should produce a deterministic hash
         assert_ne!(result, [0u8; 32]);
         assert_ne!(result, left);
         assert_ne!(result, right);
 
-        // Should be deterministic
         let result2 = hash_pair(&left, &right);
         assert_eq!(result, result2);
 
-        // Should be asymmetric
         let result_reversed = hash_pair(&right, &left);
         assert_ne!(result, result_reversed);
     }
 
-    /// Build a minimal-preset (32-key) committee for tests.
     fn test_committee(pk: u8, agg: u8) -> SyncCommittee {
         SyncCommittee::from_parts(vec![[pk; 48]; 32], [agg; 48]).unwrap()
     }
@@ -305,7 +238,6 @@ mod tests {
     #[test]
     fn test_sync_committee_root_deterministic() {
         let committee = test_committee(1, 2);
-        // Derived TreeHash: deterministic and non-zero.
         assert_eq!(committee.hash_tree_root(), committee.hash_tree_root());
         assert_ne!(committee.hash_tree_root(), [0u8; 32]);
     }
@@ -319,7 +251,6 @@ mod tests {
         let slot = 1000;
         let state_root = [0u8; 32];
 
-        // Should fail with branch length mismatch (gindex 54 needs 5 elements)
         let result = verify_bootstrap_sync_committee(
             &sync_committee,
             &empty_branch,
@@ -339,7 +270,6 @@ mod tests {
         let slot = 1000;
         let state_root = [0u8; 32];
 
-        // Should fail with branch length mismatch (gindex 55 needs 5 elements)
         let result =
             verify_next_sync_committee(&sync_committee, &empty_branch, slot, &state_root, &spec);
         assert!(result.is_err());
@@ -353,7 +283,6 @@ mod tests {
         let slot = 1000;
         let state_root = [0u8; 32];
 
-        // Should fail with branch length mismatch (gindex 105 needs 6 elements)
         let result = verify_finality_branch(
             &finalized_header_root,
             &empty_branch,
@@ -364,8 +293,6 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// Test that sync committee root computation matches spec fixtures.
-    /// Uses the minimal preset test vectors.
     #[test]
     fn test_sync_committee_root_against_spec_fixture() {
         use crate::test_utils::LightClientSyncTest;
@@ -376,10 +303,8 @@ mod tests {
             .load_bootstrap()
             .expect("Failed to load bootstrap");
 
-        // Compute sync committee root via the derived TreeHash.
         let computed_root = bootstrap.current_sync_committee.hash_tree_root();
 
-        // Verify against the state root using the branch
         let gindex = spec.current_sync_committee_gindex(bootstrap.header.slot());
         let is_valid = is_valid_merkle_branch(
             &computed_root,
