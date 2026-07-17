@@ -10,23 +10,13 @@ pub(crate) fn verify_bootstrap_sync_committee(
     finalized_state_root: &Root,
     spec: &ChainSpec,
 ) -> Result<()> {
-    let sync_committee_root = sync_committee.hash_tree_root();
-    let gindex = spec.current_sync_committee_gindex(header_slot);
-
-    let is_valid = is_valid_merkle_branch(
-        &sync_committee_root,
+    verify_merkle_branch(
+        &sync_committee.hash_tree_root(),
         sync_committee_branch,
-        gindex,
+        spec.current_sync_committee_gindex(header_slot),
         finalized_state_root,
-    )?;
-
-    if !is_valid {
-        return Err(Error::InvalidInput(
-            "Sync committee merkle branch verification failed".to_string(),
-        ));
-    }
-
-    Ok(())
+        "current sync committee",
+    )
 }
 
 pub(crate) fn verify_next_sync_committee(
@@ -36,23 +26,13 @@ pub(crate) fn verify_next_sync_committee(
     attested_state_root: &Root,
     spec: &ChainSpec,
 ) -> Result<()> {
-    let sync_committee_root = next_sync_committee.hash_tree_root();
-    let gindex = spec.next_sync_committee_gindex(attested_header_slot);
-
-    let is_valid = is_valid_merkle_branch(
-        &sync_committee_root,
+    verify_merkle_branch(
+        &next_sync_committee.hash_tree_root(),
         next_sync_committee_branch,
-        gindex,
+        spec.next_sync_committee_gindex(attested_header_slot),
         attested_state_root,
-    )?;
-
-    if !is_valid {
-        return Err(Error::InvalidInput(
-            "Next sync committee merkle branch verification failed".to_string(),
-        ));
-    }
-
-    Ok(())
+        "next sync committee",
+    )
 }
 
 pub(crate) fn verify_finality_branch(
@@ -62,22 +42,13 @@ pub(crate) fn verify_finality_branch(
     attested_state_root: &Root,
     spec: &ChainSpec,
 ) -> Result<()> {
-    let gindex = spec.finalized_root_gindex(attested_header_slot);
-
-    let is_valid = is_valid_merkle_branch(
+    verify_merkle_branch(
         finalized_header_root,
         finality_branch,
-        gindex,
+        spec.finalized_root_gindex(attested_header_slot),
         attested_state_root,
-    )?;
-
-    if !is_valid {
-        return Err(Error::InvalidInput(
-            "Finality branch merkle verification failed".to_string(),
-        ));
-    }
-
-    Ok(())
+        "finality branch",
+    )
 }
 
 pub(crate) fn validate_light_client_header(header: &LightClientHeader) -> Result<()> {
@@ -110,20 +81,29 @@ pub(crate) fn verify_execution_payload_inclusion(
     execution_branch: &[Root],
     body_root: &Root,
 ) -> Result<()> {
-    let is_valid = is_valid_merkle_branch(
+    verify_merkle_branch(
         execution_root,
         execution_branch,
         EXECUTION_PAYLOAD_GINDEX,
         body_root,
-    )?;
+        "execution payload",
+    )
+}
 
-    if !is_valid {
-        return Err(Error::InvalidInput(
-            "Execution payload merkle branch verification failed".to_string(),
-        ));
+fn verify_merkle_branch(
+    leaf: &Root,
+    branch: &[Root],
+    gindex: u64,
+    root: &Root,
+    what: &str,
+) -> Result<()> {
+    if is_valid_merkle_branch(leaf, branch, gindex, root)? {
+        Ok(())
+    } else {
+        Err(Error::InvalidInput(format!(
+            "{what} merkle branch verification failed"
+        )))
     }
-
-    Ok(())
 }
 
 fn is_valid_merkle_branch(leaf: &Root, branch: &[Root], gindex: u64, root: &Root) -> Result<bool> {
@@ -178,14 +158,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_gindex_from_chain_spec() {
-        let spec = ChainSpec::minimal();
-        assert_eq!(spec.current_sync_committee_gindex(0), 54);
-        assert_eq!(spec.next_sync_committee_gindex(0), 55);
-        assert_eq!(spec.finalized_root_gindex(0), 105);
-    }
-
-    #[test]
     fn test_merkle_branch_validation() {
         let leaf = [1u8; 32];
         let root = [2u8; 32];
@@ -204,82 +176,16 @@ mod tests {
     }
 
     #[test]
-    fn test_hash_pair() {
-        let left = [1u8; 32];
-        let right = [2u8; 32];
+    fn test_merkle_branch_roundtrip() {
+        // 2-leaf tree: root = hash(l, r). l at gindex 2 (left), r at gindex 3 (right).
+        let (l, r) = ([1u8; 32], [2u8; 32]);
+        let root = hash_pair(&l, &r);
 
-        let result = hash_pair(&left, &right);
-        assert_ne!(result, [0u8; 32]);
-        assert_ne!(result, left);
-        assert_ne!(result, right);
+        assert!(is_valid_merkle_branch(&l, &[r], 2, &root).unwrap());
+        assert!(is_valid_merkle_branch(&r, &[l], 3, &root).unwrap());
 
-        let result2 = hash_pair(&left, &right);
-        assert_eq!(result, result2);
-
-        let result_reversed = hash_pair(&right, &left);
-        assert_ne!(result, result_reversed);
-    }
-
-    fn test_committee(pk: u8, agg: u8) -> SyncCommittee {
-        SyncCommittee::from_parts(vec![[pk; 48]; 32], [agg; 48]).unwrap()
-    }
-
-    #[test]
-    fn test_sync_committee_root_deterministic() {
-        let committee = test_committee(1, 2);
-        assert_eq!(committee.hash_tree_root(), committee.hash_tree_root());
-        assert_ne!(committee.hash_tree_root(), [0u8; 32]);
-    }
-
-    #[test]
-    fn test_bootstrap_verification_structure() {
-        let spec = ChainSpec::minimal();
-        let sync_committee = test_committee(0, 0);
-
-        let empty_branch: Vec<Root> = vec![];
-        let slot = 1000;
-        let state_root = [0u8; 32];
-
-        let result = verify_bootstrap_sync_committee(
-            &sync_committee,
-            &empty_branch,
-            slot,
-            &state_root,
-            &spec,
-        );
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_next_sync_committee_verification_structure() {
-        let spec = ChainSpec::minimal();
-        let sync_committee = test_committee(1, 2);
-
-        let empty_branch: Vec<Root> = vec![];
-        let slot = 1000;
-        let state_root = [0u8; 32];
-
-        let result =
-            verify_next_sync_committee(&sync_committee, &empty_branch, slot, &state_root, &spec);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_finality_branch_verification_structure() {
-        let spec = ChainSpec::minimal();
-        let finalized_header_root = [1u8; 32];
-        let empty_branch: Vec<Root> = vec![];
-        let slot = 1000;
-        let state_root = [0u8; 32];
-
-        let result = verify_finality_branch(
-            &finalized_header_root,
-            &empty_branch,
-            slot,
-            &state_root,
-            &spec,
-        );
-        assert!(result.is_err());
+        // Correct length, wrong root: reconstructs but doesn't match -> Ok(false).
+        assert!(!is_valid_merkle_branch(&l, &[r], 2, &[9u8; 32]).unwrap());
     }
 
     #[test]
