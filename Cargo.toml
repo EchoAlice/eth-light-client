@@ -2,10 +2,9 @@
 name = "eth-light-client"
 version = "0.1.0"
 edition = "2021"
-# authors = ["Echo echoalice0@gmail.com"]
 description = "Verification-only Ethereum consensus-layer light client"
 license = "MIT OR Apache-2.0"
-# repository = "https://github.com/yourusername/eth-light-client"
+repository = "https://github.com/EchoAlice/eth-light-client"
 keywords = ["ethereum", "blockchain", "light-client", "consensus"]
 categories = ["ethereum", "blockchain", "cryptography", "network-programming"]
 resolver = "2"
@@ -25,7 +24,6 @@ ethereum-types = "0.14"
 
 [features]
 default = []
-# Not part of the stable API - may change without notice.
 test-utils = ["dep:serde_yaml", "dep:snap"]
 
 [dependencies.serde_yaml]
