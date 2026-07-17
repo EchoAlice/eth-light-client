@@ -102,10 +102,7 @@ pub(crate) fn validate_light_client_header(header: &LightClientHeader) -> Result
     }
 }
 
-/// gindex of `execution_payload` in `BeaconBlockBody`: field index 9 in a
-/// 16-leaf (depth-4) tree, so `16 + 9 = 25`. Constant Bellatrix→Fulu (forks
-/// only append body fields and the count stays ≤ 16); re-derive if the body
-/// ever exceeds 16 fields.
+/// Constant for forks Capella -> Electra
 const EXECUTION_PAYLOAD_GINDEX: u64 = 25;
 
 pub(crate) fn verify_execution_payload_inclusion(
@@ -173,15 +170,7 @@ fn is_valid_merkle_branch(leaf: &Root, branch: &[Root], gindex: u64, root: &Root
 
 #[inline]
 fn hash_pair(left: &Root, right: &Root) -> Root {
-    let mut data = [0u8; 64];
-    data[..32].copy_from_slice(left);
-    data[32..].copy_from_slice(right);
-
-    let hash = tree_hash::merkle_root(&data, 2);
-
-    let mut result = [0u8; 32];
-    result.copy_from_slice(hash.as_bytes());
-    result
+    ethereum_hashing::hash32_concat(left, right)
 }
 
 #[cfg(test)]
