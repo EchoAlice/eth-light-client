@@ -12,10 +12,19 @@ The goal is to verify Ethereum consensus-layer light client bootstraps and updat
 - Preserve explicit fork-aware design.
 - Do not collapse fork-specific types into vague generic structs unless explicitly justified.
 - Do not silently weaken verification logic to make tests pass.
-- Treat SSZ `hash_tree_root`, Merkle generalized indices, fork versions, signing domains, and sync committee validation as correctness-critical.
+- Treat merkleization logic, fork versions, signing domains, and sync committee validation as correctness-critical.
 - Prefer official Ethereum consensus spec tests and fixtures whenever possible.
 - Before editing code, inspect the relevant architecture and summarize the proposed change.
 - After editing code, run targeted tests and explain what passed, what failed, and what remains untested.
+
+## Invariants 
+
+1. protocol/spec conformance is the highest priority
+2. fork behavior must be spec-driven, not hardcoded ad hoc
+3. avoid duplicate mutable sources of truth
+4. validation before state mutation
+5. public API should expose stable protocol-level concepts, not convenience internals
+6. regression-prone bugs should get targeted tests
 
 ## Architecture assumptions
 
@@ -27,7 +36,7 @@ Important public API / processing anchors:
 - `ChainSpec` models fork schedule and fork versions.
 - Light client data structures are fork-aware.
 - Capella and later headers include execution payload header data plus an execution branch.
-- Verification should use the beacon header root where the Ethereum spec expects the beacon root, not the full light client header root.
+- Verification should use the beacon header root where the protocol expects it, not the full light client header root.
 
 ## Development direction
 
