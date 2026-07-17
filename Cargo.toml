@@ -16,7 +16,6 @@ serde = { version = "1.0", features = ["derive"] }
 hex = "0.4"
 
 # Cryptography
-sha2 = "0.10"
 blst = "0.3.10"  # BLS signatures for beacon chain
 
 # SSZ and Tree Hashing - Production-grade libraries used by Lighthouse
@@ -24,6 +23,7 @@ ethereum_ssz = "0.5"        # SSZ encoding/decoding
 ethereum_ssz_derive = "0.5" # SSZ derive macros
 tree_hash = "0.5"           # TreeHash trait and merkle root computation
 tree_hash_derive = "0.5"    # Derive macros for TreeHash
+ethereum_hashing = "1.0.0-beta.2" # SHA256 (hash32_concat) for merkle branch steps
 
 # Error handling
 thiserror = "1.0"
