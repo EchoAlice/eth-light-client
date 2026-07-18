@@ -1,23 +1,20 @@
 # Ethereum Light Client
 
-<br>
-
 ### Security Disclaimer
-Experimental.  Do not use for Ethereum mainnet security-critical decisions!
+Experimental.  Do not use for security-critical decisions
 
-<br>
 
-## Summary
+# Summary
 **This is a Rust library that implements Ethereum’s consensus-layer light client sync protocol**.  It exposes the verification logic required to independently verify the legitimacy of the latest (i) finalized and (ii) optimistic beacon block headers, *without having to run a full node*.
 
 For a module-by-module map of the crate, see [`src/README.md`](src/README.md); for the verification data flow and correctness invariants, see [`src/consensus/README.md`](src/consensus/README.md).
 
 ### Background
-Independently verified information within the Ethereum blockchain used to be something only people running full nodes had access to. Individuals that didn't have the computational resources to run their own node had to rely on others for blockchain information.  And they had to **trust** that the responding party wasn't lying to them.
+Independently verified information within the Ethereum blockchain used to be something only people running full nodes had access to. Individuals that didn't have the computational resources (or know-how) to run their own node had to rely on others to provide the blockchain's information.  And they had to **trust** that the responding party wasn't lying to them.
 
-But since Ethereum began supporting the [light client sync protocol](https://ethereum.github.io/consensus-specs/specs/altair/light-client/sync-protocol/), the "truth of the chain" became accessible to a much larger class of applications and devices *through light clients*.
+But since Ethereum began supporting the [light client sync protocol](https://ethereum.github.io/consensus-specs/specs/altair/light-client/sync-protocol/), independent verification of Ethereum's information became accessible to a much larger class of applications and devices.
 
-**Who Can Benefit?**
+**Who Can Benefit From Light Clients?**
 - Wallets: “Is this transaction actually finalized?”
 - Bridges / relays: “Has this event that happened on Ethereum finalized?” (safety-critical)
 - Browsers/extensions: “Show accurate chain status without trusting an RPC.”
@@ -39,17 +36,17 @@ From Capella onward, supported light client headers also include authenticated e
 
 However, validating information against those roots is the user's responsibility.
 
-## Usage
+## Trust Model
 - Users must provide a `LightClientBootstrap` from a **trusted** source.  This anchors the light client to a trusted finalized beacon block.
 - Users then fetch `LightClientUpdate`s from any source (beacon node API, relay, etc).  The light client verifies each update locally before advancing its finalized and/or optimistic view of the chain.
 
-The finalized header is the client’s safest verified view of the chain. The optimistic header is the client’s freshest verified view, but it may advance before finality.
-
-**Trust Model:**
-- **Safety** follows from correct verification, given the user provides a legitimate bootstrap.
-- **Liveness** depends on the user's update source (and will improve further once `force_update` is implemented).
+The finalized header is the client’s safest verified view of the chain. The optimistic header is the client’s freshest verified view, but may advance before finality. 
 
 See [`src/consensus/README.md`](src/consensus/README.md) for the verification data flow and correctness invariants.
+
+<br/>
+
+# Usage
 
 **Installation**
 Add this to your `Cargo.toml`:
@@ -93,7 +90,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```
-**Note:** This example omits the Beacon API fetching (the `/* fetch */` placeholders); the library begins at the SSZ-decode and verification boundary.
+**Note:** This library begins at the SSZ-decode and verification boundary.
 
 **API Notes:**
 - Injectable time is available: If you want to supply your own notion of time (tests, embedded devices, custom clocks), use `process_update_at_slot(update, current_slot)`
@@ -109,14 +106,14 @@ For local testnets or devnets, use `ChainSpecConfig` with `ChainSpec::try_from_c
   - `32` for the minimal preset
 - SSZ tree layouts and generalized indices are not fully generic inputs; proof paths are implemented explicitly for each supported fork
 
-### SSZ
+## SSZ 
 The crate uses a single SSZ implementation — the Sigma Prime / Lighthouse stack: **`ethereum_ssz`** (encode/decode) + **`ssz_types`** (length-bounded collections: `FixedVector`, `VariableList`, `BitVector`) + **`tree_hash`** (`hash_tree_root`). Public types carry their SSZ traits by deriving them (`#[derive(Encode, Decode, TreeHash)]`), so there is no hand-written merkleization.
 
 The one piece of custom SSZ code is the wire-decode adapter in `src/types/ssz.rs`: it decodes fork-specific wire layouts and adapts them to the library's public types (fork-enum headers, `Option` fields, the spec-sized sync committee).  The wire adapter leverages `ethereum_ssz` where it can.
 
 ## Testing
 This library is end-to-end tested against official Ethereum Consensus minimal-preset light client spec tests for Altair, Bellatrix, and Capella hardforks.  Tests exercise the full verification flow through the public API:
-`LightClient::new` (bootstrap verification) and `process_update` (update verification).
+`LightClient::new` (bootstrap verification) and `process_update` (update verification).  End-to-end coverage against mainnet parameters (512-member committees) is still pending.
 
 ```bash
 # Unit + integration tests
@@ -146,9 +143,6 @@ BLS signature verification is covered by official Ethereum consensus spec test v
 3. Add serialization support (e.g. serde feature) so consumers can persist/restore LightClientStore
 4. Implement `force_update` for all forks
 5. Add a small "HTTP updater" example crate (separate from core; keep library verification-only)
-
-## Credits
-This library is being created with the help of Claude Code (Opus 4.6) and ChatGPT (5.3).
 
 ## License
 MIT OR Apache-2.0
