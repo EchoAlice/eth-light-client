@@ -36,6 +36,10 @@ impl LightClientSyncTest {
         Self::new(MinimalPresetFork::Capella)
     }
 
+    pub fn minimal_deneb() -> Self {
+        Self::new(MinimalPresetFork::Deneb)
+    }
+
     pub fn chain_spec(&self) -> crate::config::ChainSpec {
         self.fork.chain_spec()
     }

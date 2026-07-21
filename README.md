@@ -21,14 +21,14 @@ But since Ethereum began supporting the [light client sync protocol](https://eth
 - Embedded / constrained devices: verify minimal facts with minimal resources.
 
 ## Status
-The library currently supports fork-aware light client verification through **Capella**.
+The library currently supports fork-aware light client verification through **Deneb**.
 
 | Fork      | Type support | Verification logic | Fixture-driven tests | Status    |
 |-----------|--------------|--------------------|----------------------|-----------|
 | Altair    | Yes          | Yes                | Yes                  | Supported |
 | Bellatrix | Yes          | Yes                | Yes                  | Supported |
 | Capella   | Yes          | Yes                | Yes                  | Supported |
-| Deneb     | No           | No                 | No                   | Planned   |
+| Deneb     | Yes          | Yes                | Yes                  | Supported |
 | Electra   | No           | No                 | No                   | Planned   |
 | Fulu      | No           | No                 | No                   | Planned   |
 
@@ -136,7 +136,7 @@ BLS signature verification is covered by official Ethereum consensus spec test v
 - [x] Altair
 - [x] Bellatrix
 - [x] Capella
-- [ ] Deneb
+- [x] Deneb
 - [ ] Electra
 - [ ] Fulu
 2. Expand the module READMEs (esp. [`src/consensus/README.md`](src/consensus/README.md)).  Discuss major Ethereum Consensus concepts and repository design
