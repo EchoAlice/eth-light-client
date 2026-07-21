@@ -8,6 +8,7 @@ pub(crate) enum MinimalPresetFork {
     Altair,
     Bellatrix,
     Capella,
+    Deneb,
 }
 
 impl From<MinimalPresetFork> for crate::config::Fork {
@@ -16,6 +17,7 @@ impl From<MinimalPresetFork> for crate::config::Fork {
             MinimalPresetFork::Altair => crate::config::Fork::Altair,
             MinimalPresetFork::Bellatrix => crate::config::Fork::Bellatrix,
             MinimalPresetFork::Capella => crate::config::Fork::Capella,
+            MinimalPresetFork::Deneb => crate::config::Fork::Deneb,
         }
     }
 }
@@ -27,6 +29,7 @@ impl MinimalPresetFork {
             MinimalPresetFork::Altair => "altair",
             MinimalPresetFork::Bellatrix => "bellatrix",
             MinimalPresetFork::Capella => "capella",
+            MinimalPresetFork::Deneb => "deneb",
         }
     }
 
@@ -50,6 +53,11 @@ impl MinimalPresetFork {
             MinimalPresetFork::Capella => {
                 config.bellatrix_fork_epoch = 0;
                 config.capella_fork_epoch = 0;
+            }
+            MinimalPresetFork::Deneb => {
+                config.bellatrix_fork_epoch = 0;
+                config.capella_fork_epoch = 0;
+                config.deneb_fork_epoch = 0;
             }
         }
 
@@ -75,6 +83,8 @@ mod tests {
         bellatrix_fork_epoch: Option<u64>,
         capella_fork_version: Option<String>,
         capella_fork_epoch: Option<u64>,
+        deneb_fork_version: Option<String>,
+        deneb_fork_epoch: Option<u64>,
     }
 
     fn load_config_yaml(fork: MinimalPresetFork) -> ConfigYaml {
@@ -103,6 +113,7 @@ mod tests {
             MinimalPresetFork::Altair,
             MinimalPresetFork::Bellatrix,
             MinimalPresetFork::Capella,
+            MinimalPresetFork::Deneb,
         ] {
             let cfg = fork.config();
             let yaml = load_config_yaml(fork);
@@ -155,6 +166,16 @@ mod tests {
                 "CAPELLA_FORK_EPOCH",
                 yaml.capella_fork_epoch,
                 cfg.capella_fork_epoch,
+            );
+            check_v(
+                "DENEB_FORK_VERSION",
+                &yaml.deneb_fork_version,
+                cfg.deneb_fork_version,
+            );
+            check_e(
+                "DENEB_FORK_EPOCH",
+                yaml.deneb_fork_epoch,
+                cfg.deneb_fork_epoch,
             );
         }
     }

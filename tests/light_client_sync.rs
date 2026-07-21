@@ -27,6 +27,11 @@ fn capella_sync_via_public_api() {
     run_public_api_sync(LightClientSyncTest::minimal_capella());
 }
 
+#[test]
+fn deneb_sync_via_public_api() {
+    run_public_api_sync(LightClientSyncTest::minimal_deneb());
+}
+
 /// Replay the fixture's `process_update` steps through the public `LightClient`
 /// API; the fork is determined by `sync_test`.
 fn run_public_api_sync(sync_test: LightClientSyncTest) {

@@ -13,8 +13,9 @@
 
 use crate::config::Fork;
 use crate::types::consensus::{
-    BeaconBlockHeader, CapellaLightClientHeader, FinalityUpdate, LightClientBootstrap,
-    LightClientHeader, LightClientUpdate, SyncAggregate, SyncCommittee, SyncCommitteeUpdate,
+    BeaconBlockHeader, CapellaLightClientHeader, DenebLightClientHeader, FinalityUpdate,
+    LightClientBootstrap, LightClientHeader, LightClientUpdate, SyncAggregate, SyncCommittee,
+    SyncCommitteeUpdate,
 };
 use crate::types::primitives::Root;
 use ssz::Decode as _;
@@ -103,6 +104,26 @@ struct RawCapellaLightClientBootstrap<N: Unsigned> {
     current_sync_committee_branch: FixedVector<Root, U5>,
 }
 
+// Deneb+: identical wire shape to Capella except the header is a
+// `DenebLightClientHeader` (its execution payload carries the two EIP-4844 fields).
+#[derive(Encode, Decode)]
+struct RawDenebLightClientUpdate<N: Unsigned> {
+    attested_header: DenebLightClientHeader,
+    next_sync_committee: RawSyncCommittee<N>,
+    next_sync_committee_branch: FixedVector<Root, U5>,
+    finalized_header: DenebLightClientHeader,
+    finality_branch: FixedVector<Root, U6>,
+    sync_aggregate: RawSyncAggregate<N>,
+    signature_slot: u64,
+}
+
+#[derive(Encode, Decode)]
+struct RawDenebLightClientBootstrap<N: Unsigned> {
+    header: DenebLightClientHeader,
+    current_sync_committee: RawSyncCommittee<N>,
+    current_sync_committee_branch: FixedVector<Root, U5>,
+}
+
 /// Wrap a decoded beacon header into the fork's `LightClientHeader` variant.
 fn wrap_beacon_only(fork: Fork, beacon: BeaconBlockHeader) -> LightClientHeader {
     match fork {
@@ -183,6 +204,21 @@ fn raw_capella_update_to_pub<N: Unsigned>(
     )
 }
 
+fn raw_deneb_update_to_pub<N: Unsigned>(raw: RawDenebLightClientUpdate<N>) -> LightClientUpdate {
+    let finalized_header = (raw.finalized_header.beacon.slot != 0)
+        .then_some(LightClientHeader::Deneb(raw.finalized_header));
+
+    assemble_update(
+        LightClientHeader::Deneb(raw.attested_header),
+        finalized_header,
+        raw.finality_branch.to_vec(),
+        raw.next_sync_committee.into_sync_committee(),
+        raw.next_sync_committee_branch.to_vec(),
+        raw.sync_aggregate.into_sync_aggregate(),
+        raw.signature_slot,
+    )
+}
+
 // Fork- and size-dispatched SSZ decode: raw bytes -> public type. `bytes` is raw
 // SSZ (not snappy-framed). `fork` selects the wire layout and `sync_committee_size`
 // (32 minimal / 512 mainnet) the committee/aggregate width — neither is carried
@@ -199,6 +235,11 @@ fn decode_beacon_only_update<N: Unsigned>(
 fn decode_capella_update<N: Unsigned>(bytes: &[u8]) -> crate::error::Result<LightClientUpdate> {
     let raw = RawCapellaLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
     Ok(raw_capella_update_to_pub(raw))
+}
+
+fn decode_deneb_update<N: Unsigned>(bytes: &[u8]) -> crate::error::Result<LightClientUpdate> {
+    let raw = RawDenebLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
+    Ok(raw_deneb_update_to_pub(raw))
 }
 
 /// SSZ-decode a light client update for `fork` + `sync_committee_size`
@@ -219,7 +260,12 @@ pub(crate) fn decode_update(
             512 => decode_capella_update::<U512>(bytes),
             n => Err(bad_size(n)),
         },
-        Fork::Deneb | Fork::Electra => Err(unsupported(fork)),
+        Fork::Deneb => match sync_committee_size {
+            32 => decode_deneb_update::<U32>(bytes),
+            512 => decode_deneb_update::<U512>(bytes),
+            n => Err(bad_size(n)),
+        },
+        Fork::Electra => Err(unsupported(fork)),
     }
 }
 
@@ -250,6 +296,19 @@ fn decode_capella_bootstrap<N: Unsigned>(
     ))
 }
 
+fn decode_deneb_bootstrap<N: Unsigned>(
+    bytes: &[u8],
+    genesis_validators_root: Root,
+) -> crate::error::Result<LightClientBootstrap> {
+    let raw = RawDenebLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
+    Ok(LightClientBootstrap::from_header(
+        LightClientHeader::Deneb(raw.header),
+        raw.current_sync_committee.into_sync_committee(),
+        raw.current_sync_committee_branch.to_vec(),
+        genesis_validators_root,
+    ))
+}
+
 pub(crate) fn decode_bootstrap(
     bytes: &[u8],
     fork: Fork,
@@ -267,7 +326,12 @@ pub(crate) fn decode_bootstrap(
             512 => decode_capella_bootstrap::<U512>(bytes, genesis_validators_root),
             n => Err(bad_size(n)),
         },
-        Fork::Deneb | Fork::Electra => Err(unsupported(fork)),
+        Fork::Deneb => match sync_committee_size {
+            32 => decode_deneb_bootstrap::<U32>(bytes, genesis_validators_root),
+            512 => decode_deneb_bootstrap::<U512>(bytes, genesis_validators_root),
+            n => Err(bad_size(n)),
+        },
+        Fork::Electra => Err(unsupported(fork)),
     }
 }
 
@@ -281,7 +345,7 @@ fn bad_size(n: usize) -> crate::error::Error {
 
 fn unsupported(fork: Fork) -> crate::error::Error {
     crate::error::Error::InvalidInput(format!(
-        "SSZ decode not supported for {fork:?} (supported through Capella)"
+        "SSZ decode not supported for {fork:?} (supported through Deneb)"
     ))
 }
 

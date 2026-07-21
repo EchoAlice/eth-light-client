@@ -29,6 +29,12 @@ fn capella_sync_via_processor() {
     run_processor_sync(LightClientSyncTest::minimal_capella());
 }
 
+/// Deneb: same flow as Capella with the EIP-4844 execution payload header.
+#[test]
+fn deneb_sync_via_processor() {
+    run_processor_sync(LightClientSyncTest::minimal_deneb());
+}
+
 /// Replay a fork's `process_update` steps, asserting each against the fixture.
 fn run_processor_sync(sync_test: LightClientSyncTest) {
     let steps = sync_test.load_steps().expect("Failed to load steps");
@@ -125,21 +131,20 @@ fn assert_execution_root(
     label: &str,
     step_num: usize,
 ) {
-    match header {
-        LightClientHeader::Capella(h) => {
-            let actual = h.execution.hash_tree_root();
-            assert!(
-                actual == *expected,
-                "step {}: {} execution_root mismatch: expected {}, got {}",
-                step_num,
-                label,
-                hex::encode(expected),
-                hex::encode(actual),
-            );
-        }
+    let actual = match header {
+        LightClientHeader::Capella(h) => h.execution.hash_tree_root(),
+        LightClientHeader::Deneb(h) => h.execution.hash_tree_root(),
         _ => panic!(
-            "step {}: {} execution_root check on non-Capella header",
+            "step {}: {} execution_root check on header without an execution payload",
             step_num, label
         ),
-    }
+    };
+    assert!(
+        actual == *expected,
+        "step {}: {} execution_root mismatch: expected {}, got {}",
+        step_num,
+        label,
+        hex::encode(expected),
+        hex::encode(actual),
+    );
 }
