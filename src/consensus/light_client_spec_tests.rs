@@ -35,6 +35,13 @@ fn deneb_sync_via_processor() {
     run_processor_sync(LightClientSyncTest::minimal_deneb());
 }
 
+/// Electra: unchanged header wire shape, but longer BeaconState branches
+/// (finality/sync-committee) driven by the shifted generalized indices.
+#[test]
+fn electra_sync_via_processor() {
+    run_processor_sync(LightClientSyncTest::minimal_electra());
+}
+
 /// Replay a fork's `process_update` steps, asserting each against the fixture.
 fn run_processor_sync(sync_test: LightClientSyncTest) {
     let steps = sync_test.load_steps().expect("Failed to load steps");
@@ -134,6 +141,7 @@ fn assert_execution_root(
     let actual = match header {
         LightClientHeader::Capella(h) => h.execution.hash_tree_root(),
         LightClientHeader::Deneb(h) => h.execution.hash_tree_root(),
+        LightClientHeader::Electra(h) => h.execution.hash_tree_root(),
         _ => panic!(
             "step {}: {} execution_root check on header without an execution payload",
             step_num, label
