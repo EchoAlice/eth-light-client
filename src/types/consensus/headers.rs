@@ -106,6 +106,7 @@ pub enum LightClientHeader {
     Bellatrix(BellatrixLightClientHeader),
     Capella(CapellaLightClientHeader),
     Deneb(DenebLightClientHeader),
+    Electra(ElectraLightClientHeader),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -132,6 +133,18 @@ pub struct DenebLightClientHeader {
     pub execution_branch: FixedVector<Root, U4>,
 }
 
+// Electra leaves the execution payload header unchanged from Deneb (the new
+// execution-layer requests live in a separate BeaconBlockBody field, not the
+// payload), and EXECUTION_PAYLOAD_GINDEX is unchanged, so the wire shape matches
+// Deneb. What changes are the BeaconState branch lengths in the surrounding
+// update/bootstrap containers (see ssz.rs), not this header.
+#[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
+pub struct ElectraLightClientHeader {
+    pub beacon: BeaconBlockHeader,
+    pub execution: DenebExecutionPayloadHeader,
+    pub execution_branch: FixedVector<Root, U4>,
+}
+
 impl LightClientHeader {
     pub(crate) fn altair(beacon: BeaconBlockHeader) -> Self {
         Self::Altair(AltairLightClientHeader { beacon })
@@ -147,6 +160,7 @@ impl LightClientHeader {
             Self::Bellatrix(h) => &h.beacon,
             Self::Capella(h) => &h.beacon,
             Self::Deneb(h) => &h.beacon,
+            Self::Electra(h) => &h.beacon,
         }
     }
 

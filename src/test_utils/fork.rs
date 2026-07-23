@@ -9,6 +9,7 @@ pub(crate) enum MinimalPresetFork {
     Bellatrix,
     Capella,
     Deneb,
+    Electra,
 }
 
 impl From<MinimalPresetFork> for crate::config::Fork {
@@ -18,6 +19,7 @@ impl From<MinimalPresetFork> for crate::config::Fork {
             MinimalPresetFork::Bellatrix => crate::config::Fork::Bellatrix,
             MinimalPresetFork::Capella => crate::config::Fork::Capella,
             MinimalPresetFork::Deneb => crate::config::Fork::Deneb,
+            MinimalPresetFork::Electra => crate::config::Fork::Electra,
         }
     }
 }
@@ -30,6 +32,7 @@ impl MinimalPresetFork {
             MinimalPresetFork::Bellatrix => "bellatrix",
             MinimalPresetFork::Capella => "capella",
             MinimalPresetFork::Deneb => "deneb",
+            MinimalPresetFork::Electra => "electra",
         }
     }
 
@@ -59,6 +62,12 @@ impl MinimalPresetFork {
                 config.capella_fork_epoch = 0;
                 config.deneb_fork_epoch = 0;
             }
+            MinimalPresetFork::Electra => {
+                config.bellatrix_fork_epoch = 0;
+                config.capella_fork_epoch = 0;
+                config.deneb_fork_epoch = 0;
+                config.electra_fork_epoch = 0;
+            }
         }
 
         config
@@ -85,6 +94,8 @@ mod tests {
         capella_fork_epoch: Option<u64>,
         deneb_fork_version: Option<String>,
         deneb_fork_epoch: Option<u64>,
+        electra_fork_version: Option<String>,
+        electra_fork_epoch: Option<u64>,
     }
 
     fn load_config_yaml(fork: MinimalPresetFork) -> ConfigYaml {
@@ -114,6 +125,7 @@ mod tests {
             MinimalPresetFork::Bellatrix,
             MinimalPresetFork::Capella,
             MinimalPresetFork::Deneb,
+            MinimalPresetFork::Electra,
         ] {
             let cfg = fork.config();
             let yaml = load_config_yaml(fork);
@@ -176,6 +188,16 @@ mod tests {
                 "DENEB_FORK_EPOCH",
                 yaml.deneb_fork_epoch,
                 cfg.deneb_fork_epoch,
+            );
+            check_v(
+                "ELECTRA_FORK_VERSION",
+                &yaml.electra_fork_version,
+                cfg.electra_fork_version,
+            );
+            check_e(
+                "ELECTRA_FORK_EPOCH",
+                yaml.electra_fork_epoch,
+                cfg.electra_fork_epoch,
             );
         }
     }

@@ -23,16 +23,19 @@ fn bellatrix_sync_via_processor() {
     run_processor_sync(LightClientSyncTest::minimal_bellatrix());
 }
 
-/// Capella additionally verifies execution roots.
 #[test]
 fn capella_sync_via_processor() {
     run_processor_sync(LightClientSyncTest::minimal_capella());
 }
 
-/// Deneb: same flow as Capella with the EIP-4844 execution payload header.
 #[test]
 fn deneb_sync_via_processor() {
     run_processor_sync(LightClientSyncTest::minimal_deneb());
+}
+
+#[test]
+fn electra_sync_via_processor() {
+    run_processor_sync(LightClientSyncTest::minimal_electra());
 }
 
 /// Replay a fork's `process_update` steps, asserting each against the fixture.
@@ -47,7 +50,6 @@ fn run_processor_sync(sync_test: LightClientSyncTest) {
                 execute_process_update_step(i + 1, process_update, &mut processor, &sync_test);
                 processed += 1;
             }
-            // later steps depend on force_update's transition -- stop, don't skip
             TestStep::ForceUpdate { .. } => break,
         }
     }
@@ -134,6 +136,7 @@ fn assert_execution_root(
     let actual = match header {
         LightClientHeader::Capella(h) => h.execution.hash_tree_root(),
         LightClientHeader::Deneb(h) => h.execution.hash_tree_root(),
+        LightClientHeader::Electra(h) => h.execution.hash_tree_root(),
         _ => panic!(
             "step {}: {} execution_root check on header without an execution payload",
             step_num, label
