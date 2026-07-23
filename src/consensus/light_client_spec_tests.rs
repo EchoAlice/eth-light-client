@@ -23,20 +23,16 @@ fn bellatrix_sync_via_processor() {
     run_processor_sync(LightClientSyncTest::minimal_bellatrix());
 }
 
-/// Capella additionally verifies execution roots.
 #[test]
 fn capella_sync_via_processor() {
     run_processor_sync(LightClientSyncTest::minimal_capella());
 }
 
-/// Deneb: same flow as Capella with the EIP-4844 execution payload header.
 #[test]
 fn deneb_sync_via_processor() {
     run_processor_sync(LightClientSyncTest::minimal_deneb());
 }
 
-/// Electra: unchanged header wire shape, but longer BeaconState branches
-/// (finality/sync-committee) driven by the shifted generalized indices.
 #[test]
 fn electra_sync_via_processor() {
     run_processor_sync(LightClientSyncTest::minimal_electra());
@@ -54,7 +50,6 @@ fn run_processor_sync(sync_test: LightClientSyncTest) {
                 execute_process_update_step(i + 1, process_update, &mut processor, &sync_test);
                 processed += 1;
             }
-            // later steps depend on force_update's transition -- stop, don't skip
             TestStep::ForceUpdate { .. } => break,
         }
     }
