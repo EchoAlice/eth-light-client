@@ -1,4 +1,56 @@
-# Consensus
+# Background
+
+Table of Contents:
+1. Blockchains
+    - Public Blockchains
+    - Transactions, Blocks, and State
+    - Safety and Liveness
+2. Ethereum Consensus
+    - GHOST + Casper FFG
+    - Sharing Information with Commitments
+3. Light Clients within Ethereum
+    - Sync Committees
+    - Bootstrapping
+    - Light Client Updates
+        - Optimistic (live)
+        - Finalized (safe)
+------------------------------------------------
+
+## 1. Blockchains
+### Public Blockchains
+Public blockchains, like Bitcoin and Ethereum, aim to be credibly neutral digital ledgers which anyone can interact with and no one can unilaterally control.  This class of blockchains act as trustless, programmatic intermediaries to facilitate coordination within the digital world. 
+
+Unlike traditional authoritative databases (e.g. the Fed's ledger), public blockchains are explicitly designed to *not* be controlled by a central operator; it would degrade one such system's credible neutrality.  Instead, these ledgers are meant to be simultaneously kept by large networks of independently operated computers.  With public blockchains, anyone can join the network.
+
+**Note:** In this doc from here on out, "blockchain" will be shorthand for "public blockchain".
+
+Nodes within a blockchain's network (i) each verify the ledger's information is sound and (ii) help propagate information to other nodes.  They do this by running open-source software that implements a blockchain's governing ruleset- its protocol.
+
+This combination of open-source protocol + public participation in the network is foundational to a blockchain's resilience.
+
+### Transactions, Blocks, and State
+
+### Safety and Liveness
+
+## 2. Ethereum Consensus
+
+### Ghost + Casper FFG
+
+### Sharing Information with Commitments
+
+## 3. Light Clients within Ethereum
+
+### Sync Committees
+
+### Bootstrapping
+
+### Light Client Updates
+#### Optimistic (live)
+#### Finalized (safe)
+
+----------------------------------------------
+
+# Consensus Module Explained
 
 Core consensus-layer verification for the light client: BLS signatures, Merkle
 proofs, sync-committee validation, and the light-client sync state machine. This
