@@ -5,16 +5,23 @@ Experimental.  Do not use for security-critical decisions
 
 
 # Summary
-**This is a Rust library that implements Ethereum’s consensus-layer light client sync protocol**.  It exposes the verification logic required to independently verify the legitimacy of the latest (i) finalized and (ii) optimistic beacon block headers, *without having to run a full node*.
+Light clients give users a highly secure way to access Ethereum's blockchain *without having to run a full node*.  
+
+**This library implements the verification and store-update logic of Ethereum’s consensus-layer [light client sync protocol](https://ethereum.github.io/consensus-specs/specs/altair/light-client/sync-protocol/)**.  It exposes the logic required to independently verify and track sync committee attestations to the latest (i) finalized and (ii) optimistic beacon block headers.  
+
+Users are responsible for obtaining the initial bootstrap and each subsequent block update from an external provider (a beacon node, relay, etc.).  Users depend on data providers for liveness, but verify the legitimacy of updates locally against their trusted sync committee registry. 
 
 For a module-by-module map of the crate, see [`src/README.md`](src/README.md); for the verification data flow and correctness invariants, see [`src/consensus/README.md`](src/consensus/README.md).
 
-### Background
-Independently verified information within the Ethereum blockchain used to be something only people running full nodes had access to. Individuals that didn't have the computational resources (or know-how) to run their own node had to rely on others to provide the blockchain's information.  And they had to **trust** that the responding party wasn't lying to them.
+### Resource Requirements: Light Clients vs Full Nodes
+These differences stem from one thing: a full node *re-derives* the chain's validity from scratch, while a light client *verifies a commitment* the sync committee already signed.
 
-But since Ethereum began supporting the [light client sync protocol](https://ethereum.github.io/consensus-specs/specs/altair/light-client/sync-protocol/), independent verification of Ethereum's information became accessible to a much larger class of applications and devices.
+| | Full node | Light client |
+|---|---|---|
+| **Storage** | Chain state + history on SSD (~TB+), **grows with the chain** | Verified store only (KB–MB), **constant** |
+| **Compute** | **Re-executes every transaction**.  Scales with throughput | One aggregate-sig check + a few Merkle proofs per update |
 
-**Who Can Benefit From Light Clients?**
+### Who Can Benefit From Light Clients?
 - Wallets: “Is this transaction actually finalized?”
 - Bridges / relays: “Has this event that happened on Ethereum finalized?” (safety-critical)
 - Browsers/extensions: “Show accurate chain status without trusting an RPC.”
