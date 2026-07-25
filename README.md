@@ -4,17 +4,16 @@
 Experimental.  Do not use for security-critical decisions
 
 
-# Summary
-Light clients give users a highly secure way to access Ethereum's blockchain *without having to run a full node*.  
+# Summary 
 
-**This library implements the verification and store-update logic of Ethereum’s consensus-layer [light client sync protocol](https://ethereum.github.io/consensus-specs/specs/altair/light-client/sync-protocol/)**.  It exposes the logic required to independently verify and track sync committee attestations to the latest (i) finalized and (ii) optimistic beacon block headers.  
+**This library implements the verification and store-update logic of Ethereum’s consensus-layer [light client sync protocol](https://ethereum.github.io/consensus-specs/specs/altair/light-client/sync-protocol/)**.  
 
-Users are responsible for obtaining the initial bootstrap and each subsequent block update from an external provider (a beacon node, relay, etc.).  Users depend on data providers for liveness, but verify the legitimacy of updates locally against their trusted sync committee registry. 
+Light clients give users a highly secure way to access Ethereum's blockchain without having to run a full node.  This library exposes functionailty to independently verify and track sync committee attestations to the latest (i) finalized and (ii) optimistic beacon block headers.  
 
-For a module-by-module map of the crate, see [`src/README.md`](src/README.md); for the verification data flow and correctness invariants, see [`src/consensus/README.md`](src/consensus/README.md).
+Users are responsible for obtaining the initial bootstrap and each subsequent block updates from an external data provider (a beacon node, relay, etc.).
 
 ### Resource Requirements: Light Clients vs Full Nodes
-These differences stem from one thing: a full node *re-derives* the chain's validity from scratch, while a light client *verifies a commitment* the sync committee already signed.
+Differences in requirements stem from one thing: a full node *re-derives* the chain's validity from scratch, while a light client *verifies a commitment* the sync committee already signed.
 
 | | Full node | Light client |
 |---|---|---|
@@ -26,6 +25,8 @@ These differences stem from one thing: a full node *re-derives* the chain's vali
 - Bridges / relays: “Has this event that happened on Ethereum finalized?” (safety-critical)
 - Browsers/extensions: “Show accurate chain status without trusting an RPC.”
 - Embedded / constrained devices: verify minimal facts with minimal resources.
+
+For a module-by-module map of the crate, see [`src/README.md`](src/README.md).  For an in-depth expaliner on the light client sync protocol, and verification data flow and correctness invariants, see [`src/consensus/README.md`](src/consensus/README.md).
 
 ## Status
 The library currently supports fork-aware light client verification through **Deneb**.
@@ -44,8 +45,8 @@ From Capella onward, supported light client headers also include authenticated e
 However, validating information against those roots is the user's responsibility.
 
 ## Trust Model
-- Users must provide a `LightClientBootstrap` from a **trusted** source.  This anchors the light client to a trusted finalized beacon block.
-- Users then fetch `LightClientUpdate`s from any source (beacon node API, relay, etc).  The light client verifies each update locally before advancing its finalized and/or optimistic view of the chain.
+- Users must provide a `LightClientBootstrap` from a **trusted** source.  This anchors the light client to a trusted finalized beacon block.  Light clients can independently verify all future updates, stemming from that original bootstrap. 
+- Users then fetch `LightClientUpdate`s from any source (beacon node API, relay, etc).  The light client locally verifies each update was signed by the appropriate sync committee before advancing its finalized and/or optimistic view of the chain.
 
 The finalized header is the client’s safest verified view of the chain. The optimistic header is the client’s freshest verified view, but may advance before finality. 
 
