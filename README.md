@@ -8,9 +8,9 @@ Experimental.  Do not use for security-critical decisions
 
 **This library implements the verification and store-update logic of Ethereum’s consensus-layer [light client sync protocol](https://ethereum.github.io/consensus-specs/specs/altair/light-client/sync-protocol/)**.  
 
-Light clients give users a highly secure way to access Ethereum's blockchain without having to run a full node.  This library exposes functionailty to independently verify and track sync committee attestations to the latest (i) finalized and (ii) optimistic beacon block headers.  
+Light clients give users a highly secure way to access Ethereum's blockchain without having to run a full node.  This library exposes functionality to independently verify and track sync committee attestations to the latest (i) finalized and (ii) optimistic beacon block headers.  
 
-Users are responsible for obtaining the initial bootstrap and each subsequent block updates from an external data provider (a beacon node, relay, etc.).
+Users are responsible for obtaining the initial bootstrap and each subsequent block update from an external data provider (a beacon node, relay, etc.).
 
 ### Resource Requirements: Light Clients vs Full Nodes
 Differences in requirements stem from one thing: a full node *re-derives* the chain's validity from scratch, while a light client *verifies a commitment* the sync committee already signed.
@@ -26,7 +26,7 @@ Differences in requirements stem from one thing: a full node *re-derives* the ch
 - Browsers/extensions: “Show accurate chain status without trusting an RPC.”
 - Embedded / constrained devices: verify minimal facts with minimal resources.
 
-For a module-by-module map of the crate, see [`src/README.md`](src/README.md).  For an in-depth expaliner on the light client sync protocol, and verification data flow and correctness invariants, see [`src/consensus/README.md`](src/consensus/README.md).
+For a module-by-module map of the crate, see [`src/README.md`](src/README.md).  For an in-depth explainer on the light client sync protocol, and verification data flow and correctness invariants, see [`src/consensus/README.md`](src/consensus/README.md).
 
 ## Status
 The library currently supports fork-aware light client verification through **Deneb**.
