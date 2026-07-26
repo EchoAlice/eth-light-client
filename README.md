@@ -12,8 +12,8 @@ Light clients give users a highly secure way to access Ethereum's blockchain wit
 
 Users are responsible for obtaining the initial bootstrap and each subsequent block update from an external data provider (a beacon node, relay, etc.).
 
-### Resource Requirements: Light Clients vs Full Nodes
-Differences in requirements stem from one thing: a full node *re-derives* the chain's validity from scratch, while a light client *verifies a commitment* the sync committee already signed.
+### Resource Requirements
+Differences stem from one thing: a full node *re-derives* the chain's validity from scratch, while a light client *verifies a commitment* the sync committee already signed.
 
 | | Full node | Light client |
 |---|---|---|
