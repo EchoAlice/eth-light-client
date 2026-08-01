@@ -8,7 +8,7 @@
 #![cfg(feature = "test-utils")]
 
 use eth_light_client::test_utils::{
-    beacon_header_matches, LightClientSyncTest, ProcessUpdateStep, TestStep,
+    beacon_header_matches, LightClientSyncTest, ProcessUpdateStep, StateChecks, TestStep,
 };
 use eth_light_client::{LightClient, UpdateOutcome};
 
@@ -37,6 +37,14 @@ fn electra_sync_via_public_api() {
     run_public_api_sync(LightClientSyncTest::minimal_electra());
 }
 
+/// Cross-fork: Deneb bootstrap, chain forks to Electra mid-sequence, with
+/// Deneb- and Electra-format updates interleaved. The store needs no
+/// migration; pyspec's `upgrade_store` step is asserted as a pure checkpoint.
+#[test]
+fn electra_fork_sync_via_public_api() {
+    run_public_api_sync(LightClientSyncTest::minimal_deneb_electra_fork());
+}
+
 /// Replay the fixture's `process_update` steps through the public `LightClient`
 /// API; the fork is determined by `sync_test`.
 fn run_public_api_sync(sync_test: LightClientSyncTest) {
@@ -55,6 +63,11 @@ fn run_public_api_sync(sync_test: LightClientSyncTest) {
                 process_step(&mut client, &sync_test, process_update, i + 1);
                 processed += 1;
             }
+            // Store migration is a no-op for this store; the step's checks
+            // still assert the store is unperturbed.
+            TestStep::UpgradeStore { upgrade_store } => {
+                assert_header_checks(&client, &upgrade_store.checks, i + 1);
+            }
             // later steps depend on force_update's transition -- stop, don't skip
             TestStep::ForceUpdate { .. } => break,
         }
@@ -72,7 +85,7 @@ fn process_step(
     step_num: usize,
 ) {
     let update = sync_test
-        .load_update(&step.update)
+        .load_update(&step.update, step.update_fork_digest)
         .expect("Failed to load update");
 
     let before_finalized = client.finalized_header().slot;
@@ -101,7 +114,13 @@ fn process_step(
         );
     }
 
-    if let Some(expected) = &step.checks.finalized_header {
+    assert_header_checks(client, &step.checks, step_num);
+}
+
+/// Assert a step's `checks` (slot + beacon root; the public API exposes only
+/// `BeaconBlockHeader`, so execution roots are covered by the processor replay).
+fn assert_header_checks(client: &LightClient, checks: &StateChecks, step_num: usize) {
+    if let Some(expected) = &checks.finalized_header {
         assert!(
             beacon_header_matches(expected, client.finalized_header()),
             "step {}: finalized header mismatch (expected slot {})",
@@ -109,7 +128,7 @@ fn process_step(
             expected.slot,
         );
     }
-    if let Some(expected) = &step.checks.optimistic_header {
+    if let Some(expected) = &checks.optimistic_header {
         assert!(
             beacon_header_matches(expected, client.optimistic_header()),
             "step {}: optimistic header mismatch (expected slot {})",

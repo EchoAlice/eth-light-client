@@ -9,7 +9,9 @@
 //! it's unimplemented and later steps depend on its state transition.
 
 use crate::consensus::processor::LightClientProcessor;
-use crate::test_utils::{beacon_header_matches, LightClientSyncTest, ProcessUpdateStep, TestStep};
+use crate::test_utils::{
+    beacon_header_matches, LightClientSyncTest, ProcessUpdateStep, StateChecks, TestStep,
+};
 use crate::types::consensus::LightClientHeader;
 use crate::types::primitives::Root;
 
@@ -38,7 +40,17 @@ fn electra_sync_via_processor() {
     run_processor_sync(LightClientSyncTest::minimal_electra());
 }
 
-/// Replay a fork's `process_update` steps, asserting each against the fixture.
+/// Cross-fork: Deneb bootstrap, chain forks to Electra mid-sequence, with
+/// Deneb- and Electra-format updates interleaved. Passing without any store
+/// migration is the point — the store is fork-agnostic, and each update
+/// selects its own decode layout (by fork digest) and proof geometry (by
+/// attested slot), so pyspec's `upgrade_store` step is a pure checkpoint here.
+#[test]
+fn electra_fork_sync_via_processor() {
+    run_processor_sync(LightClientSyncTest::minimal_deneb_electra_fork());
+}
+
+/// Replay a fixture's steps, asserting each against the fixture.
 fn run_processor_sync(sync_test: LightClientSyncTest) {
     let steps = sync_test.load_steps().expect("Failed to load steps");
     let mut processor = initialize_processor_from(&sync_test);
@@ -49,6 +61,11 @@ fn run_processor_sync(sync_test: LightClientSyncTest) {
             TestStep::ProcessUpdate { process_update } => {
                 execute_process_update_step(i + 1, process_update, &mut processor, &sync_test);
                 processed += 1;
+            }
+            // Store migration is a no-op for our fork-agnostic store; the
+            // step's checks still assert the store is unperturbed.
+            TestStep::UpgradeStore { upgrade_store } => {
+                assert_state_checks(i + 1, &upgrade_store.checks, &processor);
             }
             TestStep::ForceUpdate { .. } => break,
         }
@@ -81,18 +98,26 @@ fn execute_process_update_step(
     processor: &mut LightClientProcessor,
     sync_test: &LightClientSyncTest,
 ) {
-    let update = sync_test.load_update(&step.update).unwrap_or_else(|e| {
-        panic!(
-            "step {}: failed to load update {}: {}",
-            step_num, step.update, e
-        )
-    });
+    let update = sync_test
+        .load_update(&step.update, step.update_fork_digest)
+        .unwrap_or_else(|e| {
+            panic!(
+                "step {}: failed to load update {}: {}",
+                step_num, step.update, e
+            )
+        });
 
     processor
         .process_update_at_slot(update, step.current_slot)
         .unwrap_or_else(|e| panic!("step {}: process error: {}", step_num, e));
 
-    if let Some(expected) = &step.checks.finalized_header {
+    assert_state_checks(step_num, &step.checks, processor);
+}
+
+/// Assert a step's `checks` (finalized/optimistic slot + beacon root, and
+/// Capella+ execution roots) against the processor's store.
+fn assert_state_checks(step_num: usize, checks: &StateChecks, processor: &LightClientProcessor) {
+    if let Some(expected) = &checks.finalized_header {
         assert!(
             beacon_header_matches(expected, processor.finalized_header()),
             "step {}: finalized header mismatch (expected slot {})",
@@ -109,7 +134,7 @@ fn execute_process_update_step(
         }
     }
 
-    if let Some(expected) = &step.checks.optimistic_header {
+    if let Some(expected) = &checks.optimistic_header {
         assert!(
             beacon_header_matches(expected, processor.optimistic_header()),
             "step {}: optimistic header mismatch (expected slot {})",

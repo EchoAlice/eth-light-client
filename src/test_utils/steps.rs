@@ -7,8 +7,10 @@ use serde::Deserialize;
 
 /// Metadata from a spec test's meta.yaml file.
 ///
-/// The fork-digest keys are unmodeled; serde ignores them (fork comes from the
-/// `LightClientSyncTest` constructor).
+/// `store_fork_digest` stays unmodeled: it names the fork the *store* should be
+/// typed as, which only matters for implementations with per-fork store types.
+/// Our store is fork-agnostic (see `consensus/store.rs`), so there is nothing
+/// to key off it.
 #[derive(Debug, serde::Deserialize)]
 pub(crate) struct TestMeta {
     #[serde(deserialize_with = "de_root")]
@@ -17,6 +19,9 @@ pub(crate) struct TestMeta {
     #[allow(dead_code)]
     #[serde(deserialize_with = "de_root")]
     trusted_block_root: Root,
+    /// Fork the bootstrap is serialized under; drives bootstrap decode.
+    #[serde(deserialize_with = "de_fork_digest")]
+    pub(crate) bootstrap_fork_digest: [u8; 4],
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -40,14 +45,34 @@ pub struct HeaderCheck {
 #[serde(untagged)]
 pub enum TestStep {
     ProcessUpdate { process_update: ProcessUpdateStep },
+    UpgradeStore { upgrade_store: UpgradeStoreStep },
     ForceUpdate { force_update: serde::de::IgnoredAny },
 }
 
 #[derive(Debug, serde::Deserialize)]
 pub struct ProcessUpdateStep {
+    /// Fork the update is serialized under; drives per-update decode. In
+    /// cross-fork sequences this differs from the bootstrap fork (and pre-fork
+    /// updates keep arriving after the chain forks), so it must come from the
+    /// step, not the test.
+    #[serde(deserialize_with = "de_fork_digest")]
+    pub update_fork_digest: [u8; 4],
     /// Update file name (without .ssz_snappy extension).
     pub update: String,
     pub current_slot: u64,
+    pub checks: StateChecks,
+}
+
+/// pyspec's store-migration step (re-type the store, pad retained branches).
+/// Our store is fork-agnostic and retains no branches, so the step mutates
+/// nothing here — the driver only asserts `checks` as a checkpoint.
+#[derive(Debug, serde::Deserialize)]
+pub struct UpgradeStoreStep {
+    /// Fork the store upgrades to. Unused beyond documentation: with no
+    /// per-fork store typing there is nothing to key off it.
+    #[allow(dead_code)]
+    #[serde(deserialize_with = "de_fork_digest")]
+    pub store_fork_digest: [u8; 4],
     pub checks: StateChecks,
 }
 
@@ -70,6 +95,19 @@ where
 {
     let s = String::deserialize(deserializer)?;
     hex_to_root(&s).map_err(serde::de::Error::custom)
+}
+
+/// Deserialize a hex fork-digest string (`0x0cbce901`) into its 4 bytes.
+fn de_fork_digest<'de, D>(deserializer: D) -> Result<[u8; 4], D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    let hex = s.strip_prefix("0x").unwrap_or(&s);
+    let bytes = hex::decode(hex).map_err(serde::de::Error::custom)?;
+    bytes.try_into().map_err(|b: Vec<u8>| {
+        serde::de::Error::custom(format!("expected 4 bytes, got {}", b.len()))
+    })
 }
 
 fn de_root_opt<'de, D>(deserializer: D) -> Result<Option<Root>, D::Error>

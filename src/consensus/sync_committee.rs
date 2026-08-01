@@ -178,8 +178,14 @@ struct ForkData {
     genesis_validators_root: Root,
 }
 
-/// Compute fork data root as per beacon chain specification
-fn compute_fork_data_root(fork_version: ForkVersion, genesis_validators_root: Root) -> Root {
+/// Compute fork data root as per beacon chain specification.
+///
+/// `pub(crate)` because the spec-test loader derives each fork's digest
+/// (`fork_data_root[..4]`) from it to dispatch per-update decoding.
+pub(crate) fn compute_fork_data_root(
+    fork_version: ForkVersion,
+    genesis_validators_root: Root,
+) -> Root {
     let fork_data = ForkData {
         current_version: fork_version,
         genesis_validators_root,
