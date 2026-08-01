@@ -26,7 +26,7 @@ Differences stem from one thing: a full node *re-derives* the chain's validity f
 - Browsers/extensions: “Show accurate chain status without trusting an RPC.”
 - Embedded / constrained devices: verify minimal facts with minimal resources.
 
-For a module-by-module map of the crate, see [`src/README.md`](src/README.md).  For an in-depth explainer on the light client sync protocol, and verification data flow and correctness invariants, see [`src/consensus/README.md`](src/consensus/README.md).
+For a module-by-module map of the crate, see [`src/README.md`](src/README.md).  For an in-depth explainer on the light client sync protocol, see [`docs/consensus-primer.md`](docs/consensus-primer.md); for the verification data flow and correctness invariants, see [`src/consensus/README.md`](src/consensus/README.md).
 
 ## Status
 The library currently supports fork-aware light client verification through **Deneb**.
