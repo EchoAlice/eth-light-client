@@ -5,9 +5,7 @@ mod loader;
 mod steps;
 
 pub use loader::LightClientSyncTest;
-pub use steps::{
-    beacon_header_matches, HeaderCheck, ProcessUpdateStep, StateChecks, TestStep, UpgradeStoreStep,
-};
+pub use steps::{HeaderCheck, ProcessUpdateStep, StateChecks, TestStep};
 
 pub(crate) use fork::MinimalPresetFork;
 

@@ -1,9 +1,6 @@
-//! The fork tag identifying which spec-test fixtures to load and how to
-//! configure the chain for them.
-
 /// The fork whose minimal-preset spec-test fixtures are being loaded; selects
 /// both the fixture set and the matching minimal-preset chain configuration.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 pub(crate) enum MinimalPresetFork {
     Altair,
     Bellatrix,

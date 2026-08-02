@@ -9,9 +9,7 @@
 //! it's unimplemented and later steps depend on its state transition.
 
 use crate::consensus::processor::LightClientProcessor;
-use crate::test_utils::{
-    beacon_header_matches, LightClientSyncTest, ProcessUpdateStep, StateChecks, TestStep,
-};
+use crate::test_utils::{LightClientSyncTest, ProcessUpdateStep, StateChecks, TestStep};
 use crate::types::consensus::LightClientHeader;
 use crate::types::primitives::Root;
 
@@ -58,16 +56,16 @@ fn run_processor_sync(sync_test: LightClientSyncTest) {
     let mut processed = 0;
     for (i, step) in steps.iter().enumerate() {
         match step {
-            TestStep::ProcessUpdate { process_update } => {
+            TestStep::ProcessUpdate(process_update) => {
                 execute_process_update_step(i + 1, process_update, &mut processor, &sync_test);
                 processed += 1;
             }
             // Store migration is a no-op for our fork-agnostic store; the
             // step's checks still assert the store is unperturbed.
-            TestStep::UpgradeStore { upgrade_store } => {
-                assert_state_checks(i + 1, &upgrade_store.checks, &processor);
+            TestStep::UpgradeStore { checks } => {
+                assert_state_checks(i + 1, checks, &processor);
             }
-            TestStep::ForceUpdate { .. } => break,
+            TestStep::ForceUpdate(_) => break,
         }
     }
     assert!(
@@ -119,7 +117,7 @@ fn execute_process_update_step(
 fn assert_state_checks(step_num: usize, checks: &StateChecks, processor: &LightClientProcessor) {
     if let Some(expected) = &checks.finalized_header {
         assert!(
-            beacon_header_matches(expected, processor.finalized_header()),
+            expected.matches(processor.finalized_header()),
             "step {}: finalized header mismatch (expected slot {})",
             step_num,
             expected.slot,
@@ -136,7 +134,7 @@ fn assert_state_checks(step_num: usize, checks: &StateChecks, processor: &LightC
 
     if let Some(expected) = &checks.optimistic_header {
         assert!(
-            beacon_header_matches(expected, processor.optimistic_header()),
+            expected.matches(processor.optimistic_header()),
             "step {}: optimistic header mismatch (expected slot {})",
             step_num,
             expected.slot,

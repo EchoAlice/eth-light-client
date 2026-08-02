@@ -7,9 +7,7 @@
 
 #![cfg(feature = "test-utils")]
 
-use eth_light_client::test_utils::{
-    beacon_header_matches, LightClientSyncTest, ProcessUpdateStep, StateChecks, TestStep,
-};
+use eth_light_client::test_utils::{LightClientSyncTest, ProcessUpdateStep, StateChecks, TestStep};
 use eth_light_client::{LightClient, UpdateOutcome};
 
 #[test]
@@ -59,17 +57,17 @@ fn run_public_api_sync(sync_test: LightClientSyncTest) {
     let mut processed = 0;
     for (i, step) in steps.iter().enumerate() {
         match step {
-            TestStep::ProcessUpdate { process_update } => {
+            TestStep::ProcessUpdate(process_update) => {
                 process_step(&mut client, &sync_test, process_update, i + 1);
                 processed += 1;
             }
             // Store migration is a no-op for this store; the step's checks
             // still assert the store is unperturbed.
-            TestStep::UpgradeStore { upgrade_store } => {
-                assert_header_checks(&client, &upgrade_store.checks, i + 1);
+            TestStep::UpgradeStore { checks } => {
+                assert_header_checks(&client, checks, i + 1);
             }
             // later steps depend on force_update's transition -- stop, don't skip
-            TestStep::ForceUpdate { .. } => break,
+            TestStep::ForceUpdate(_) => break,
         }
     }
     assert!(
@@ -122,7 +120,7 @@ fn process_step(
 fn assert_header_checks(client: &LightClient, checks: &StateChecks, step_num: usize) {
     if let Some(expected) = &checks.finalized_header {
         assert!(
-            beacon_header_matches(expected, client.finalized_header()),
+            expected.matches(client.finalized_header()),
             "step {}: finalized header mismatch (expected slot {})",
             step_num,
             expected.slot,
@@ -130,7 +128,7 @@ fn assert_header_checks(client: &LightClient, checks: &StateChecks, step_num: us
     }
     if let Some(expected) = &checks.optimistic_header {
         assert!(
-            beacon_header_matches(expected, client.optimistic_header()),
+            expected.matches(client.optimistic_header()),
             "step {}: optimistic header mismatch (expected slot {})",
             step_num,
             expected.slot,

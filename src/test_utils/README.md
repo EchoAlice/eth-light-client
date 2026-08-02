@@ -18,10 +18,9 @@ the light client against the official vectors with no network or beacon node.
 
 | File | Responsibility |
 |------|----------------|
-| `loader.rs` | `LightClientSyncTest` — the entry point; reads fixture files and returns typed objects |
-| `raw_ssz.rs` | `Raw*` SSZ structs + the `raw_*_to_pub` raw→production converters |
-| `steps.rs` | YAML fixture types (`meta.yaml` / `steps.yaml`, hex roots parsed to `Root` at load) + `beacon_header_matches` |
-| `fork.rs` | `MinimalPresetFork` — the minimal-preset fork tag and its `ChainSpec` |
+| `loader.rs` | `LightClientSyncTest` — the entry point; holds a fixture directory plus a chain schedule, reads the fixture files, and decodes each object under the fork its own fixture digest names |
+| `steps.rs` | YAML fixture types (`meta.yaml` / `steps.yaml`; hex roots and fork digests parsed at load) + `beacon_header_matches` |
+| `fork.rs` | `MinimalPresetFork` (fixture-set tag + per-fork chain schedule), the cross-fork schedule, and `fork_for_digest` (fixture digest → `Fork`) |
 | `mod.rs` | module wiring / re-exports |
 
 ## Fixtures
@@ -34,40 +33,42 @@ scripts the test:
 |------|----------|
 | `bootstrap.ssz_snappy` | The trusted starting point — a header plus the current sync committee and its merkle proof. |
 | `update_<hash>.ssz_snappy` | One light-client update — attested/finalized headers with their branches, the sync aggregate (signature), and an optional next sync committee. |
-| `meta.yaml` | Test metadata — the genesis validators root and fork digests. |
-| `steps.yaml` | The script — an ordered list of updates to apply (each with a `current_slot`) and the header state expected after each. |
-| `config.yaml` | The preset config the vectors were generated with; unused here, since the harness hardcodes the minimal preset. |
+| `meta.yaml` | Test metadata — the genesis validators root, trusted block root, and fork digests (`bootstrap_fork_digest` drives bootstrap decode). |
+| `steps.yaml` | The script — an ordered list of steps (updates to apply, each with a `current_slot` and its own `update_fork_digest`; store-upgrade checkpoints at fork boundaries) and the header state expected after each. |
+| `config.yaml` | The config the vectors were generated with; the drift-guard tests in `fork.rs` assert the hardcoded schedules match it. |
 
 ## Data flow
 
-`LightClientSyncTest` is only the **orchestrator**: it picks a file, decodes it into
-a `Raw*` struct, calls the `raw_ssz` converters to produce the production type,
-and assembles the result. The two hops live in two places — decoding in the
-loader, converting in `raw_ssz`.
+`LightClientSyncTest` is only the **orchestrator**: it snappy-decompresses a
+fixture file, resolves the fork named by that object's fixture digest, and
+hands the raw SSZ to the crate's public `from_ssz` decoders (the fork-dispatched
+wire adapter in `types/ssz.rs`). Decode always follows what the fixture says —
+never a per-test fork assumption — which is what lets one test span forks
+(cross-fork sequences interleave update formats, and pre-fork updates keep
+arriving after the chain forks).
 
 ```mermaid
 sequenceDiagram
     participant T as test
     participant L as loader.rs
-    participant F as fork.rs
-    participant R as raw_ssz.rs
     participant S as steps.rs
-
-    T->>L: chain_spec()
-    L->>F: chain_spec()
-    F-->>L: ChainSpec (minimal preset)
-    L-->>T: ChainSpec
+    participant F as fork.rs
+    participant P as types/ssz.rs (from_ssz)
 
     T->>L: load_bootstrap()
-    L->>R: decode + convert
-    R-->>L: header + sync committee
-    L->>S: parse genesis root
-    S-->>L: Root
+    L->>S: parse meta.yaml (genesis root, bootstrap digest)
+    S-->>L: TestMeta
+    L->>F: fork_for_digest(bootstrap digest)
+    F-->>L: Fork
+    L->>P: LightClientBootstrap::from_ssz(bytes, fork, …)
+    P-->>L: LightClientBootstrap
     L-->>T: LightClientBootstrap
 
-    T->>L: load_update(name)
-    L->>R: decode + convert
-    R-->>L: LightClientUpdate
+    T->>L: load_update(name, update digest)
+    L->>F: fork_for_digest(update digest)
+    F-->>L: Fork
+    L->>P: LightClientUpdate::from_ssz(bytes, fork, …)
+    P-->>L: LightClientUpdate
     L-->>T: LightClientUpdate
 ```
 
@@ -89,10 +90,11 @@ let mut client = LightClient::new(
 )?;
 
 for step in sync_test.load_steps()? {
-    // feed sync_test.load_update(&step.update) into client,
-    // then compare client's headers against step.checks
+    // feed sync_test.load_update(&step.update, step.update_fork_digest)
+    // into client, then compare client's headers against step.checks
 }
 ```
 
-Only the three `minimal_*_sync()` constructors exist — the harness is
-minimal-preset only (fixture shapes *and* chain config), by design.
+The constructors are the five single-fork `minimal_*()` tests plus the
+cross-fork `minimal_deneb_electra_fork()`. The harness is minimal-preset only
+(fixture shapes *and* chain config), by design.

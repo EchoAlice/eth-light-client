@@ -1,5 +1,3 @@
-//! Fixture loader: reads spec test files and builds production light client types.
-
 use super::fork::{deneb_electra_fork_config, fork_for_digest};
 use super::steps::{TestMeta, TestStep};
 use super::{MinimalPresetFork, TestUtilsResult};
@@ -8,15 +6,6 @@ use crate::types::consensus::{LightClientBootstrap, LightClientUpdate};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// One minimal light-client-sync spec test: its chain schedule plus the
-/// bootstrap / updates / steps loaded from the fixture directory.
-///
-/// Bootstrap and updates each decode under the fork named by their own fixture
-/// digest (`bootstrap_fork_digest` in meta.yaml, `update_fork_digest` per
-/// step), so a single test may span forks — decode follows what the fixture
-/// says, not a per-test fork assumption.
-///
-/// **Unstable:** This API may change without notice.
 pub struct LightClientSyncTest {
     test_dir: PathBuf,
     config: ChainSpecConfig,
@@ -123,7 +112,12 @@ impl LightClientSyncTest {
     pub fn load_steps(&self) -> TestUtilsResult<Vec<TestStep>> {
         let steps_path = self.test_dir.join("steps.yaml");
         let steps_contents = fs::read_to_string(&steps_path)?;
-        let steps: Vec<TestStep> = serde_yaml::from_str(&steps_contents)?;
+        // The fixture encodes each step as a single-key map (`- process_update:`),
+        // which serde_yaml 0.9 only maps onto an externally-tagged enum through
+        // its singleton_map adapter (plain from_str would expect `!` YAML tags).
+        let steps: Vec<TestStep> = serde_yaml::with::singleton_map_recursive::deserialize(
+            serde_yaml::Deserializer::from_str(&steps_contents),
+        )?;
         Ok(steps)
     }
 }
