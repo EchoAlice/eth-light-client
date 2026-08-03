@@ -1,13 +1,3 @@
-#![cfg(test)]
-//! # Light Client Sync Specification Tests
-//!
-//! Validates the Ethereum light client sync protocol against official
-//! consensus-spec test vectors from https://github.com/ethereum/consensus-spec-tests
-//!
-//! Each test replays a fork's `process_update` steps through a fresh processor,
-//! asserting store state against the fixture. Stops at the first `force_update`:
-//! it's unimplemented and later steps depend on its state transition.
-
 use crate::consensus::processor::LightClientProcessor;
 use crate::test_utils::{LightClientSyncTest, ProcessUpdateStep, StateChecks, TestStep};
 use crate::types::consensus::LightClientHeader;

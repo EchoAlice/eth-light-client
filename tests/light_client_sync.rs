@@ -66,7 +66,6 @@ fn run_public_api_sync(sync_test: LightClientSyncTest) {
             TestStep::UpgradeStore { checks } => {
                 assert_header_checks(&client, checks, i + 1);
             }
-            // later steps depend on force_update's transition -- stop, don't skip
             TestStep::ForceUpdate(_) => break,
         }
     }

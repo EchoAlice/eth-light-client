@@ -194,7 +194,7 @@ third property, *whether a test uses official spec fixtures*, cuts across both.
 | Scope | What it does | Where |
 |-------|--------------|-------|
 | **Unit** | Exercises one function/method in isolation. | `bls.rs`, `merkle.rs`, `sync_committee.rs`, `processor.rs` |
-| **Conformance replay** | Bootstraps a store and replays the official `light_client_sync` step sequence (updates + expected post-state) end-to-end. | `light_client_spec_tests.rs` (+ its public-API counterpart under `tests/`) |
+| **Conformance replay** | Bootstraps a store and replays the official `light_client_sync` step sequence (updates + expected post-state) end-to-end. Replays stop at the first `force_update` step (rather than skipping it) — later steps depend on the state transition it would have made. | `light_client_spec_tests.rs` (+ its public-API counterpart under `tests/`) |
 
 A conformance replay is *not* a unit test even though it lives in a
 `#[cfg(test)]` module: in Rust, `src/` vs `tests/` decides **access** (can it see
@@ -215,8 +215,13 @@ they drive, which is why both exist. They are complementary, not redundant.
 A *spec test* uses official Ethereum consensus fixtures — independent of scope.
 Fixtures appear at **unit** scope too, not just in the replays:
 
-- `bls_spec_tests.rs` — official BLS `verify` / `fast_aggregate_verify` vectors, each driving a single function.
+- `bls_spec_tests.rs` — official `fast_aggregate_verify` vectors (sync-committee verification is same-message aggregate, so that's the only production BLS entry point). They pin down *our* `bls.rs` adapter — DST, infinity handling, parameter marshaling — including the negative cases (tampered signatures, wrong pubkey sets) that the honest-path fixture replays never reach.
 - `merkle.rs::test_sync_committee_root_against_spec_fixture` — one sync-committee root + branch, checked against a bootstrap fixture.
+
+The BLS vectors are **not vendored** (unlike the light-client fixtures): clone
+`consensus-spec-tests` into `tests/fixtures/` or set `CONSENSUS_SPEC_TESTS_PATH` —
+the suite fails with instructions when they're absent. Setup commands:
+[`tests/BLS_TESTING.md`](../../tests/BLS_TESTING.md).
 
 So "spec test", "unit test", and "the sync replay" are three different
 properties that cut across one another.
