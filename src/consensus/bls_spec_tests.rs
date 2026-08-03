@@ -1,17 +1,3 @@
-#![cfg(test)]
-//! BLS spec-vector tests.
-//!
-//! Validates our BLS wrapper (`src/consensus/bls.rs`) against the official
-//! Ethereum `fast_aggregate_verify` consensus vectors. These do NOT test blst
-//! itself (already extensively tested) — they pin down that OUR adapter uses
-//! the correct DST, handles infinity / empty sets per spec, and marshals
-//! parameters correctly, including the negative cases (tampered signatures,
-//! wrong pubkey sets) that the light-client fixture replays never reach.
-//!
-//! Vectors: <https://github.com/ethereum/consensus-spec-tests>
-//! Setup: clone consensus-spec-tests into `tests/fixtures/consensus-spec-tests/`
-//! or set `CONSENSUS_SPEC_TESTS_PATH`.
-
 use crate::consensus::bls::verify_aggregate_signature;
 use serde::Deserialize;
 use std::path::PathBuf;

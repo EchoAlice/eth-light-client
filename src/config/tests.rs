@@ -1,5 +1,3 @@
-//! Tests for the config module.
-
 use super::*;
 
 #[test]

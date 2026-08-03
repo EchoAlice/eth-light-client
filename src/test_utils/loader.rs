@@ -1,27 +1,26 @@
-//! Fixture loader: reads spec test files and builds production light client types.
-
+use super::fork::{deneb_electra_fork_config, fork_for_digest};
 use super::steps::{TestMeta, TestStep};
 use super::{MinimalPresetFork, TestUtilsResult};
+use crate::config::{ChainSpecConfig, Fork};
 use crate::types::consensus::{LightClientBootstrap, LightClientUpdate};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// One fork's minimal light-client-sync spec test: its `ChainSpec` plus the
-/// bootstrap / updates / steps loaded from the fixture directory.
-///
-/// **Unstable:** This API may change without notice.
 pub struct LightClientSyncTest {
     test_dir: PathBuf,
-    fork: MinimalPresetFork,
+    config: ChainSpecConfig,
 }
 
 impl LightClientSyncTest {
     fn new(fork: MinimalPresetFork) -> Self {
-        let dir = fork.name();
+        Self::with_case(fork.name(), "light_client_sync", fork.config())
+    }
+
+    fn with_case(dir: &str, case: &str, config: ChainSpecConfig) -> Self {
         let test_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
-            "tests/fixtures/minimal/{dir}/light_client/sync/light_client_sync"
+            "tests/fixtures/minimal/{dir}/light_client/sync/{case}"
         ));
-        Self { test_dir, fork }
+        Self { test_dir, config }
     }
 
     pub fn minimal_altair() -> Self {
@@ -44,29 +43,61 @@ impl LightClientSyncTest {
         Self::new(MinimalPresetFork::Electra)
     }
 
+    /// The cross-fork `electra_fork` spec test: Deneb bootstrap, chain forks
+    /// to Electra at epoch 3, with Deneb- and Electra-format updates
+    /// interleaved (see the fixture's steps.yaml).
+    pub fn minimal_deneb_electra_fork() -> Self {
+        Self::with_case("deneb", "electra_fork", deneb_electra_fork_config())
+    }
+
     pub fn chain_spec(&self) -> crate::config::ChainSpec {
-        self.fork.chain_spec()
+        crate::config::ChainSpec::try_from_config(self.config)
+            .expect("minimal fixture config is valid")
+    }
+
+    /// Resolve a fixture fork digest against this test's chain schedule.
+    fn resolve_fork(
+        &self,
+        digest: [u8; 4],
+        genesis_validators_root: crate::types::primitives::Root,
+    ) -> TestUtilsResult<Fork> {
+        fork_for_digest(digest, &self.config, genesis_validators_root).ok_or_else(|| {
+            format!(
+                "no active fork in this test's schedule matches digest 0x{}",
+                hex::encode(digest)
+            )
+            .into()
+        })
     }
 
     pub fn load_bootstrap(&self) -> TestUtilsResult<LightClientBootstrap> {
         let meta = self.load_meta()?;
+        let fork = self.resolve_fork(meta.bootstrap_fork_digest, meta.genesis_validators_root)?;
         let bytes = snappy_decompress(&self.test_dir.join("bootstrap.ssz_snappy"))?;
         // Drive the public decode path (dogfoods `from_ssz`); snappy framing is
         // a fixture concern, so it stays here — the beacon API serves raw SSZ.
         Ok(LightClientBootstrap::from_ssz(
             &bytes,
-            self.fork.into(),
+            fork,
             self.chain_spec().sync_committee_size(),
             meta.genesis_validators_root,
         )?)
     }
 
-    /// `name` must not include the `.ssz_snappy` extension.
-    pub fn load_update(&self, name: &str) -> TestUtilsResult<LightClientUpdate> {
+    /// `name` must not include the `.ssz_snappy` extension. `fork_digest` is
+    /// the step's `update_fork_digest` — updates decode under their own fork,
+    /// which in cross-fork sequences differs per update.
+    pub fn load_update(
+        &self,
+        name: &str,
+        fork_digest: [u8; 4],
+    ) -> TestUtilsResult<LightClientUpdate> {
+        let meta = self.load_meta()?;
+        let fork = self.resolve_fork(fork_digest, meta.genesis_validators_root)?;
         let bytes = snappy_decompress(&self.test_dir.join(format!("{name}.ssz_snappy")))?;
         Ok(LightClientUpdate::from_ssz(
             &bytes,
-            self.fork.into(),
+            fork,
             self.chain_spec().sync_committee_size(),
         )?)
     }
@@ -81,7 +112,12 @@ impl LightClientSyncTest {
     pub fn load_steps(&self) -> TestUtilsResult<Vec<TestStep>> {
         let steps_path = self.test_dir.join("steps.yaml");
         let steps_contents = fs::read_to_string(&steps_path)?;
-        let steps: Vec<TestStep> = serde_yaml::from_str(&steps_contents)?;
+        // The fixture encodes each step as a single-key map (`- process_update:`),
+        // which serde_yaml 0.9 only maps onto an externally-tagged enum through
+        // its singleton_map adapter (plain from_str would expect `!` YAML tags).
+        let steps: Vec<TestStep> = serde_yaml::with::singleton_map_recursive::deserialize(
+            serde_yaml::Deserializer::from_str(&steps_contents),
+        )?;
         Ok(steps)
     }
 }
