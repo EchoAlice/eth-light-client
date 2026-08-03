@@ -37,7 +37,6 @@ optional = true
 # Testing
 [dev-dependencies]
 serde_yaml = "0.9"
-walkdir = "2.4"
 snap = "1.1"
 
 [profile.release]

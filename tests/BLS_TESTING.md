@@ -23,17 +23,14 @@ mismatch fails the suite and all mismatches are reported at once.
 
 ## Fixtures
 
-The vectors live under
-`tests/fixtures/consensus-spec-tests/tests/general/phase0/bls`. Clone them, or
-point at an existing copy:
+The `fast_aggregate_verify` vectors are vendored at
+`tests/fixtures/general/phase0/bls` — the fixtures tree mirrors the upstream
+[`consensus-spec-tests`](https://github.com/ethereum/consensus-spec-tests)
+layout (`tests/general/phase0/bls/…`), the same way `tests/fixtures/minimal/`
+mirrors the minimal-preset tree. No setup is needed; a fresh clone passes.
 
-```bash
-# Option A: clone into fixtures
-cd tests/fixtures && git clone https://github.com/ethereum/consensus-spec-tests.git
-
-# Option B: use an existing checkout
-export CONSENSUS_SPEC_TESTS_PATH="/path/to/consensus-spec-tests/tests/general/phase0/bls"
-```
+To validate against a newer spec-tests release, re-vendor: copy its
+`fast_aggregate_verify` directory over the vendored one and rerun.
 
 ## Where this fits
 

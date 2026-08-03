@@ -1,8 +1,7 @@
 use crate::consensus::bls::verify_aggregate_signature;
 use serde::Deserialize;
+use std::fs;
 use std::path::PathBuf;
-use std::{env, fs};
-use walkdir::WalkDir;
 
 #[derive(Deserialize)]
 struct FastAggregateVerifyCase {
@@ -17,14 +16,6 @@ struct FastAggregateVerifyInput {
     signature: String,
 }
 
-fn bls_test_path() -> PathBuf {
-    env::var("CONSENSUS_SPEC_TESTS_PATH")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| {
-            PathBuf::from("tests/fixtures/consensus-spec-tests/tests/general/phase0/bls")
-        })
-}
-
 fn parse_hex(s: &str) -> Vec<u8> {
     hex::decode(s.strip_prefix("0x").unwrap_or(s)).expect("invalid hex in fixture")
 }
@@ -33,37 +24,26 @@ fn fixed<const N: usize>(bytes: &[u8]) -> [u8; N] {
     bytes.try_into().expect("unexpected fixture field length")
 }
 
-/// Run every official `fast_aggregate_verify` vector through our production
-/// path. Strict: any mismatch fails the suite (all mismatches are reported).
 #[test]
 fn fast_aggregate_verify_spec_vectors() {
-    let dir = bls_test_path().join("fast_aggregate_verify/bls");
-    assert!(
-        dir.exists(),
-        "BLS fixtures not found at {dir:?}. Clone consensus-spec-tests into \
-         tests/fixtures/ or set CONSENSUS_SPEC_TESTS_PATH."
-    );
+    let dir = PathBuf::from("tests/fixtures/general/phase0/bls/fast_aggregate_verify/bls");
+    assert!(dir.exists(), "vendored BLS fixtures not found at {dir:?}");
 
     let mut checked = 0usize;
     let mut failures = Vec::new();
 
-    for entry in WalkDir::new(&dir)
-        .max_depth(2)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
-        if entry.file_name().to_str() != Some("data.yaml") {
+    for entry in fs::read_dir(&dir).expect("read fixture dir") {
+        let case_dir = entry.expect("read dir entry").path();
+        if !case_dir.is_dir() {
             continue;
         }
-        let name = entry
-            .path()
-            .parent()
-            .and_then(|p| p.file_name())
+        let name = case_dir
+            .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("unknown")
             .to_string();
 
-        let contents = fs::read_to_string(entry.path()).expect("read fixture");
+        let contents = fs::read_to_string(case_dir.join("data.yaml")).expect("read fixture");
         let case: FastAggregateVerifyCase =
             serde_yaml::from_str(&contents).unwrap_or_else(|e| panic!("parse {name}: {e}"));
 
