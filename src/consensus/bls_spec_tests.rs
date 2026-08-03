@@ -20,9 +20,7 @@ struct FastAggregateVerifyInput {
 fn bls_test_path() -> PathBuf {
     env::var("CONSENSUS_SPEC_TESTS_PATH")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| {
-            PathBuf::from("tests/fixtures/consensus-spec-tests/tests/general/phase0/bls")
-        })
+        .unwrap_or_else(|_| PathBuf::from("tests/fixtures/general/phase0/bls"))
 }
 
 fn parse_hex(s: &str) -> Vec<u8> {
@@ -40,8 +38,8 @@ fn fast_aggregate_verify_spec_vectors() {
     let dir = bls_test_path().join("fast_aggregate_verify/bls");
     assert!(
         dir.exists(),
-        "BLS fixtures not found at {dir:?}. Clone consensus-spec-tests into \
-         tests/fixtures/ or set CONSENSUS_SPEC_TESTS_PATH."
+        "BLS fixtures not found at {dir:?} (vendored in-repo) and \
+         CONSENSUS_SPEC_TESTS_PATH not set."
     );
 
     let mut checked = 0usize;

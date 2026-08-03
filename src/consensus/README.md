@@ -218,10 +218,10 @@ Fixtures appear at **unit** scope too, not just in the replays:
 - `bls_spec_tests.rs` — official `fast_aggregate_verify` vectors (sync-committee verification is same-message aggregate, so that's the only production BLS entry point). They pin down *our* `bls.rs` adapter — DST, infinity handling, parameter marshaling — including the negative cases (tampered signatures, wrong pubkey sets) that the honest-path fixture replays never reach.
 - `merkle.rs::test_sync_committee_root_against_spec_fixture` — one sync-committee root + branch, checked against a bootstrap fixture.
 
-The BLS vectors are **not vendored** (unlike the light-client fixtures): clone
-`consensus-spec-tests` into `tests/fixtures/` or set `CONSENSUS_SPEC_TESTS_PATH` —
-the suite fails with instructions when they're absent. Setup commands:
-[`tests/BLS_TESTING.md`](../../tests/BLS_TESTING.md).
+The BLS vectors are vendored under `tests/fixtures/general/phase0/bls` (the
+fixtures tree mirrors the upstream `consensus-spec-tests` layout); set
+`CONSENSUS_SPEC_TESTS_PATH` to run against a different spec-tests checkout.
+Details: [`tests/BLS_TESTING.md`](../../tests/BLS_TESTING.md).
 
 So "spec test", "unit test", and "the sync replay" are three different
 properties that cut across one another.

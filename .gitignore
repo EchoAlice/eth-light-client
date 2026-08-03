@@ -16,10 +16,6 @@ Thumbs.db
 # Claude Code
 .claude/
 
-# Test data
-# Consensus spec tests (large test data - should not be committed)
-tests/fixtures/consensus-spec-tests/
-
 # Environment variable examples (if created)
 .env
 .env.local
