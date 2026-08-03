@@ -29,11 +29,8 @@ The `fast_aggregate_verify` vectors are vendored at
 layout (`tests/general/phase0/bls/…`), the same way `tests/fixtures/minimal/`
 mirrors the minimal-preset tree. No setup is needed; a fresh clone passes.
 
-To run against a different (e.g. newer) spec-tests checkout instead:
-
-```bash
-export CONSENSUS_SPEC_TESTS_PATH="/path/to/consensus-spec-tests/tests/general/phase0/bls"
-```
+To validate against a newer spec-tests release, re-vendor: copy its
+`fast_aggregate_verify` directory over the vendored one and rerun.
 
 ## Where this fits
 

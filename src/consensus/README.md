@@ -219,8 +219,7 @@ Fixtures appear at **unit** scope too, not just in the replays:
 - `merkle.rs::test_sync_committee_root_against_spec_fixture` — one sync-committee root + branch, checked against a bootstrap fixture.
 
 The BLS vectors are vendored under `tests/fixtures/general/phase0/bls` (the
-fixtures tree mirrors the upstream `consensus-spec-tests` layout); set
-`CONSENSUS_SPEC_TESTS_PATH` to run against a different spec-tests checkout.
+fixtures tree mirrors the upstream `consensus-spec-tests` layout).
 Details: [`tests/BLS_TESTING.md`](../../tests/BLS_TESTING.md).
 
 So "spec test", "unit test", and "the sync replay" are three different
