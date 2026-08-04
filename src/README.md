@@ -68,14 +68,13 @@ flowchart TD
 
     main["mainnet()"] --> fc
     min["minimal()"] --> fc
-    ft["for_test()"] --> fc
 
     fc --> spec["ChainSpec<br/>validated<br/>immutable · trusted"]
 ```
 
 The validated door (`try_from_config`) is the only path that checks input; the
-trusted presets (`minimal`, `mainnet`, `for_test`) skip `validate()` as a
-`const` construction optimization but still go through the single `from_config`
+trusted presets (`minimal`, `mainnet`) skip `validate()` as a `const`
+construction optimization but still go through the single `from_config`
 mapping. Their params are known-good, so `try_from_config` would accept them
 just the same.
 
