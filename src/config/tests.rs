@@ -3,7 +3,6 @@ use super::*;
 #[test]
 fn test_mainnet_spec() {
     let spec = ChainSpec::mainnet();
-    assert_eq!(spec.preset_name(), "mainnet");
     assert_eq!(spec.slots_per_epoch(), 32);
     assert_eq!(spec.epochs_per_sync_committee_period(), 256);
     assert_eq!(spec.sync_committee_size(), 512);
@@ -15,7 +14,6 @@ fn test_mainnet_spec() {
 #[test]
 fn test_minimal_spec() {
     let spec = ChainSpec::minimal();
-    assert_eq!(spec.preset_name(), "minimal");
     assert_eq!(spec.slots_per_epoch(), 8);
     assert_eq!(spec.epochs_per_sync_committee_period(), 8);
     assert_eq!(spec.sync_committee_size(), 32);
@@ -247,7 +245,6 @@ fn test_chainspec_config_valid() {
     assert!(config.validate().is_ok());
 
     let spec = ChainSpec::try_from_config(config).unwrap();
-    assert_eq!(spec.preset_name(), "custom");
     assert_eq!(spec.genesis_time(), 1700000000);
     assert_eq!(spec.seconds_per_slot(), 12);
     assert_eq!(spec.slots_per_epoch(), 32);

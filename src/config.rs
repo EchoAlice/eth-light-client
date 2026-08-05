@@ -4,6 +4,8 @@ use crate::types::primitives::Slot;
 /// Identifies a consensus fork, selecting the light client wire layout / rules
 /// that apply. Used by [`ChainSpec`] internally and by the public
 /// `LightClient{Update,Bootstrap}::from_ssz` decoders to pick the wire format.
+//
+// TODO: Check to see if macros are needed. Remove explanatory field comments. move inside this directory's readme.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
 pub enum Fork {
@@ -87,12 +89,9 @@ impl ForkParams {
 
 /// Defines network-specific constants for mainnet/minimal (test) presets.
 /// Includes fork schedule and fork-specific constants.
-//
-// TODO: Should the preset be an enum with types `mainnet`, `minimal`, or `custom`?
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub struct ChainSpec {
-    preset_name: &'static str,
     genesis_time: u64,
     seconds_per_slot: u64,
     slots_per_epoch: u64,
@@ -104,22 +103,21 @@ pub struct ChainSpec {
 // TODO: Rethink whether the ChainSpec struct + constructors make sense.
 impl ChainSpec {
     pub const fn mainnet() -> Self {
-        Self::from_config(ChainSpecConfig::mainnet(), "mainnet")
+        Self::from_config(ChainSpecConfig::mainnet())
     }
 
     pub const fn minimal() -> Self {
-        Self::from_config(ChainSpecConfig::minimal(), "minimal")
+        Self::from_config(ChainSpecConfig::minimal())
     }
 
     pub fn try_from_config(config: ChainSpecConfig) -> Result<Self> {
         config.validate()?;
-        Ok(Self::from_config(config, "custom"))
+        Ok(Self::from_config(config))
     }
 
     /// The one place the config -> spec mapping lives; callers own validation.
-    const fn from_config(config: ChainSpecConfig, preset_name: &'static str) -> Self {
+    const fn from_config(config: ChainSpecConfig) -> Self {
         Self {
-            preset_name,
             genesis_time: config.genesis_time,
             seconds_per_slot: config.seconds_per_slot,
             slots_per_epoch: config.slots_per_epoch,
@@ -136,10 +134,6 @@ impl ChainSpec {
     }
 
     // TODO: Scrutinize each associated method.  Assess necessity.
-    pub const fn preset_name(&self) -> &'static str {
-        self.preset_name
-    }
-
     pub const fn genesis_time(&self) -> u64 {
         self.genesis_time
     }
