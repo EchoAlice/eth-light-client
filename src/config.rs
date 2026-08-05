@@ -186,12 +186,12 @@ impl ChainSpec {
         }
     }
 
-    pub(crate) const fn fork_at_epoch(&self, epoch: u64) -> Fork {
+    const fn fork_at_epoch(&self, epoch: u64) -> Fork {
         self.fork_schedule.fork_at_epoch(epoch)
     }
 
     /// Determine which fork is active at a given slot.
-    pub(crate) const fn fork_at_slot(&self, slot: Slot) -> Fork {
+    const fn fork_at_slot(&self, slot: Slot) -> Fork {
         self.fork_at_epoch(slot / self.slots_per_epoch)
     }
 
