@@ -12,7 +12,7 @@ pub enum Fork {
 }
 
 /// Defines network-specific constants. Includes fork schedule and fork-specific constants.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct ChainSpec {
     genesis_time: u64,
@@ -126,7 +126,7 @@ impl ChainSpec {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(crate) struct ForkSchedule {
     altair: ForkParams,
     bellatrix: ForkParams,
@@ -177,7 +177,7 @@ impl ForkSchedule {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(crate) struct ForkParams {
     version: [u8; 4],
     epoch: u64,

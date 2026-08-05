@@ -311,7 +311,7 @@ mod tests {
         let bootstrap_slot = bootstrap.header.slot();
 
         let mut processor = LightClientProcessor::new(
-            chain_spec,
+            chain_spec.clone(),
             bootstrap.header.clone(),
             bootstrap.current_sync_committee.clone(),
             &bootstrap.current_sync_committee_branch,
