@@ -4,90 +4,15 @@ use crate::types::primitives::Slot;
 /// Identifies a consensus fork, selecting the light client wire layout / rules
 /// that apply. Used by [`ChainSpec`] internally and by the public
 /// `LightClient{Update,Bootstrap}::from_ssz` decoders to pick the wire format.
-//
-// TODO:
-//    - Check to see if macros are needed.
-//    - Remove explanatory field comments. move inside this directory's readme.
+/// For what each fork changed light-client-wise, see `src/README.md`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
 pub enum Fork {
-    Altair,    // Light client protocol introduced (Oct 2021)
-    Bellatrix, // The Merge (Sep 2022). No LC header changes.
-    Capella,   // Withdrawals (Apr 2023). LC header gains execution payload.
-    Deneb,     // Blobs/4844 (Mar 2024). LC header adds blob fields.
-    Electra,   // Pectra upgrade (2025). BeaconState restructured, gindice change.
-}
-
-// TODO: Should we move fork / fork schedule below the config struct?
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct ForkSchedule {
-    altair: ForkParams,
-    bellatrix: ForkParams,
-    capella: ForkParams,
-    deneb: ForkParams,
-    electra: ForkParams,
-}
-
-impl ForkSchedule {
-    pub(crate) const fn new(
-        altair: ForkParams,
-        bellatrix: ForkParams,
-        capella: ForkParams,
-        deneb: ForkParams,
-        electra: ForkParams,
-    ) -> Self {
-        Self {
-            altair,
-            bellatrix,
-            capella,
-            deneb,
-            electra,
-        }
-    }
-
-    pub(crate) const fn fork_at_epoch(&self, epoch: u64) -> Fork {
-        if epoch >= self.electra.epoch() {
-            Fork::Electra
-        } else if epoch >= self.deneb.epoch() {
-            Fork::Deneb
-        } else if epoch >= self.capella.epoch() {
-            Fork::Capella
-        } else if epoch >= self.bellatrix.epoch() {
-            Fork::Bellatrix
-        } else {
-            Fork::Altair
-        }
-    }
-
-    pub(crate) const fn version_at_epoch(&self, epoch: u64) -> [u8; 4] {
-        match self.fork_at_epoch(epoch) {
-            Fork::Altair => self.altair.version(),
-            Fork::Bellatrix => self.bellatrix.version(),
-            Fork::Capella => self.capella.version(),
-            Fork::Deneb => self.deneb.version(),
-            Fork::Electra => self.electra.version(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct ForkParams {
-    version: [u8; 4],
-    epoch: u64,
-}
-
-impl ForkParams {
-    pub(crate) const fn new(version: [u8; 4], epoch: u64) -> Self {
-        Self { version, epoch }
-    }
-
-    pub(crate) const fn version(&self) -> [u8; 4] {
-        self.version
-    }
-
-    pub(crate) const fn epoch(&self) -> u64 {
-        self.epoch
-    }
+    Altair,
+    Bellatrix,
+    Capella,
+    Deneb,
+    Electra,
 }
 
 /// Defines network-specific constants. Includes fork schedule and fork-specific constants.
@@ -206,6 +131,77 @@ impl ChainSpec {
             Fork::Electra => 169,
             _ => 105,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ForkSchedule {
+    altair: ForkParams,
+    bellatrix: ForkParams,
+    capella: ForkParams,
+    deneb: ForkParams,
+    electra: ForkParams,
+}
+
+impl ForkSchedule {
+    pub(crate) const fn new(
+        altair: ForkParams,
+        bellatrix: ForkParams,
+        capella: ForkParams,
+        deneb: ForkParams,
+        electra: ForkParams,
+    ) -> Self {
+        Self {
+            altair,
+            bellatrix,
+            capella,
+            deneb,
+            electra,
+        }
+    }
+
+    pub(crate) const fn fork_at_epoch(&self, epoch: u64) -> Fork {
+        if epoch >= self.electra.epoch() {
+            Fork::Electra
+        } else if epoch >= self.deneb.epoch() {
+            Fork::Deneb
+        } else if epoch >= self.capella.epoch() {
+            Fork::Capella
+        } else if epoch >= self.bellatrix.epoch() {
+            Fork::Bellatrix
+        } else {
+            Fork::Altair
+        }
+    }
+
+    pub(crate) const fn version_at_epoch(&self, epoch: u64) -> [u8; 4] {
+        match self.fork_at_epoch(epoch) {
+            Fork::Altair => self.altair.version(),
+            Fork::Bellatrix => self.bellatrix.version(),
+            Fork::Capella => self.capella.version(),
+            Fork::Deneb => self.deneb.version(),
+            Fork::Electra => self.electra.version(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ForkParams {
+    version: [u8; 4],
+    epoch: u64,
+}
+
+impl ForkParams {
+    pub(crate) const fn new(version: [u8; 4], epoch: u64) -> Self {
+        Self { version, epoch }
+    }
+
+    pub(crate) const fn version(&self) -> [u8; 4] {
+        self.version
+    }
+
+    pub(crate) const fn epoch(&self) -> u64 {
+        self.epoch
     }
 }
 

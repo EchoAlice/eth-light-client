@@ -82,3 +82,13 @@ just the same.
 `config` sits near the **floor** of the dependency graph (depends only on `error` + `types::primitives`); nearly everything consensus-y depends on it. So it's foundational.  The module should be stable and low-churn.
 
 It's also where each **new fork lands** (a `ForkParams`, a gindex arm, a fork version) as support advances (Deneb → Electra → Fulu).
+
+What each fork changed, light-client-wise (`Fork` enum variants, in order):
+
+| Fork | LC-relevant change |
+|------|--------------------|
+| Altair (Oct 2021) | Light client protocol introduced |
+| Bellatrix (Sep 2022) | The Merge; no LC header changes |
+| Capella (Apr 2023) | LC header gains the execution payload header + inclusion branch |
+| Deneb (Mar 2024) | Blobs/4844; execution payload header adds blob-gas fields |
+| Electra (2025) | Pectra; BeaconState restructured — gindices shift, proof branches deepen |
