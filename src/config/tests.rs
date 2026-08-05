@@ -134,15 +134,6 @@ fn test_fork_minimal_preset() {
     // is an edge case that doesn't occur in practice.
 }
 
-#[test]
-fn test_fork_ordering() {
-    // Ensure Fork enum ordering is correct for comparisons
-    assert!(Fork::Altair < Fork::Bellatrix);
-    assert!(Fork::Bellatrix < Fork::Capella);
-    assert!(Fork::Capella < Fork::Deneb);
-    assert!(Fork::Deneb < Fork::Electra);
-}
-
 // Generalized Index Tests
 #[test]
 fn test_gindex_altair_through_deneb() {

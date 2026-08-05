@@ -1,11 +1,7 @@
 use crate::error::{Error, Result};
 use crate::types::primitives::Slot;
 
-/// Identifies a consensus fork, selecting the light client wire layout / rules
-/// that apply. Used by [`ChainSpec`] internally and by the public
-/// `LightClient{Update,Bootstrap}::from_ssz` decoders to pick the wire format.
-/// For what each fork changed light-client-wise, see `src/README.md`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Fork {
     Altair,
@@ -97,14 +93,10 @@ impl ChainSpec {
         self.fork_schedule.fork_at_epoch(epoch)
     }
 
-    /// Determine which fork is active at a given slot.
     const fn fork_at_slot(&self, slot: Slot) -> Fork {
         self.fork_at_epoch(slot / self.slots_per_epoch)
     }
 
-    /// Get the fork version for a given epoch.
-    ///
-    /// Used for computing signature domains.
     pub(crate) const fn fork_version_at_epoch(&self, epoch: u64) -> [u8; 4] {
         self.fork_schedule.version_at_epoch(epoch)
     }
@@ -134,7 +126,7 @@ impl ChainSpec {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct ForkSchedule {
     altair: ForkParams,
     bellatrix: ForkParams,
@@ -185,7 +177,7 @@ impl ForkSchedule {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct ForkParams {
     version: [u8; 4],
     epoch: u64,
