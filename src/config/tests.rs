@@ -4,7 +4,7 @@ use super::*;
 fn test_mainnet_spec() {
     let spec = ChainSpec::mainnet();
     assert_eq!(spec.slots_per_epoch(), 32);
-    assert_eq!(spec.epochs_per_sync_committee_period(), 256);
+    assert_eq!(spec.epochs_per_sync_committee_period, 256);
     assert_eq!(spec.sync_committee_size(), 512);
     assert_eq!(spec.slots_per_sync_committee_period(), 8192);
     // Altair version via the live path (Altair is the genesis fork for the LC).
@@ -15,7 +15,7 @@ fn test_mainnet_spec() {
 fn test_minimal_spec() {
     let spec = ChainSpec::minimal();
     assert_eq!(spec.slots_per_epoch(), 8);
-    assert_eq!(spec.epochs_per_sync_committee_period(), 8);
+    assert_eq!(spec.epochs_per_sync_committee_period, 8);
     assert_eq!(spec.sync_committee_size(), 32);
     assert_eq!(spec.slots_per_sync_committee_period(), 64);
     assert_eq!(spec.fork_version_at_epoch(0), [0x01, 0x00, 0x00, 0x01]);
@@ -39,15 +39,6 @@ fn test_slot_to_period_minimal() {
     assert_eq!(spec.slot_to_sync_committee_period(64), 1);
     assert_eq!(spec.slot_to_sync_committee_period(127), 1);
     assert_eq!(spec.slot_to_sync_committee_period(128), 2);
-}
-
-#[test]
-fn test_period_boundaries() {
-    let spec = ChainSpec::minimal();
-    assert_eq!(spec.sync_committee_period_start_slot(0), 0);
-    assert_eq!(spec.sync_committee_period_end_slot(0), 63);
-    assert_eq!(spec.sync_committee_period_start_slot(1), 64);
-    assert_eq!(spec.sync_committee_period_end_slot(1), 127);
 }
 
 #[test]
@@ -245,10 +236,10 @@ fn test_chainspec_config_valid() {
     assert!(config.validate().is_ok());
 
     let spec = ChainSpec::try_from_config(config).unwrap();
-    assert_eq!(spec.genesis_time(), 1700000000);
-    assert_eq!(spec.seconds_per_slot(), 12);
+    assert_eq!(spec.genesis_time, 1700000000);
+    assert_eq!(spec.seconds_per_slot, 12);
     assert_eq!(spec.slots_per_epoch(), 32);
-    assert_eq!(spec.epochs_per_sync_committee_period(), 256);
+    assert_eq!(spec.epochs_per_sync_committee_period, 256);
     assert_eq!(spec.sync_committee_size(), 512);
 }
 

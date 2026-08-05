@@ -5,7 +5,9 @@ use crate::types::primitives::Slot;
 /// that apply. Used by [`ChainSpec`] internally and by the public
 /// `LightClient{Update,Bootstrap}::from_ssz` decoders to pick the wire format.
 //
-// TODO: Check to see if macros are needed. Remove explanatory field comments. move inside this directory's readme.
+// TODO:
+//    - Check to see if macros are needed.
+//    - Remove explanatory field comments. move inside this directory's readme.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
 pub enum Fork {
@@ -16,6 +18,7 @@ pub enum Fork {
     Electra,   // Pectra upgrade (2025). BeaconState restructured, gindice change.
 }
 
+// TODO: Should we move fork / fork schedule below the config struct?
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ForkSchedule {
     altair: ForkParams,
@@ -87,8 +90,7 @@ impl ForkParams {
     }
 }
 
-/// Defines network-specific constants for mainnet/minimal (test) presets.
-/// Includes fork schedule and fork-specific constants.
+/// Defines network-specific constants. Includes fork schedule and fork-specific constants.
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub struct ChainSpec {
@@ -100,7 +102,6 @@ pub struct ChainSpec {
     fork_schedule: ForkSchedule,
 }
 
-// TODO: Rethink whether the ChainSpec struct + constructors make sense.
 impl ChainSpec {
     pub const fn mainnet() -> Self {
         Self::from_config(ChainSpecConfig::mainnet())
@@ -133,21 +134,8 @@ impl ChainSpec {
         }
     }
 
-    // TODO: Scrutinize each associated method.  Assess necessity.
-    pub const fn genesis_time(&self) -> u64 {
-        self.genesis_time
-    }
-
-    pub const fn seconds_per_slot(&self) -> u64 {
-        self.seconds_per_slot
-    }
-
     pub const fn slots_per_epoch(&self) -> u64 {
         self.slots_per_epoch
-    }
-
-    pub const fn epochs_per_sync_committee_period(&self) -> u64 {
-        self.epochs_per_sync_committee_period
     }
 
     pub const fn sync_committee_size(&self) -> usize {
@@ -166,18 +154,12 @@ impl ChainSpec {
         self.slot_to_epoch(slot) / self.epochs_per_sync_committee_period
     }
 
-    pub const fn sync_committee_period_start_slot(&self, period: u64) -> u64 {
-        period * self.slots_per_sync_committee_period()
-    }
-
-    pub const fn sync_committee_period_end_slot(&self, period: u64) -> u64 {
-        self.sync_committee_period_start_slot(period + 1) - 1
-    }
-
-    /// Calculate current slot from Unix timestamp
+    /// Current slot from a Unix timestamp.
     ///
-    /// Returns 0 if the timestamp is before genesis (e.g., system clock is wrong)
-    // TODO: Should this return an error instead of `0`?
+    /// Pre-genesis timestamps map to slot 0 — fail-closed: a wrong/early clock
+    /// lowers `current_slot`, and validation rejects updates with
+    /// `signature_slot > current_slot`, so a bad clock rejects more, never
+    /// accepts more.
     pub(crate) fn timestamp_to_slot(&self, timestamp_secs: u64) -> u64 {
         if timestamp_secs >= self.genesis_time {
             (timestamp_secs - self.genesis_time) / self.seconds_per_slot
@@ -202,12 +184,6 @@ impl ChainSpec {
         self.fork_schedule.version_at_epoch(epoch)
     }
 
-    // Beacon State Generalized Indices
-    //
-    // These return the SSZ generalized index for various beacon state fields.
-    // Indices changed in Electra due to BeaconState restructuring.
-    //
-    // Reference: https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/sync-protocol.md
     #[inline]
     pub(crate) const fn current_sync_committee_gindex(&self, slot: Slot) -> u64 {
         match self.fork_at_slot(slot) {
@@ -216,7 +192,6 @@ impl ChainSpec {
         }
     }
 
-    /// Get the generalized index for `BeaconState.next_sync_committee` at a given slot.
     #[inline]
     pub(crate) const fn next_sync_committee_gindex(&self, slot: Slot) -> u64 {
         match self.fork_at_slot(slot) {
@@ -225,7 +200,6 @@ impl ChainSpec {
         }
     }
 
-    /// Get the generalized index for `BeaconState.finalized_checkpoint.root` at a given slot.
     #[inline]
     pub(crate) const fn finalized_root_gindex(&self, slot: Slot) -> u64 {
         match self.fork_at_slot(slot) {
@@ -257,7 +231,7 @@ impl ChainSpec {
 /// };
 ///
 /// let spec = ChainSpec::try_from_config(config).unwrap();
-/// assert_eq!(spec.genesis_time(), 1700000000);
+/// assert_eq!(spec.slots_per_epoch(), 8); // minimal-preset value carried through
 /// ```
 
 #[derive(Debug, Clone, Copy)]
