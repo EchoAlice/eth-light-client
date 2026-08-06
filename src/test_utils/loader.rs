@@ -1,6 +1,6 @@
-use super::fork::{deneb_electra_fork_config, fork_for_digest};
+use super::fork::{deneb_electra_fork_config, fixture_dir, fork_for_digest, single_fork_config};
 use super::steps::{TestMeta, TestStep};
-use super::{MinimalPresetFork, TestUtilsResult};
+use super::TestUtilsResult;
 use crate::config::{ChainSpecConfig, Fork};
 use crate::types::consensus::{LightClientBootstrap, LightClientUpdate};
 use std::fs;
@@ -12,8 +12,12 @@ pub struct LightClientSyncTest {
 }
 
 impl LightClientSyncTest {
-    fn new(fork: MinimalPresetFork) -> Self {
-        Self::with_case(fork.name(), "light_client_sync", fork.config())
+    fn new(fork: Fork) -> Self {
+        Self::with_case(
+            fixture_dir(fork),
+            "light_client_sync",
+            single_fork_config(fork),
+        )
     }
 
     fn with_case(dir: &str, case: &str, config: ChainSpecConfig) -> Self {
@@ -24,23 +28,23 @@ impl LightClientSyncTest {
     }
 
     pub fn minimal_altair() -> Self {
-        Self::new(MinimalPresetFork::Altair)
+        Self::new(Fork::Altair)
     }
 
     pub fn minimal_bellatrix() -> Self {
-        Self::new(MinimalPresetFork::Bellatrix)
+        Self::new(Fork::Bellatrix)
     }
 
     pub fn minimal_capella() -> Self {
-        Self::new(MinimalPresetFork::Capella)
+        Self::new(Fork::Capella)
     }
 
     pub fn minimal_deneb() -> Self {
-        Self::new(MinimalPresetFork::Deneb)
+        Self::new(Fork::Deneb)
     }
 
     pub fn minimal_electra() -> Self {
-        Self::new(MinimalPresetFork::Electra)
+        Self::new(Fork::Electra)
     }
 
     /// The cross-fork `electra_fork` spec test: Deneb bootstrap, chain forks

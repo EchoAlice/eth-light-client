@@ -20,7 +20,7 @@ the light client against the official vectors with no network or beacon node.
 |------|----------------|
 | `loader.rs` | `LightClientSyncTest` — the entry point; holds a fixture directory plus a chain schedule, reads the fixture files, and decodes each object under the fork its own fixture digest names |
 | `steps.rs` | YAML fixture types (`meta.yaml` / `steps.yaml`; hex roots and fork digests parsed at load) + `beacon_header_matches` |
-| `fork.rs` | `MinimalPresetFork` (fixture-set tag + per-fork chain schedule), the cross-fork schedule, and `fork_for_digest` (fixture digest → `Fork`) |
+| `fork.rs` | Per-fork fixture dirs + toy-chain schedules (`fixture_dir`, `single_fork_config`), the cross-fork schedule, and `fork_for_digest` (fixture digest → `Fork`) |
 | `mod.rs` | module wiring / re-exports |
 
 ## Fixtures

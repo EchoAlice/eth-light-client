@@ -7,8 +7,6 @@ mod steps;
 pub use loader::LightClientSyncTest;
 pub use steps::{HeaderCheck, ProcessUpdateStep, StateChecks, TestStep};
 
-pub(crate) use fork::MinimalPresetFork;
-
 /// Box<dyn Error>, not `crate::error::Result`: test glue stays decoupled from the production error enum.
 pub(crate) type TestUtilsResult<T> = Result<T, Box<dyn std::error::Error>>;
 
