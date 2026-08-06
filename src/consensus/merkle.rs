@@ -201,7 +201,7 @@ mod tests {
         use crate::test_utils::LightClientSyncTest;
 
         let spec = ChainSpec::minimal();
-        let sync_test = LightClientSyncTest::minimal_altair();
+        let sync_test = LightClientSyncTest::new(crate::Fork::Altair);
         let bootstrap = sync_test
             .load_bootstrap()
             .expect("Failed to load bootstrap");

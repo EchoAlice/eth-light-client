@@ -1,7 +1,7 @@
 use crate::error::{Error, Result};
 use crate::types::primitives::Slot;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum Fork {
     Altair,

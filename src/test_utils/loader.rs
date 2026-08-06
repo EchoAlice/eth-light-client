@@ -12,7 +12,10 @@ pub struct LightClientSyncTest {
 }
 
 impl LightClientSyncTest {
-    fn new(fork: Fork) -> Self {
+    /// The single-fork `light_client_sync` case for `fork`: one `Fork` value
+    /// determines both the fixture directory and the toy-chain calendar.
+    /// (A *case* is one pyspec test-scenario directory; see the README.)
+    pub fn new(fork: Fork) -> Self {
         Self::with_case(
             fixture_dir(fork),
             "light_client_sync",
@@ -25,26 +28,6 @@ impl LightClientSyncTest {
             "tests/fixtures/minimal/{dir}/light_client/sync/{case}"
         ));
         Self { test_dir, config }
-    }
-
-    pub fn minimal_altair() -> Self {
-        Self::new(Fork::Altair)
-    }
-
-    pub fn minimal_bellatrix() -> Self {
-        Self::new(Fork::Bellatrix)
-    }
-
-    pub fn minimal_capella() -> Self {
-        Self::new(Fork::Capella)
-    }
-
-    pub fn minimal_deneb() -> Self {
-        Self::new(Fork::Deneb)
-    }
-
-    pub fn minimal_electra() -> Self {
-        Self::new(Fork::Electra)
     }
 
     /// The cross-fork `electra_fork` spec test: Deneb bootstrap, chain forks
@@ -130,7 +113,7 @@ impl LightClientSyncTest {
 /// valid bootstrap for setup.
 #[cfg(test)]
 pub(crate) fn load_altair_bootstrap() -> LightClientBootstrap {
-    LightClientSyncTest::minimal_altair()
+    LightClientSyncTest::new(Fork::Altair)
         .load_bootstrap()
         .expect("Failed to load bootstrap")
 }

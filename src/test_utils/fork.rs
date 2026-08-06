@@ -1,7 +1,6 @@
 use crate::config::{ChainSpecConfig, Fork};
 use crate::types::primitives::Root;
 
-/// Spec name / fixture directory for a fork's minimal-preset fixture set.
 pub(crate) fn fixture_dir(fork: Fork) -> &'static str {
     match fork {
         Fork::Altair => "altair",
@@ -12,32 +11,31 @@ pub(crate) fn fixture_dir(fork: Fork) -> &'static str {
     }
 }
 
+// TODO: Should this be an associated method within ChainSpecConfig instead?
+fn _set_fork_epoch() {
+    todo!()
+}
+
 /// [`ChainSpecConfig::minimal`] with the fork-activation epochs overridden so
 /// `fork` and its ancestors are active from genesis — the chain the
 /// single-fork fixtures were generated on.
+//
+// TODO: Would it be better to call this function `minimal_config_for_fork`?
 pub(crate) fn single_fork_config(fork: Fork) -> ChainSpecConfig {
+    // Altair active at genesis: the LC floor
     let mut config = ChainSpecConfig::minimal();
 
-    match fork {
-        Fork::Altair => {} // later forks stay inactive (MAX)
-        Fork::Bellatrix => {
-            config.bellatrix_fork_epoch = 0;
-        }
-        Fork::Capella => {
-            config.bellatrix_fork_epoch = 0;
-            config.capella_fork_epoch = 0;
-        }
-        Fork::Deneb => {
-            config.bellatrix_fork_epoch = 0;
-            config.capella_fork_epoch = 0;
-            config.deneb_fork_epoch = 0;
-        }
-        Fork::Electra => {
-            config.bellatrix_fork_epoch = 0;
-            config.capella_fork_epoch = 0;
-            config.deneb_fork_epoch = 0;
-            config.electra_fork_epoch = 0;
-        }
+    if fork >= Fork::Bellatrix {
+        config.bellatrix_fork_epoch = 0;
+    }
+    if fork >= Fork::Capella {
+        config.capella_fork_epoch = 0;
+    }
+    if fork >= Fork::Deneb {
+        config.deneb_fork_epoch = 0;
+    }
+    if fork >= Fork::Electra {
+        config.electra_fork_epoch = 0;
     }
 
     config

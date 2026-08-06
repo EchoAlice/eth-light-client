@@ -1,38 +1,31 @@
-//! Integration test: Light Client Sync via Public API
-//!
-//! Validates the public `LightClient` API against Ethereum consensus-spec test vectors.
-//! Uses only public types - no internal crate access.
-//!
-//! Run with: `cargo test --features test-utils`
-
 #![cfg(feature = "test-utils")]
 
 use eth_light_client::test_utils::{LightClientSyncTest, ProcessUpdateStep, StateChecks, TestStep};
-use eth_light_client::{LightClient, UpdateOutcome};
+use eth_light_client::{Fork, LightClient, UpdateOutcome};
 
 #[test]
 fn altair_sync_via_public_api() {
-    run_public_api_sync(LightClientSyncTest::minimal_altair());
+    run_public_api_sync(LightClientSyncTest::new(Fork::Altair));
 }
 
 #[test]
 fn bellatrix_sync_via_public_api() {
-    run_public_api_sync(LightClientSyncTest::minimal_bellatrix());
+    run_public_api_sync(LightClientSyncTest::new(Fork::Bellatrix));
 }
 
 #[test]
 fn capella_sync_via_public_api() {
-    run_public_api_sync(LightClientSyncTest::minimal_capella());
+    run_public_api_sync(LightClientSyncTest::new(Fork::Capella));
 }
 
 #[test]
 fn deneb_sync_via_public_api() {
-    run_public_api_sync(LightClientSyncTest::minimal_deneb());
+    run_public_api_sync(LightClientSyncTest::new(Fork::Deneb));
 }
 
 #[test]
 fn electra_sync_via_public_api() {
-    run_public_api_sync(LightClientSyncTest::minimal_electra());
+    run_public_api_sync(LightClientSyncTest::new(Fork::Electra));
 }
 
 /// Cross-fork: Deneb bootstrap, chain forks to Electra mid-sequence, with

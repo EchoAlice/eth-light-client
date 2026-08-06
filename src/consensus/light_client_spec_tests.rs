@@ -1,3 +1,4 @@
+use crate::config::Fork;
 use crate::consensus::processor::LightClientProcessor;
 use crate::test_utils::{LightClientSyncTest, ProcessUpdateStep, StateChecks, TestStep};
 use crate::types::consensus::LightClientHeader;
@@ -5,27 +6,27 @@ use crate::types::primitives::Root;
 
 #[test]
 fn altair_sync_via_processor() {
-    run_processor_sync(LightClientSyncTest::minimal_altair());
+    run_processor_sync(LightClientSyncTest::new(Fork::Altair));
 }
 
 #[test]
 fn bellatrix_sync_via_processor() {
-    run_processor_sync(LightClientSyncTest::minimal_bellatrix());
+    run_processor_sync(LightClientSyncTest::new(Fork::Bellatrix));
 }
 
 #[test]
 fn capella_sync_via_processor() {
-    run_processor_sync(LightClientSyncTest::minimal_capella());
+    run_processor_sync(LightClientSyncTest::new(Fork::Capella));
 }
 
 #[test]
 fn deneb_sync_via_processor() {
-    run_processor_sync(LightClientSyncTest::minimal_deneb());
+    run_processor_sync(LightClientSyncTest::new(Fork::Deneb));
 }
 
 #[test]
 fn electra_sync_via_processor() {
-    run_processor_sync(LightClientSyncTest::minimal_electra());
+    run_processor_sync(LightClientSyncTest::new(Fork::Electra));
 }
 
 #[test]
@@ -49,7 +50,11 @@ fn initialize_processor_from(sync_test: &LightClientSyncTest) -> LightClientProc
     .expect("Failed to initialize LightClientProcessor")
 }
 
-/// Replay a fixture's steps, asserting each against the fixture.
+/// Replay a fixture's steps, asserting each against the fixture's expected output.
+//
+// TODO:
+//   - Does it make sense for the LCST struct to track a single directory against a chainspec that might need change depending on individual test cases?
+//   - Is it best for `initialize_processor_from` to take a reference to a `sync_test`'s `chainspec` or `chainspecconfig` instead of the whole struct?
 fn run_processor_sync(sync_test: LightClientSyncTest) {
     let steps = sync_test.load_steps().expect("Failed to load steps");
     let mut processor = initialize_processor_from(&sync_test);
