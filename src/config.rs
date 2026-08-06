@@ -98,7 +98,6 @@ impl ChainSpec {
         self.fork_schedule.version_at_epoch(epoch)
     }
 
-    #[inline]
     pub(crate) const fn current_sync_committee_gindex(&self, slot: Slot) -> u64 {
         match self.fork_at_slot(slot) {
             Fork::Electra => 86,
@@ -106,7 +105,6 @@ impl ChainSpec {
         }
     }
 
-    #[inline]
     pub(crate) const fn next_sync_committee_gindex(&self, slot: Slot) -> u64 {
         match self.fork_at_slot(slot) {
             Fork::Electra => 87,
@@ -114,7 +112,6 @@ impl ChainSpec {
         }
     }
 
-    #[inline]
     pub(crate) const fn finalized_root_gindex(&self, slot: Slot) -> u64 {
         match self.fork_at_slot(slot) {
             Fork::Electra => 169,
