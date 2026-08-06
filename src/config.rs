@@ -13,7 +13,6 @@ pub enum Fork {
 
 /// Defines network-specific constants. Includes fork schedule and fork-specific constants.
 #[derive(Debug, Clone)]
-#[non_exhaustive]
 pub struct ChainSpec {
     genesis_time: u64,
     seconds_per_slot: u64,
@@ -75,8 +74,6 @@ impl ChainSpec {
         self.slot_to_epoch(slot) / self.epochs_per_sync_committee_period
     }
 
-    /// Current slot from a Unix timestamp.
-    ///
     /// Pre-genesis timestamps map to slot 0 — fail-closed: a wrong/early clock
     /// lowers `current_slot`, and validation rejects updates with
     /// `signature_slot > current_slot`, so a bad clock rejects more, never
@@ -301,7 +298,7 @@ impl ChainSpecConfig {
             ));
         }
 
-        // TODO: Figure out *why* these are the only two permitted sync committee sizes... this seems unnecessary, and at the very least, unnecessarily opaque.
+        // Must match a compiled decoder shape (32 minimal / 512 mainnet).  See dispatch in types/ssz.rs
         if self.sync_committee_size != 32 && self.sync_committee_size != 512 {
             return Err(Error::InvalidInput(
                 "sync_committee_size must be 32 or 512".to_string(),
