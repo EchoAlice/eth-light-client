@@ -28,14 +28,25 @@ fn electra_sync_via_processor() {
     run_processor_sync(LightClientSyncTest::minimal_electra());
 }
 
-/// Cross-fork: Deneb bootstrap, chain forks to Electra mid-sequence, with
-/// Deneb- and Electra-format updates interleaved. Passing without any store
-/// migration is the point — the store is fork-agnostic, and each update
-/// selects its own decode layout (by fork digest) and proof geometry (by
-/// attested slot), so pyspec's `upgrade_store` step is a pure checkpoint here.
 #[test]
 fn electra_fork_sync_via_processor() {
     run_processor_sync(LightClientSyncTest::minimal_deneb_electra_fork());
+}
+
+fn initialize_processor_from(sync_test: &LightClientSyncTest) -> LightClientProcessor {
+    let bootstrap = sync_test
+        .load_bootstrap()
+        .expect("Failed to load bootstrap");
+    let chain_spec = sync_test.chain_spec();
+
+    LightClientProcessor::new(
+        chain_spec,
+        bootstrap.header.clone(),
+        bootstrap.current_sync_committee,
+        &bootstrap.current_sync_committee_branch,
+        bootstrap.genesis_validators_root,
+    )
+    .expect("Failed to initialize LightClientProcessor")
 }
 
 /// Replay a fixture's steps, asserting each against the fixture.
@@ -62,22 +73,6 @@ fn run_processor_sync(sync_test: LightClientSyncTest) {
         processed > 0,
         "no process_update steps ran before the first force_update"
     );
-}
-
-fn initialize_processor_from(sync_test: &LightClientSyncTest) -> LightClientProcessor {
-    let bootstrap = sync_test
-        .load_bootstrap()
-        .expect("Failed to load bootstrap");
-    let chain_spec = sync_test.chain_spec();
-
-    LightClientProcessor::new(
-        chain_spec,
-        bootstrap.header.clone(),
-        bootstrap.current_sync_committee,
-        &bootstrap.current_sync_committee_branch,
-        bootstrap.genesis_validators_root,
-    )
-    .expect("Failed to initialize LightClientProcessor")
 }
 
 fn execute_process_update_step(

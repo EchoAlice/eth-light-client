@@ -476,17 +476,20 @@ mod tests {
     #[test]
     fn test_domain_uses_fork_version_at_signature_slot_epoch() {
         use super::compute_sync_committee_domain_for_slot;
-        use crate::config::ChainSpec;
+        use crate::config::{ChainSpec, ChainSpecConfig};
 
         // Create custom ChainSpec with fork boundary at epoch 1
         // Fork A (Altair) at epoch 0, Fork B (Bellatrix) at epoch 1
-        let chain_spec = ChainSpec::for_test(
-            8,                        // slots_per_epoch
-            [0x00, 0x00, 0x00, 0x00], // altair_fork_version (Fork A)
-            [0x01, 0x00, 0x00, 0x00], // bellatrix_fork_version (Fork B)
-            0,                        // altair_fork_epoch
-            1,                        // bellatrix_fork_epoch
-        );
+        let chain_spec = ChainSpec::try_from_config(ChainSpecConfig {
+            slots_per_epoch: 8,
+            altair_fork_version: [0x00, 0x00, 0x00, 0x00], // Fork A
+            bellatrix_fork_version: [0x01, 0x00, 0x00, 0x00], // Fork B
+            altair_fork_epoch: 0,
+            bellatrix_fork_epoch: 1,
+            // later forks stay inactive (u64::MAX in the minimal preset)
+            ..ChainSpecConfig::minimal()
+        })
+        .expect("valid fork-boundary schedule");
 
         let genesis_validators_root = [0xABu8; 32];
 
