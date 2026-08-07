@@ -1,31 +1,31 @@
 #![cfg(feature = "test-utils")]
 
-use eth_light_client::test_utils::{LightClientSyncTest, ProcessUpdateStep, StateChecks, TestStep};
+use eth_light_client::test_utils::{ProcessUpdateStep, StateChecks, SyncTestCase, TestStep};
 use eth_light_client::{Fork, LightClient, UpdateOutcome};
 
 #[test]
 fn altair_sync_via_public_api() {
-    run_public_api_sync(LightClientSyncTest::new(Fork::Altair));
+    run_public_api_sync(SyncTestCase::new(Fork::Altair));
 }
 
 #[test]
 fn bellatrix_sync_via_public_api() {
-    run_public_api_sync(LightClientSyncTest::new(Fork::Bellatrix));
+    run_public_api_sync(SyncTestCase::new(Fork::Bellatrix));
 }
 
 #[test]
 fn capella_sync_via_public_api() {
-    run_public_api_sync(LightClientSyncTest::new(Fork::Capella));
+    run_public_api_sync(SyncTestCase::new(Fork::Capella));
 }
 
 #[test]
 fn deneb_sync_via_public_api() {
-    run_public_api_sync(LightClientSyncTest::new(Fork::Deneb));
+    run_public_api_sync(SyncTestCase::new(Fork::Deneb));
 }
 
 #[test]
 fn electra_sync_via_public_api() {
-    run_public_api_sync(LightClientSyncTest::new(Fork::Electra));
+    run_public_api_sync(SyncTestCase::new(Fork::Electra));
 }
 
 /// Cross-fork: Deneb bootstrap, chain forks to Electra mid-sequence, with
@@ -33,18 +33,18 @@ fn electra_sync_via_public_api() {
 /// migration; pyspec's `upgrade_store` step is asserted as a pure checkpoint.
 #[test]
 fn electra_fork_sync_via_public_api() {
-    run_public_api_sync(LightClientSyncTest::minimal_deneb_electra_fork());
+    run_public_api_sync(SyncTestCase::deneb_electra_fork());
 }
 
 /// Replay the fixture's `process_update` steps through the public `LightClient`
 /// API; the fork is determined by `sync_test`.
-fn run_public_api_sync(sync_test: LightClientSyncTest) {
+fn run_public_api_sync(sync_test: SyncTestCase) {
     let bootstrap = sync_test
         .load_bootstrap()
         .expect("Failed to load bootstrap");
     let steps = sync_test.load_steps().expect("Failed to load steps");
 
-    let mut client = LightClient::new(sync_test.chain_spec(), bootstrap)
+    let mut client = LightClient::new(sync_test.chain_spec().clone(), bootstrap)
         .expect("Failed to initialize LightClient");
 
     let mut processed = 0;
@@ -70,7 +70,7 @@ fn run_public_api_sync(sync_test: LightClientSyncTest) {
 
 fn process_step(
     client: &mut LightClient,
-    sync_test: &LightClientSyncTest,
+    sync_test: &SyncTestCase,
     step: &ProcessUpdateStep,
     step_num: usize,
 ) {

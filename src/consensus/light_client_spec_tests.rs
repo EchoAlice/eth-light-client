@@ -1,47 +1,45 @@
 use crate::config::Fork;
 use crate::consensus::processor::LightClientProcessor;
-use crate::test_utils::{LightClientSyncTest, ProcessUpdateStep, StateChecks, TestStep};
+use crate::test_utils::{ProcessUpdateStep, StateChecks, SyncTestCase, TestStep};
 use crate::types::consensus::LightClientHeader;
 use crate::types::primitives::Root;
 
 #[test]
 fn altair_sync_via_processor() {
-    run_processor_sync(LightClientSyncTest::new(Fork::Altair));
+    run_processor_sync(SyncTestCase::new(Fork::Altair));
 }
 
 #[test]
 fn bellatrix_sync_via_processor() {
-    run_processor_sync(LightClientSyncTest::new(Fork::Bellatrix));
+    run_processor_sync(SyncTestCase::new(Fork::Bellatrix));
 }
 
 #[test]
 fn capella_sync_via_processor() {
-    run_processor_sync(LightClientSyncTest::new(Fork::Capella));
+    run_processor_sync(SyncTestCase::new(Fork::Capella));
 }
 
 #[test]
 fn deneb_sync_via_processor() {
-    run_processor_sync(LightClientSyncTest::new(Fork::Deneb));
+    run_processor_sync(SyncTestCase::new(Fork::Deneb));
 }
 
 #[test]
 fn electra_sync_via_processor() {
-    run_processor_sync(LightClientSyncTest::new(Fork::Electra));
+    run_processor_sync(SyncTestCase::new(Fork::Electra));
 }
 
 #[test]
 fn electra_fork_sync_via_processor() {
-    run_processor_sync(LightClientSyncTest::minimal_deneb_electra_fork());
+    run_processor_sync(SyncTestCase::deneb_electra_fork());
 }
 
-fn initialize_processor_from(sync_test: &LightClientSyncTest) -> LightClientProcessor {
+fn initialize_processor_from(sync_test: &SyncTestCase) -> LightClientProcessor {
     let bootstrap = sync_test
         .load_bootstrap()
         .expect("Failed to load bootstrap");
-    let chain_spec = sync_test.chain_spec();
-
     LightClientProcessor::new(
-        chain_spec,
+        sync_test.chain_spec().clone(),
         bootstrap.header.clone(),
         bootstrap.current_sync_committee,
         &bootstrap.current_sync_committee_branch,
@@ -51,11 +49,7 @@ fn initialize_processor_from(sync_test: &LightClientSyncTest) -> LightClientProc
 }
 
 /// Replay a fixture's steps, asserting each against the fixture's expected output.
-//
-// TODO:
-//   - Does it make sense for the LCST struct to track a single directory against a chainspec that might need change depending on individual test cases?
-//   - Is it best for `initialize_processor_from` to take a reference to a `sync_test`'s `chainspec` or `chainspecconfig` instead of the whole struct?
-fn run_processor_sync(sync_test: LightClientSyncTest) {
+fn run_processor_sync(sync_test: SyncTestCase) {
     let steps = sync_test.load_steps().expect("Failed to load steps");
     let mut processor = initialize_processor_from(&sync_test);
 
@@ -84,7 +78,7 @@ fn execute_process_update_step(
     step_num: usize,
     step: &ProcessUpdateStep,
     processor: &mut LightClientProcessor,
-    sync_test: &LightClientSyncTest,
+    sync_test: &SyncTestCase,
 ) {
     let update = sync_test
         .load_update(&step.update, step.update_fork_digest)

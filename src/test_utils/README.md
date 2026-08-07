@@ -18,7 +18,7 @@ the light client against the official vectors with no network or beacon node.
 
 | File | Responsibility |
 |------|----------------|
-| `loader.rs` | `LightClientSyncTest` — the entry point; holds a fixture directory plus a chain schedule, reads the fixture files, and decodes each object under the fork its own fixture digest names |
+| `loader.rs` | `SyncTestCase` — the entry point; holds a fixture directory plus a chain schedule, reads the fixture files, and decodes each object under the fork its own fixture digest names |
 | `steps.rs` | YAML fixture types (`meta.yaml` / `steps.yaml`; hex roots and fork digests parsed at load) + `beacon_header_matches` |
 | `fork.rs` | Per-fork fixture dirs + toy-chain schedules (`fixture_dir`, `single_fork_config`), the cross-fork schedule, and `fork_for_digest` (fixture digest → `Fork`) |
 | `mod.rs` | module wiring / re-exports |
@@ -39,7 +39,7 @@ scripts the test:
 
 ## Data flow
 
-`LightClientSyncTest` is only the **orchestrator**: it snappy-decompresses a
+`SyncTestCase` is only the **orchestrator**: it snappy-decompresses a
 fixture file, resolves the fork named by that object's fixture digest, and
 hands the raw SSZ to the crate's public `from_ssz` decoders (the fork-dispatched
 wire adapter in `types/ssz.rs`). Decode always follows what the fixture says —
@@ -79,10 +79,10 @@ into `LightClient::new` / `process_update` — the code actually under test.
 ## Usage
 
 ```rust,ignore
-use eth_light_client::test_utils::LightClientSyncTest;
-use eth_light_client::{ChainSpec, LightClient};
+use eth_light_client::test_utils::SyncTestCase;
+use eth_light_client::{Fork, LightClient};
 
-let sync_test = LightClientSyncTest::minimal_altair();
+let sync_test = SyncTestCase::new(Fork::Altair);
 
 let mut client = LightClient::new(
     sync_test.chain_spec(),
@@ -95,6 +95,6 @@ for step in sync_test.load_steps()? {
 }
 ```
 
-The constructors are the five single-fork `minimal_*()` tests plus the
-cross-fork `minimal_deneb_electra_fork()`. The harness is minimal-preset only
+The constructors are `new(fork)` (the single-fork `light_client_sync` case)
+plus the cross-fork `deneb_electra_fork()`. The harness is minimal-preset only
 (fixture shapes *and* chain config), by design.

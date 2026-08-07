@@ -198,10 +198,10 @@ mod tests {
 
     #[test]
     fn test_sync_committee_root_against_spec_fixture() {
-        use crate::test_utils::LightClientSyncTest;
+        use crate::test_utils::SyncTestCase;
 
         let spec = ChainSpec::minimal();
-        let sync_test = LightClientSyncTest::new(crate::Fork::Altair);
+        let sync_test = SyncTestCase::new(crate::Fork::Altair);
         let bootstrap = sync_test
             .load_bootstrap()
             .expect("Failed to load bootstrap");
