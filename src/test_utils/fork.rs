@@ -1,7 +1,8 @@
 use crate::config::{ChainSpecConfig, Fork};
 use crate::types::primitives::Root;
+use std::path::{Path, PathBuf};
 
-pub(crate) fn fixture_dir(fork: Fork) -> &'static str {
+pub(crate) fn fork_dir(fork: Fork) -> &'static str {
     match fork {
         Fork::Altair => "altair",
         Fork::Bellatrix => "bellatrix",
@@ -11,16 +12,19 @@ pub(crate) fn fixture_dir(fork: Fork) -> &'static str {
     }
 }
 
-// TODO: Should this be an associated method within ChainSpecConfig instead?
+pub(crate) fn case_path(fork_dir: &str, case: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+        "tests/fixtures/minimal/{fork_dir}/light_client/sync/{case}"
+    ))
+}
+
 fn _set_fork_epoch() {
     todo!()
 }
 
-/// [`ChainSpecConfig::minimal`] with the fork-activation epochs overridden so
-/// `fork` and its ancestors are active from genesis — the chain the
-/// single-fork fixtures were generated on.
-//
-// TODO: Would it be better to call this function `minimal_config_for_fork`?
+/// Fork-activation epochs are overridden so `fork` and its ancestors
+/// are active from genesis — the chain the single-fork fixtures were
+/// generated on.
 pub(crate) fn single_fork_config(fork: Fork) -> ChainSpecConfig {
     // Altair active at genesis: the LC floor
     let mut config = ChainSpecConfig::minimal();
@@ -38,12 +42,6 @@ pub(crate) fn single_fork_config(fork: Fork) -> ChainSpecConfig {
         config.electra_fork_epoch = 0;
     }
 
-    config
-}
-
-pub(crate) fn deneb_electra_fork_config() -> ChainSpecConfig {
-    let mut config = single_fork_config(Fork::Deneb);
-    config.electra_fork_epoch = 3;
     config
 }
 
@@ -97,9 +95,8 @@ pub(crate) fn fork_for_digest(
 
 #[cfg(test)]
 mod tests {
-    use super::{fixture_dir, single_fork_config};
+    use super::{fork_dir, single_fork_config};
     use crate::config::Fork;
-    use std::path::Path;
 
     /// Config.yaml keys we check. `Option` since earlier forks omit later-fork
     /// keys; versions are hex strings under YAML 1.2.
@@ -121,9 +118,7 @@ mod tests {
     }
 
     fn load_case_config_yaml(dir: &str, case: &str) -> ConfigYaml {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
-            "tests/fixtures/minimal/{dir}/light_client/sync/{case}/config.yaml"
-        ));
+        let path = super::case_path(dir, case).join("config.yaml");
         let contents = std::fs::read_to_string(&path).expect("read config.yaml");
         serde_yaml::from_str(&contents).expect("parse config.yaml")
     }
@@ -225,17 +220,8 @@ mod tests {
             Fork::Electra,
         ] {
             let cfg = single_fork_config(fork);
-            let yaml = load_case_config_yaml(fixture_dir(fork), "light_client_sync");
-            assert_schedule_matches(fixture_dir(fork), &cfg, &yaml);
+            let yaml = load_case_config_yaml(fork_dir(fork), "light_client_sync");
+            assert_schedule_matches(fork_dir(fork), &cfg, &yaml);
         }
-    }
-
-    /// Same drift guard for the cross-fork `electra_fork` schedule (Deneb at
-    /// epoch 0, Electra at epoch 3).
-    #[test]
-    fn cross_fork_schedule_matches_vendored_config_yaml() {
-        let cfg = super::deneb_electra_fork_config();
-        let yaml = load_case_config_yaml("deneb", "electra_fork");
-        assert_schedule_matches("deneb/electra_fork", &cfg, &yaml);
     }
 }

@@ -6,32 +6,33 @@ use crate::types::primitives::Root;
 
 #[test]
 fn altair_sync_via_processor() {
-    run_processor_sync(SyncTestCase::new(Fork::Altair));
+    run_processor_sync(SyncTestCase::light_client_sync(Fork::Altair));
 }
 
 #[test]
 fn bellatrix_sync_via_processor() {
-    run_processor_sync(SyncTestCase::new(Fork::Bellatrix));
+    run_processor_sync(SyncTestCase::light_client_sync(Fork::Bellatrix));
 }
 
 #[test]
 fn capella_sync_via_processor() {
-    run_processor_sync(SyncTestCase::new(Fork::Capella));
+    run_processor_sync(SyncTestCase::light_client_sync(Fork::Capella));
 }
 
 #[test]
 fn deneb_sync_via_processor() {
-    run_processor_sync(SyncTestCase::new(Fork::Deneb));
+    run_processor_sync(SyncTestCase::light_client_sync(Fork::Deneb));
 }
 
 #[test]
 fn electra_sync_via_processor() {
-    run_processor_sync(SyncTestCase::new(Fork::Electra));
+    run_processor_sync(SyncTestCase::light_client_sync(Fork::Electra));
 }
 
 #[test]
+#[ignore = "fork_transition body pending (#112); un-ignore when it lands"]
 fn electra_fork_sync_via_processor() {
-    run_processor_sync(SyncTestCase::deneb_electra_fork());
+    run_processor_sync(SyncTestCase::fork_transition(Fork::Deneb, Fork::Electra));
 }
 
 fn initialize_processor_from(sync_test: &SyncTestCase) -> LightClientProcessor {

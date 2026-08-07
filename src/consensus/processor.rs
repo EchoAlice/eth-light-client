@@ -241,7 +241,8 @@ impl LightClientProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::load_altair_bootstrap;
+    use crate::config::Fork;
+    use crate::test_utils::SyncTestCase;
     use crate::types::consensus::SyncAggregate;
 
     fn create_test_beacon_header(slot: Slot) -> BeaconBlockHeader {
@@ -259,7 +260,9 @@ mod tests {
 
     #[test]
     fn test_rejects_stale_update() {
-        let bootstrap = load_altair_bootstrap();
+        let bootstrap = SyncTestCase::light_client_sync(Fork::Altair)
+            .load_bootstrap()
+            .expect("Failed to load bootstrap");
         let chain_spec = crate::config::ChainSpec::minimal();
         let bootstrap_slot = bootstrap.header.slot();
 
@@ -306,7 +309,9 @@ mod tests {
     /// impossible.
     #[test]
     fn test_store_period_correct_after_rotation() {
-        let bootstrap = load_altair_bootstrap();
+        let bootstrap = SyncTestCase::light_client_sync(Fork::Altair)
+            .load_bootstrap()
+            .expect("Failed to load bootstrap");
         let chain_spec = crate::config::ChainSpec::minimal();
         let bootstrap_slot = bootstrap.header.slot();
 
