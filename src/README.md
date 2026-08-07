@@ -51,8 +51,8 @@ This module owns two consensus-critical, fork-dependent lookups:
 ### Two layers (parse, don't validate)
 | Type | Role |
 |------|------|
-| `ChainSpecConfig` | Raw, untrusted **input**. Public fields, constructible/deserializable, *can be invalid*. |
-| `ChainSpec` | The **validated, immutable** runtime object. `#[non_exhaustive]`, `const fn` accessors only. |
+| `ChainSpecConfig` | Raw, untrusted **input**. Public fields, freely constructible, *can be invalid*. |
+| `ChainSpec` | The **validated, immutable** runtime object. Private fields, `const fn` accessors only. |
 
 `try_from_config` validates; `from_config` is the *one* place the config→spec
 mapping lives. Once code holds a `ChainSpec`, it trusts it.
@@ -77,6 +77,15 @@ trusted presets (`minimal`, `mainnet`) skip `validate()` as a `const`
 construction optimization but still go through the single `from_config`
 mapping. Their params are known-good, so `try_from_config` would accept them
 just the same.
+
+### Module conventions
+
+- **Types:** spec-arithmetic quantities (slots, epochs, seconds) are `u64` — the
+  spec-defined width, platform-independent. Collection lengths
+  (`sync_committee_size`) are `usize` — Rust's memory-index type. The two
+  domains never mix, so no casts.
+- **Naming:** `x_to_y()` = pure arithmetic conversion between time units;
+  `x_at_y()` = schedule-dependent lookup ("what was in effect at this point").
 
 ### Handle this module carefully
 `config` sits near the **floor** of the dependency graph (depends only on `error` + `types::primitives`); nearly everything consensus-y depends on it. So it's foundational.  The module should be stable and low-churn.

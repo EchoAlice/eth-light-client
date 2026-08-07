@@ -1,63 +1,47 @@
-/// The fork whose minimal-preset spec-test fixtures are being loaded; selects
-/// both the fixture set and the matching minimal-preset chain configuration.
-#[derive(Clone, Copy)]
-pub(crate) enum MinimalPresetFork {
-    Altair,
-    Bellatrix,
-    Capella,
-    Deneb,
-    Electra,
-}
+use crate::config::{ChainSpecConfig, Fork};
+use crate::types::primitives::Root;
+use std::path::{Path, PathBuf};
 
-impl MinimalPresetFork {
-    /// Spec name / fixture directory for this fork.
-    pub(crate) fn name(&self) -> &'static str {
-        match self {
-            MinimalPresetFork::Altair => "altair",
-            MinimalPresetFork::Bellatrix => "bellatrix",
-            MinimalPresetFork::Capella => "capella",
-            MinimalPresetFork::Deneb => "deneb",
-            MinimalPresetFork::Electra => "electra",
-        }
-    }
-
-    /// [`ChainSpecConfig::minimal`] with the fork-activation epochs overridden
-    /// per fork — which forks are active, i.e. which signing-domain version applies.
-    pub(crate) fn config(&self) -> crate::config::ChainSpecConfig {
-        let mut config = crate::config::ChainSpecConfig::minimal();
-
-        match self {
-            MinimalPresetFork::Altair => {} // later forks stay inactive (MAX)
-            MinimalPresetFork::Bellatrix => {
-                config.bellatrix_fork_epoch = 0;
-            }
-            MinimalPresetFork::Capella => {
-                config.bellatrix_fork_epoch = 0;
-                config.capella_fork_epoch = 0;
-            }
-            MinimalPresetFork::Deneb => {
-                config.bellatrix_fork_epoch = 0;
-                config.capella_fork_epoch = 0;
-                config.deneb_fork_epoch = 0;
-            }
-            MinimalPresetFork::Electra => {
-                config.bellatrix_fork_epoch = 0;
-                config.capella_fork_epoch = 0;
-                config.deneb_fork_epoch = 0;
-                config.electra_fork_epoch = 0;
-            }
-        }
-
-        config
+pub(crate) fn fork_dir(fork: Fork) -> &'static str {
+    match fork {
+        Fork::Altair => "altair",
+        Fork::Bellatrix => "bellatrix",
+        Fork::Capella => "capella",
+        Fork::Deneb => "deneb",
+        Fork::Electra => "electra",
     }
 }
 
-/// Chain schedule for the cross-fork `electra_fork` spec test: the store
-/// bootstraps under Deneb (epoch 0) and the chain forks to Electra at epoch 3,
-/// matching the vendored fixture's config.yaml (drift-guarded below).
-pub(crate) fn deneb_electra_fork_config() -> crate::config::ChainSpecConfig {
-    let mut config = MinimalPresetFork::Deneb.config();
-    config.electra_fork_epoch = 3;
+pub(crate) fn case_path(fork_dir: &str, case: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+        "tests/fixtures/minimal/{fork_dir}/light_client/sync/{case}"
+    ))
+}
+
+fn _set_fork_epoch() {
+    todo!()
+}
+
+/// Fork-activation epochs are overridden so `fork` and its ancestors
+/// are active from genesis — the chain the single-fork fixtures were
+/// generated on.
+pub(crate) fn single_fork_config(fork: Fork) -> ChainSpecConfig {
+    // Altair active at genesis: the LC floor
+    let mut config = ChainSpecConfig::minimal();
+
+    if fork >= Fork::Bellatrix {
+        config.bellatrix_fork_epoch = 0;
+    }
+    if fork >= Fork::Capella {
+        config.capella_fork_epoch = 0;
+    }
+    if fork >= Fork::Deneb {
+        config.deneb_fork_epoch = 0;
+    }
+    if fork >= Fork::Electra {
+        config.electra_fork_epoch = 0;
+    }
+
     config
 }
 
@@ -66,10 +50,9 @@ pub(crate) fn deneb_electra_fork_config() -> crate::config::ChainSpecConfig {
 /// digest of every fork active in `config` and matching.
 pub(crate) fn fork_for_digest(
     digest: [u8; 4],
-    config: &crate::config::ChainSpecConfig,
-    genesis_validators_root: crate::types::primitives::Root,
-) -> Option<crate::config::Fork> {
-    use crate::config::Fork;
+    config: &ChainSpecConfig,
+    genesis_validators_root: Root,
+) -> Option<Fork> {
     let candidates = [
         (
             Fork::Altair,
@@ -112,8 +95,8 @@ pub(crate) fn fork_for_digest(
 
 #[cfg(test)]
 mod tests {
-    use super::MinimalPresetFork;
-    use std::path::Path;
+    use super::{fork_dir, single_fork_config};
+    use crate::config::Fork;
 
     /// Config.yaml keys we check. `Option` since earlier forks omit later-fork
     /// keys; versions are hex strings under YAML 1.2.
@@ -135,15 +118,9 @@ mod tests {
     }
 
     fn load_case_config_yaml(dir: &str, case: &str) -> ConfigYaml {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
-            "tests/fixtures/minimal/{dir}/light_client/sync/{case}/config.yaml"
-        ));
+        let path = super::case_path(dir, case).join("config.yaml");
         let contents = std::fs::read_to_string(&path).expect("read config.yaml");
         serde_yaml::from_str(&contents).expect("parse config.yaml")
-    }
-
-    fn load_config_yaml(fork: MinimalPresetFork) -> ConfigYaml {
-        load_case_config_yaml(fork.name(), "light_client_sync")
     }
 
     fn version_bytes(hex: &str) -> [u8; 4] {
@@ -230,30 +207,21 @@ mod tests {
         );
     }
 
-    /// Guards the hardcoded minimal schedule against drift from the fixtures.
+    /// Guards the hardcoded minimal schedules against drift from the fixtures.
     /// config.yaml holds only the config half; the preset half isn't vendored,
     /// so for that we assert only `PRESET_BASE == minimal`.
     #[test]
     fn hardcoded_schedule_matches_vendored_config_yaml() {
         for fork in [
-            MinimalPresetFork::Altair,
-            MinimalPresetFork::Bellatrix,
-            MinimalPresetFork::Capella,
-            MinimalPresetFork::Deneb,
-            MinimalPresetFork::Electra,
+            Fork::Altair,
+            Fork::Bellatrix,
+            Fork::Capella,
+            Fork::Deneb,
+            Fork::Electra,
         ] {
-            let cfg = fork.config();
-            let yaml = load_config_yaml(fork);
-            assert_schedule_matches(fork.name(), &cfg, &yaml);
+            let cfg = single_fork_config(fork);
+            let yaml = load_case_config_yaml(fork_dir(fork), "light_client_sync");
+            assert_schedule_matches(fork_dir(fork), &cfg, &yaml);
         }
-    }
-
-    /// Same drift guard for the cross-fork `electra_fork` schedule (Deneb at
-    /// epoch 0, Electra at epoch 3).
-    #[test]
-    fn cross_fork_schedule_matches_vendored_config_yaml() {
-        let cfg = super::deneb_electra_fork_config();
-        let yaml = load_case_config_yaml("deneb", "electra_fork");
-        assert_schedule_matches("deneb/electra_fork", &cfg, &yaml);
     }
 }

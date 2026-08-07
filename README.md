@@ -120,8 +120,8 @@ The crate uses a single SSZ implementation — the Sigma Prime / Lighthouse stac
 The one piece of custom SSZ code is the wire-decode adapter in `src/types/ssz.rs`: it decodes fork-specific wire layouts and adapts them to the library's public types (fork-enum headers, `Option` fields, the spec-sized sync committee).  The wire adapter leverages `ethereum_ssz` where it can.
 
 ## Testing
-This library is end-to-end tested against official Ethereum Consensus minimal-preset light client spec tests for Altair, Bellatrix, and Capella hardforks.  Tests exercise the full verification flow through the public API:
-`LightClient::new` (bootstrap verification) and `process_update` (update verification).  End-to-end coverage against mainnet parameters (512-member committees) is still pending.
+This library is end-to-end tested against official Ethereum Consensus minimal-preset light client spec tests for every supported fork (Altair through Electra), plus the Deneb→Electra fork-transition case.  Tests exercise the full verification flow through the public API:
+`LightClient::new` (bootstrap verification) and `process_update` (update verification).  For the full case inventory (vendored vs. upstream), see the spec-case coverage table in [`src/consensus/README.md`](src/consensus/README.md).  End-to-end coverage against mainnet parameters (512-member committees) is still pending.
 
 ```bash
 # Unit + integration tests

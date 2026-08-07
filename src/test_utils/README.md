@@ -18,9 +18,9 @@ the light client against the official vectors with no network or beacon node.
 
 | File | Responsibility |
 |------|----------------|
-| `loader.rs` | `LightClientSyncTest` — the entry point; holds a fixture directory plus a chain schedule, reads the fixture files, and decodes each object under the fork its own fixture digest names |
+| `loader.rs` | `SyncTestCase` — the entry point; holds a fixture directory plus a chain schedule, reads the fixture files, and decodes each object under the fork its own fixture digest names |
 | `steps.rs` | YAML fixture types (`meta.yaml` / `steps.yaml`; hex roots and fork digests parsed at load) + `beacon_header_matches` |
-| `fork.rs` | `MinimalPresetFork` (fixture-set tag + per-fork chain schedule), the cross-fork schedule, and `fork_for_digest` (fixture digest → `Fork`) |
+| `fork.rs` | Per-fork fixture dirs + toy-chain schedules (`fork_dir`, `single_fork_config`), the cross-fork schedule, and `fork_for_digest` (fixture digest → `Fork`) |
 | `mod.rs` | module wiring / re-exports |
 
 ## Fixtures
@@ -39,7 +39,7 @@ scripts the test:
 
 ## Data flow
 
-`LightClientSyncTest` is only the **orchestrator**: it snappy-decompresses a
+`SyncTestCase` is only the **orchestrator**: it snappy-decompresses a
 fixture file, resolves the fork named by that object's fixture digest, and
 hands the raw SSZ to the crate's public `from_ssz` decoders (the fork-dispatched
 wire adapter in `types/ssz.rs`). Decode always follows what the fixture says —
@@ -47,17 +47,23 @@ never a per-test fork assumption — which is what lets one test span forks
 (cross-fork sequences interleave update formats, and pre-fork updates keep
 arriving after the chain forks).
 
+Construction is **eager**: the constructor picks the case directory and chain
+schedule, parses `meta.yaml`, and validates the schedule into a `ChainSpec` —
+once, at birth. The `load_*` methods only read fixture files and decode.
+
 ```mermaid
 sequenceDiagram
     participant T as test
     participant L as loader.rs
-    participant S as steps.rs
     participant F as fork.rs
     participant P as types/ssz.rs (from_ssz)
 
+    T->>L: single_fork(fork) / deneb_electra_fork()
+    L->>F: fork_dir + schedule (single_fork_config, …)
+    L->>L: parse meta.yaml · validate ChainSpec (once)
+    L-->>T: SyncTestCase
+
     T->>L: load_bootstrap()
-    L->>S: parse meta.yaml (genesis root, bootstrap digest)
-    S-->>L: TestMeta
     L->>F: fork_for_digest(bootstrap digest)
     F-->>L: Fork
     L->>P: LightClientBootstrap::from_ssz(bytes, fork, …)
@@ -79,10 +85,10 @@ into `LightClient::new` / `process_update` — the code actually under test.
 ## Usage
 
 ```rust,ignore
-use eth_light_client::test_utils::LightClientSyncTest;
-use eth_light_client::{ChainSpec, LightClient};
+use eth_light_client::test_utils::SyncTestCase;
+use eth_light_client::{Fork, LightClient};
 
-let sync_test = LightClientSyncTest::minimal_altair();
+let sync_test = SyncTestCase::single_fork(Fork::Altair);
 
 let mut client = LightClient::new(
     sync_test.chain_spec(),
@@ -95,6 +101,6 @@ for step in sync_test.load_steps()? {
 }
 ```
 
-The constructors are the five single-fork `minimal_*()` tests plus the
-cross-fork `minimal_deneb_electra_fork()`. The harness is minimal-preset only
-(fixture shapes *and* chain config), by design.
+Constructors are named by case family: `single_fork(fork)` (the
+`light_client_sync` case) plus the cross-fork `deneb_electra_fork()`. The
+harness is minimal-preset only (fixture shapes *and* chain config), by design.
