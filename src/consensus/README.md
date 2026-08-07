@@ -232,7 +232,7 @@ consensus tests only consume the typed objects it returns.
 
 | Area | Test Location | What It Covers |
 |---|---|---|
-| End-to-end spec sync | `consensus/light_client_spec_tests.rs` | Altair/Bellatrix/Capella end-to-end spec harness (steps 1-5); full force-update path (steps 6-10) remains `#[ignore]` |
+| End-to-end spec sync | `consensus/light_client_spec_tests.rs` | Altair–Electra replays + the Deneb→Electra transition; full force-update path remains `#[ignore]` |
 | BLS spec vectors | `consensus/bls_spec_tests.rs` | Official Ethereum BLS test vectors exercising the production `fast_aggregate_verify` path |
 | BLS primitives | `consensus/bls.rs::tests` | Single sig, aggregate sig, infinity handling |
 | Merkle verification | `consensus/merkle.rs::tests` | Branch validation, sync committee root, spec fixture root match |
@@ -243,5 +243,24 @@ consensus tests only consume the typed objects it returns.
 | Public API | `light_client.rs::tests` | `LightClient` creation, getters, `UpdateOutcome` variants |
 | Store logic | `types/consensus.rs::tests` | Store creation, period computation, supermajority math |
 | ChainSpec | `config.rs::tests` | Slot/period arithmetic, fork detection, gindex boundaries, custom config validation |
+
+### Spec-case coverage
+
+The official `light_client/sync` suite is organized as *cases* — one
+scenario-in-a-box directory per case. What we vendor and replay vs. what
+upstream offers (updated as cases are vendored; worklist in issue #106):
+
+| Case kind | Vendored / upstream |
+|---|---|
+| `light_client_sync` (primary per-fork replay) | 5 / 5 |
+| Fork transitions (`capella_fork`, `deneb_fork`, `electra_fork`) | 1 / 3 |
+| Multi-hop transitions (e.g. `capella_electra_fork`) | 0 / 3 |
+| `*_store_with_legacy_data` (bootstrap fork ≠ store fork) | 0 / 9 |
+| `advance_finality_without_sync_committee` | 0 / 5 |
+| `supply_sync_committee_from_past_update` | 0 / 5 |
+
+So the honest conformance claim today: the primary scenario is proven for
+every supported fork, plus one fork boundary (Deneb→Electra) — 6 of ~30
+official cases.
 
 **Not yet tested:** `force_update` (steps 6-10 are `#[ignore]`), serialization/persistence.
