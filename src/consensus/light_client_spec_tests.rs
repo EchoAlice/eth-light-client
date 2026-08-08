@@ -30,7 +30,6 @@ fn electra_sync_via_processor() {
 }
 
 #[test]
-#[ignore = "fork_transition body pending (#112); un-ignore when it lands"]
 fn electra_fork_sync_via_processor() {
     run_processor_sync(SyncTestCase::fork_transition(Fork::Deneb, Fork::Electra));
 }

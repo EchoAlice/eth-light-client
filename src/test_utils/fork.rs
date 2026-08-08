@@ -1,5 +1,4 @@
 use crate::config::{ChainSpecConfig, Fork};
-use crate::types::primitives::Root;
 use std::path::{Path, PathBuf};
 
 pub(crate) fn fork_dir(fork: Fork) -> &'static str {
@@ -12,19 +11,6 @@ pub(crate) fn fork_dir(fork: Fork) -> &'static str {
     }
 }
 
-pub(crate) fn case_path(fork_dir: &str, case: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
-        "tests/fixtures/minimal/{fork_dir}/light_client/sync/{case}"
-    ))
-}
-
-fn _set_fork_epoch() {
-    todo!()
-}
-
-/// Fork-activation epochs are overridden so `fork` and its ancestors
-/// are active from genesis — the chain the single-fork fixtures were
-/// generated on.
 pub(crate) fn single_fork_config(fork: Fork) -> ChainSpecConfig {
     // Altair active at genesis: the LC floor
     let mut config = ChainSpecConfig::minimal();
@@ -45,52 +31,25 @@ pub(crate) fn single_fork_config(fork: Fork) -> ChainSpecConfig {
     config
 }
 
-/// Resolve a fixture fork digest (`fork_data_root[..4]`, per the consensus
-/// spec's `compute_fork_digest`) to the fork it identifies, by computing the
-/// digest of every fork active in `config` and matching.
-pub(crate) fn fork_for_digest(
-    digest: [u8; 4],
-    config: &ChainSpecConfig,
-    genesis_validators_root: Root,
-) -> Option<Fork> {
-    let candidates = [
-        (
-            Fork::Altair,
-            config.altair_fork_version,
-            config.altair_fork_epoch,
-        ),
-        (
-            Fork::Bellatrix,
-            config.bellatrix_fork_version,
-            config.bellatrix_fork_epoch,
-        ),
-        (
-            Fork::Capella,
-            config.capella_fork_version,
-            config.capella_fork_epoch,
-        ),
-        (
-            Fork::Deneb,
-            config.deneb_fork_version,
-            config.deneb_fork_epoch,
-        ),
-        (
-            Fork::Electra,
-            config.electra_fork_version,
-            config.electra_fork_epoch,
-        ),
-    ];
-    candidates
-        .into_iter()
-        .filter(|(_, _, epoch)| *epoch != u64::MAX) // inactive forks have no digest on this chain
-        .find(|(_, version, _)| {
-            let root = crate::consensus::sync_committee::compute_fork_data_root(
-                *version,
-                genesis_validators_root,
-            );
-            root[0..4] == digest
-        })
-        .map(|(fork, _, _)| fork)
+pub(crate) fn transition_config(from: Fork, to: Fork) -> ChainSpecConfig {
+    let mut config = single_fork_config(from);
+    let epoch = 3; // Epoch transitions are hardcoded in fixtures
+
+    match to {
+        Fork::Altair => config.altair_fork_epoch = epoch,
+        Fork::Bellatrix => config.bellatrix_fork_epoch = epoch,
+        Fork::Capella => config.capella_fork_epoch = epoch,
+        Fork::Deneb => config.deneb_fork_epoch = epoch,
+        Fork::Electra => config.electra_fork_epoch = epoch,
+    }
+
+    config
+}
+
+pub(crate) fn case_path(fork_dir: &str, case: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+        "tests/fixtures/minimal/{fork_dir}/light_client/sync/{case}"
+    ))
 }
 
 #[cfg(test)]
@@ -223,5 +182,14 @@ mod tests {
             let yaml = load_case_config_yaml(fork_dir(fork), "light_client_sync");
             assert_schedule_matches(fork_dir(fork), &cfg, &yaml);
         }
+    }
+
+    /// Same drift guard for the transition schedules (currently: Deneb at
+    /// epoch 0, Electra activating at epoch 3).
+    #[test]
+    fn transition_schedule_matches_vendored_config_yaml() {
+        let cfg = super::transition_config(Fork::Deneb, Fork::Electra);
+        let yaml = load_case_config_yaml("deneb", "electra_fork");
+        assert_schedule_matches("deneb/electra_fork", &cfg, &yaml);
     }
 }

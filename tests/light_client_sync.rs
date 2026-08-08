@@ -28,17 +28,11 @@ fn electra_sync_via_public_api() {
     run_public_api_sync(SyncTestCase::light_client_sync(Fork::Electra));
 }
 
-/// Cross-fork: Deneb bootstrap, chain forks to Electra mid-sequence, with
-/// Deneb- and Electra-format updates interleaved. The store needs no
-/// migration; pyspec's `upgrade_store` step is asserted as a pure checkpoint.
 #[test]
-#[ignore = "fork_transition body pending (#112); un-ignore when it lands"]
 fn electra_fork_sync_via_public_api() {
     run_public_api_sync(SyncTestCase::fork_transition(Fork::Deneb, Fork::Electra));
 }
 
-/// Replay the fixture's `process_update` steps through the public `LightClient`
-/// API; the fork is determined by `sync_test`.
 fn run_public_api_sync(sync_test: SyncTestCase) {
     let bootstrap = sync_test
         .load_bootstrap()
