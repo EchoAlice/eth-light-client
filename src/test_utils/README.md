@@ -35,7 +35,7 @@ scripts the test:
 | `update_<hash>.ssz_snappy` | One light-client update — attested/finalized headers with their branches, the sync aggregate (signature), and an optional next sync committee. |
 | `meta.yaml` | Test metadata — the genesis validators root, trusted block root, and fork digests (`bootstrap_fork_digest` drives bootstrap decode). |
 | `steps.yaml` | The script — an ordered list of steps (updates to apply, each with a `current_slot` and its own `update_fork_digest`; store-upgrade checkpoints at fork boundaries) and the header state expected after each. |
-| `config.yaml` | The config the vectors were generated with; the drift-guard tests in `fork.rs` assert the hardcoded schedules match it. |
+| `config.yaml` | The config the vectors were generated with — the authority behind the hand-transcribed schedules in `fork.rs`. Kept for reference; the replays fail loudly if the transcription diverges. |
 
 ## Data flow
 
