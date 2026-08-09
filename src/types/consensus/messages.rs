@@ -125,7 +125,13 @@ mod tests {
 
     #[test]
     fn test_light_client_update_validation() {
-        let attested_header = BeaconBlockHeader::new(1000, 42, [1u8; 32], [2u8; 32], [3u8; 32]);
+        let attested_header = BeaconBlockHeader {
+            slot: 1000,
+            proposer_index: 42,
+            parent_root: [1u8; 32],
+            state_root: [2u8; 32],
+            body_root: [3u8; 32],
+        };
         let sync_aggregate = SyncAggregate::new(vec![true; 32], [1u8; 96]);
 
         let update = LightClientUpdate::new(

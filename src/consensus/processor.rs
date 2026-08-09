@@ -105,7 +105,7 @@ impl LightClientProcessor {
     /// beacon block root, not the full `LightClientHeader` root (which includes
     /// execution payload fields starting at Capella).
     fn verify_update_signature(&self, update: &LightClientUpdate) -> Result<()> {
-        let attested_header_root = update.attested_header.beacon().hash_tree_root()?;
+        let attested_header_root = update.attested_header.beacon().hash_tree_root();
 
         // Look up the committee for the signature slot from the store
         let committee = sync_committee::committee_for_slot(
@@ -146,7 +146,7 @@ impl LightClientProcessor {
                 // The finality branch proves that beacon.hash_tree_root() matches
                 // finalized_checkpoint.root in the attested state — use the beacon
                 // root, not the full LightClientHeader root.
-                let finalized_header_root = finalized.header.beacon().hash_tree_root()?;
+                let finalized_header_root = finalized.header.beacon().hash_tree_root();
                 verify_finality_branch(
                     &finalized_header_root,
                     &finalized.branch,
@@ -246,12 +246,13 @@ mod tests {
     use crate::types::consensus::{AltairLightClientHeader, SyncAggregate};
 
     fn create_test_beacon_header(slot: Slot) -> BeaconBlockHeader {
-        BeaconBlockHeader::new(
-            slot, 42,        // proposer_index
-            [1u8; 32], // parent_root
-            [2u8; 32], // state_root
-            [3u8; 32], // body_root
-        )
+        BeaconBlockHeader {
+            slot,
+            proposer_index: 42,
+            parent_root: [1u8; 32],
+            state_root: [2u8; 32],
+            body_root: [3u8; 32],
+        }
     }
 
     fn create_test_sync_aggregate() -> SyncAggregate {

@@ -91,7 +91,7 @@ The canonical "store period" is always:
 store_period = spec.slot_to_sync_committee_period(store.finalized_header.slot)
 ```
 
-See `LightClientStore::finalized_sync_committee_period()` in `../types/consensus.rs`.
+See `LightClientStore::finalized_sync_committee_period()` in `store.rs`.
 
 ### I-2: Rotation Gating
 
@@ -167,21 +167,18 @@ See `ChainSpec::current_sync_committee_gindex()` and siblings in `../config.rs`.
 
 ## Fork Awareness
 
-The engine implements fork-aware light client verification through **Capella**.
+The engine implements fork-aware light client verification across all
+supported forks (Altair through Electra), including every fork boundary.
 `LightClientHeader` is a fork enum whose Capella+ variants carry the execution
 payload header and its inclusion branch; `ChainSpec` carries the full fork
-schedule (Altair through Electra) and selects the generalized indices, which
-change at Electra.
+schedule and selects the generalized indices, which change at Electra.
 
-Each supported fork was added by the same steps, which also remain for Deneb
+Each supported fork was added by the same steps, which also remain for Fulu
 onward:
 1. Add the fork's `LightClientHeader` / execution-payload-header types
 2. Wire per-fork SSZ decode (the fork-dispatched adapter in `../types/ssz.rs`)
 3. Select per-fork generalized indices (already wired in `ChainSpec`)
 4. Validate against that fork's official spec test vectors
-
-Deneb has its header types defined but decode/verification is not yet wired;
-Electra (which changes the generalized indices) and Fulu follow.
 
 ## Testing
 

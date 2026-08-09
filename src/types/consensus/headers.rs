@@ -1,6 +1,4 @@
-use crate::config::ChainSpec;
-use crate::error::Result;
-use crate::types::primitives::{Epoch, Root, Slot, ValidatorIndex};
+use crate::types::primitives::{Root, Slot, ValidatorIndex};
 use ethereum_types::{Address, U256};
 use ssz_derive::{Decode, Encode};
 use ssz_types::typenum::{U256 as BloomLen, U32, U4};
@@ -43,7 +41,6 @@ pub struct DenebLightClientHeader {
     pub execution_branch: FixedVector<Root, U4>,
 }
 
-// TODO: why are there constructors for altair and bellatrix, but not the other forks? either remove these constructors, or add more.
 #[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
 pub struct ElectraLightClientHeader {
     pub beacon: BeaconBlockHeader,
@@ -81,31 +78,11 @@ pub struct BeaconBlockHeader {
 }
 
 impl BeaconBlockHeader {
-    pub fn new(
-        slot: Slot,
-        proposer_index: ValidatorIndex,
-        parent_root: Root,
-        state_root: Root,
-        body_root: Root,
-    ) -> Self {
-        Self {
-            slot,
-            proposer_index,
-            parent_root,
-            state_root,
-            body_root,
-        }
-    }
-
-    pub(crate) fn hash_tree_root(&self) -> Result<Root> {
+    pub(crate) fn hash_tree_root(&self) -> Root {
         let hash256 = TreeHash::tree_hash_root(self);
         let mut result = [0u8; 32];
         result.copy_from_slice(hash256.as_bytes());
-        Ok(result)
-    }
-
-    pub fn epoch(&self, spec: &ChainSpec) -> Epoch {
-        spec.slot_to_epoch(self.slot)
+        result
     }
 }
 

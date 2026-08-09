@@ -583,9 +583,13 @@ mod tests {
         let committee = test_committee(2);
         let chain_spec = ChainSpec::mainnet();
         let finalized_period = 0;
-
-        // Create an update with attested_header in period 1 (slot 8192 on mainnet)
-        let attested_header = BeaconBlockHeader::new(8192, 42, [1u8; 32], [2u8; 32], [3u8; 32]);
+        let attested_header = BeaconBlockHeader {
+            slot: 8192,
+            proposer_index: 42,
+            parent_root: [1u8; 32],
+            state_root: [2u8; 32],
+            body_root: [3u8; 32],
+        };
         let bits = vec![true; 32];
         let sync_aggregate = SyncAggregate::new(bits, [0u8; 96]);
         let update = LightClientUpdate::new(attested_header, sync_aggregate, 8193)
