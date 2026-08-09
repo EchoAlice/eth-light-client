@@ -44,16 +44,18 @@ impl LightClientStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::consensus::BeaconBlockHeader;
+    use crate::types::consensus::{AltairLightClientHeader, BeaconBlockHeader};
 
     fn test_header() -> LightClientHeader {
-        LightClientHeader::altair(BeaconBlockHeader::new(
-            1000,      // slot
-            42,        // proposer_index
-            [1u8; 32], // parent_root
-            [2u8; 32], // state_root
-            [3u8; 32], // body_root
-        ))
+        LightClientHeader::Altair(AltairLightClientHeader {
+            beacon: BeaconBlockHeader::new(
+                1000,      // slot
+                42,        // proposer_index
+                [1u8; 32], // parent_root
+                [2u8; 32], // state_root
+                [3u8; 32], // body_root
+            ),
+        })
     }
 
     fn test_committee() -> SyncCommittee {

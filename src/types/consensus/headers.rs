@@ -52,14 +52,6 @@ pub struct ElectraLightClientHeader {
 }
 
 impl LightClientHeader {
-    pub(crate) fn altair(beacon: BeaconBlockHeader) -> Self {
-        Self::Altair(AltairLightClientHeader { beacon })
-    }
-
-    pub(crate) fn bellatrix(beacon: BeaconBlockHeader) -> Self {
-        Self::Bellatrix(BellatrixLightClientHeader { beacon })
-    }
-
     pub fn beacon(&self) -> &BeaconBlockHeader {
         match self {
             Self::Altair(h) => &h.beacon,

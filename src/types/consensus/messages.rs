@@ -4,6 +4,8 @@ use crate::error::{Error, Result};
 use crate::types::primitives::{Root, Slot};
 
 #[cfg(test)]
+use super::AltairLightClientHeader;
+#[cfg(test)]
 use super::BeaconBlockHeader;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -42,7 +44,9 @@ impl LightClientUpdate {
         signature_slot: Slot,
     ) -> Self {
         Self {
-            attested_header: LightClientHeader::altair(attested_header),
+            attested_header: LightClientHeader::Altair(AltairLightClientHeader {
+                beacon: attested_header,
+            }),
             finalized: None,
             next_sync_committee: None,
             sync_aggregate,

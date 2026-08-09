@@ -243,7 +243,7 @@ mod tests {
     use super::*;
     use crate::config::Fork;
     use crate::test_utils::SyncTestCase;
-    use crate::types::consensus::SyncAggregate;
+    use crate::types::consensus::{AltairLightClientHeader, SyncAggregate};
 
     fn create_test_beacon_header(slot: Slot) -> BeaconBlockHeader {
         BeaconBlockHeader::new(
@@ -355,7 +355,8 @@ mod tests {
                 .take()
                 .expect("should_rotate checked next is_some");
             // Advance finalized header to match (as apply_light_client_update does)
-            processor.store.finalized_header = LightClientHeader::altair(finalized);
+            processor.store.finalized_header =
+                LightClientHeader::Altair(AltairLightClientHeader { beacon: finalized });
         }
 
         // Assertions: store state is correct after rotation
