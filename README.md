@@ -29,7 +29,7 @@ Differences stem from one thing: a full node *re-derives* the chain's validity f
 For a module-by-module map of the crate, see [`src/README.md`](src/README.md).  For an in-depth explainer on the light client sync protocol, see [`docs/consensus-primer.md`](docs/consensus-primer.md); for the verification data flow and correctness invariants, see [`src/consensus/README.md`](src/consensus/README.md).
 
 ## Status
-The library currently supports fork-aware light client verification through **Deneb**.
+The library currently supports fork-aware light client verification through **Electra**.
 
 | Fork      | Type support | Verification logic | Fixture-driven tests | Status    |
 |-----------|--------------|--------------------|----------------------|-----------|
@@ -37,7 +37,7 @@ The library currently supports fork-aware light client verification through **De
 | Bellatrix | Yes          | Yes                | Yes                  | Supported |
 | Capella   | Yes          | Yes                | Yes                  | Supported |
 | Deneb     | Yes          | Yes                | Yes                  | Supported |
-| Electra   | No           | No                 | No                   | Planned   |
+| Electra   | Yes          | Yes                | Yes                  | Supported |
 | Fulu      | No           | No                 | No                   | Planned   |
 
 From Capella onward, supported light client headers also include authenticated execution payload header data committed by the verified beacon block.  This exposes trusted execution-layer commitments (such as state, transaction, and receipt roots), which can serve as anchors for proving execution-layer facts.
@@ -120,7 +120,7 @@ The crate uses a single SSZ implementation — the Sigma Prime / Lighthouse stac
 The one piece of custom SSZ code is the wire-decode adapter in `src/types/ssz.rs`: it decodes fork-specific wire layouts and adapts them to the library's public types (fork-enum headers, `Option` fields, the spec-sized sync committee).  The wire adapter leverages `ethereum_ssz` where it can.
 
 ## Testing
-This library is end-to-end tested against official Ethereum Consensus minimal-preset light client spec tests for every supported fork (Altair through Electra), plus the Deneb→Electra fork-transition case.  Tests exercise the full verification flow through the public API:
+This library is end-to-end tested against official Ethereum Consensus minimal-preset light client spec tests for every supported fork (Altair through Electra), plus every fork-transition boundary (Bellatrix→Capella, Capella→Deneb, Deneb→Electra).  Tests exercise the full verification flow through the public API:
 `LightClient::new` (bootstrap verification) and `process_update` (update verification).  For the full case inventory (vendored vs. upstream), see the spec-case coverage table in [`src/consensus/README.md`](src/consensus/README.md).  End-to-end coverage against mainnet parameters (512-member committees) is still pending.
 
 ```bash
@@ -145,7 +145,7 @@ BLS signature verification is covered by official Ethereum consensus spec test v
 - [x] Bellatrix
 - [x] Capella
 - [x] Deneb
-- [ ] Electra
+- [x] Electra
 - [ ] Fulu
 2. Expand the module READMEs (esp. [`src/consensus/README.md`](src/consensus/README.md)).  Discuss major Ethereum Consensus concepts and repository design
 3. Add serialization support (e.g. serde feature) so consumers can persist/restore LightClientStore
