@@ -22,7 +22,7 @@ pub struct HeaderCheck {
 
 impl HeaderCheck {
     pub fn matches(&self, header: &BeaconBlockHeader) -> bool {
-        let actual_root = header.hash_tree_root().expect("hash_tree_root");
+        let actual_root = header.hash_tree_root();
         header.slot == self.slot && actual_root == self.beacon_root
     }
 }

@@ -13,9 +13,10 @@
 
 use crate::config::Fork;
 use crate::types::consensus::{
-    BeaconBlockHeader, CapellaLightClientHeader, DenebLightClientHeader, ElectraLightClientHeader,
-    FinalityUpdate, LightClientBootstrap, LightClientHeader, LightClientUpdate, SyncAggregate,
-    SyncCommittee, SyncCommitteeUpdate,
+    AltairLightClientHeader, BeaconBlockHeader, BellatrixLightClientHeader,
+    CapellaLightClientHeader, DenebLightClientHeader, ElectraLightClientHeader, FinalityUpdate,
+    LightClientBootstrap, LightClientHeader, LightClientUpdate, SyncAggregate, SyncCommittee,
+    SyncCommitteeUpdate,
 };
 use crate::types::primitives::Root;
 use ssz::Decode as _;
@@ -149,8 +150,8 @@ struct RawElectraLightClientBootstrap<N: Unsigned> {
 /// Wrap a decoded beacon header into the fork's `LightClientHeader` variant.
 fn wrap_beacon_only(fork: Fork, beacon: BeaconBlockHeader) -> LightClientHeader {
     match fork {
-        Fork::Altair => LightClientHeader::altair(beacon),
-        Fork::Bellatrix => LightClientHeader::bellatrix(beacon),
+        Fork::Altair => LightClientHeader::Altair(AltairLightClientHeader { beacon }),
+        Fork::Bellatrix => LightClientHeader::Bellatrix(BellatrixLightClientHeader { beacon }),
         Fork::Capella | Fork::Deneb | Fork::Electra => {
             unreachable!("beacon-only header for {fork:?}")
         }
