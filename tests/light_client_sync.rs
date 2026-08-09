@@ -29,6 +29,19 @@ fn electra_sync_via_public_api() {
 }
 
 #[test]
+fn capella_fork_sync_via_public_api() {
+    run_public_api_sync(SyncTestCase::fork_transition(
+        Fork::Bellatrix,
+        Fork::Capella,
+    ));
+}
+
+#[test]
+fn deneb_fork_sync_via_public_api() {
+    run_public_api_sync(SyncTestCase::fork_transition(Fork::Capella, Fork::Deneb));
+}
+
+#[test]
 fn electra_fork_sync_via_public_api() {
     run_public_api_sync(SyncTestCase::fork_transition(Fork::Deneb, Fork::Electra));
 }

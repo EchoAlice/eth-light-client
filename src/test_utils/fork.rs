@@ -184,12 +184,16 @@ mod tests {
         }
     }
 
-    /// Same drift guard for the transition schedules (currently: Deneb at
-    /// epoch 0, Electra activating at epoch 3).
     #[test]
     fn transition_schedule_matches_vendored_config_yaml() {
-        let cfg = super::transition_config(Fork::Deneb, Fork::Electra);
-        let yaml = load_case_config_yaml("deneb", "electra_fork");
-        assert_schedule_matches("deneb/electra_fork", &cfg, &yaml);
+        for (from, to, dir, case) in [
+            (Fork::Bellatrix, Fork::Capella, "bellatrix", "capella_fork"),
+            (Fork::Capella, Fork::Deneb, "capella", "deneb_fork"),
+            (Fork::Deneb, Fork::Electra, "deneb", "electra_fork"),
+        ] {
+            let cfg = super::transition_config(from, to);
+            let yaml = load_case_config_yaml(dir, case);
+            assert_schedule_matches(&format!("{dir}/{case}"), &cfg, &yaml);
+        }
     }
 }
