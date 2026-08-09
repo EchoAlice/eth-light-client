@@ -253,14 +253,14 @@ upstream offers (updated as cases are vendored; worklist in issue #106):
 | Case kind | Vendored / upstream |
 |---|---|
 | `light_client_sync` (primary per-fork replay) | 5 / 5 |
-| Fork transitions (`capella_fork`, `deneb_fork`, `electra_fork`) | 1 / 3 |
+| Fork transitions (`capella_fork`, `deneb_fork`, `electra_fork`) | 3 / 3 |
 | Multi-hop transitions (e.g. `capella_electra_fork`) | 0 / 3 |
 | `*_store_with_legacy_data` (bootstrap fork ≠ store fork) | 0 / 9 |
 | `advance_finality_without_sync_committee` | 0 / 5 |
 | `supply_sync_committee_from_past_update` | 0 / 5 |
 
 So the honest conformance claim today: the primary scenario is proven for
-every supported fork, plus one fork boundary (Deneb→Electra) — 6 of ~30
-official cases.
+every supported fork, plus every fork boundary (Bellatrix→Capella,
+Capella→Deneb, Deneb→Electra) — 8 of ~30 official cases.
 
 **Not yet tested:** `force_update` (steps 6-10 are `#[ignore]`), serialization/persistence.

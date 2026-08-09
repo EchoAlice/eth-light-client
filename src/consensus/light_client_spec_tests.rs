@@ -30,6 +30,19 @@ fn electra_sync_via_processor() {
 }
 
 #[test]
+fn capella_fork_sync_via_processor() {
+    run_processor_sync(SyncTestCase::fork_transition(
+        Fork::Bellatrix,
+        Fork::Capella,
+    ));
+}
+
+#[test]
+fn deneb_fork_sync_via_processor() {
+    run_processor_sync(SyncTestCase::fork_transition(Fork::Capella, Fork::Deneb));
+}
+
+#[test]
 fn electra_fork_sync_via_processor() {
     run_processor_sync(SyncTestCase::fork_transition(Fork::Deneb, Fork::Electra));
 }
@@ -140,14 +153,14 @@ fn assert_execution_root(
     label: &str,
     step_num: usize,
 ) {
+    // Mirrors the spec's `get_lc_execution_root`: payload root for Capella+
+    // headers, `Root()` (zero) for pre-Capella headers — which is what the
+    // fixtures assert for pre-boundary headers after an upgrade_store step.
     let actual = match header {
         LightClientHeader::Capella(h) => h.execution.hash_tree_root(),
         LightClientHeader::Deneb(h) => h.execution.hash_tree_root(),
         LightClientHeader::Electra(h) => h.execution.hash_tree_root(),
-        _ => panic!(
-            "step {}: {} execution_root check on header without an execution payload",
-            step_num, label
-        ),
+        LightClientHeader::Altair(_) | LightClientHeader::Bellatrix(_) => [0u8; 32],
     };
     assert!(
         actual == *expected,
