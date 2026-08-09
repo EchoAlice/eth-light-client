@@ -1,6 +1,6 @@
 use crate::types::primitives::{Root, Slot, ValidatorIndex};
 use ethereum_types::{Address, U256};
-use ssz_derive::{Decode, Encode};
+use ssz_derive::Decode;
 use ssz_types::typenum::{U256 as BloomLen, U32, U4};
 use ssz_types::{FixedVector, VariableList};
 use tree_hash::TreeHash;
@@ -27,21 +27,21 @@ pub struct BellatrixLightClientHeader {
     pub beacon: BeaconBlockHeader,
 }
 
-#[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
+#[derive(Debug, Clone, PartialEq, Decode, TreeHash)]
 pub struct CapellaLightClientHeader {
     pub beacon: BeaconBlockHeader,
     pub execution: CapellaExecutionPayloadHeader,
     pub execution_branch: FixedVector<Root, U4>,
 }
 
-#[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
+#[derive(Debug, Clone, PartialEq, Decode, TreeHash)]
 pub struct DenebLightClientHeader {
     pub beacon: BeaconBlockHeader,
     pub execution: DenebExecutionPayloadHeader,
     pub execution_branch: FixedVector<Root, U4>,
 }
 
-#[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
+#[derive(Debug, Clone, PartialEq, Decode, TreeHash)]
 pub struct ElectraLightClientHeader {
     pub beacon: BeaconBlockHeader,
     pub execution: DenebExecutionPayloadHeader,
@@ -68,7 +68,7 @@ impl LightClientHeader {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, TreeHash, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, TreeHash, Decode)]
 pub struct BeaconBlockHeader {
     pub slot: Slot,
     pub proposer_index: ValidatorIndex,
@@ -86,7 +86,7 @@ impl BeaconBlockHeader {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
+#[derive(Debug, Clone, PartialEq, Decode, TreeHash)]
 pub struct CapellaExecutionPayloadHeader {
     pub parent_hash: Root,
     pub fee_recipient: Address,
@@ -111,7 +111,7 @@ impl CapellaExecutionPayloadHeader {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
+#[derive(Debug, Clone, PartialEq, Decode, TreeHash)]
 pub struct DenebExecutionPayloadHeader {
     pub parent_hash: Root,
     pub fee_recipient: Address,
