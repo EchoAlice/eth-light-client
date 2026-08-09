@@ -8,6 +8,77 @@ use ssz_types::{FixedVector, VariableList};
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
 
+/// Verification logic accesses the inner `BeaconBlockHeader` through [`beacon()`](Self::beacon), keeping the pipeline fork-agnostic.
+#[derive(Debug, Clone, PartialEq)]
+#[allow(clippy::large_enum_variant)]
+pub enum LightClientHeader {
+    Altair(AltairLightClientHeader),
+    Bellatrix(BellatrixLightClientHeader),
+    Capella(CapellaLightClientHeader),
+    Deneb(DenebLightClientHeader),
+    Electra(ElectraLightClientHeader),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AltairLightClientHeader {
+    pub beacon: BeaconBlockHeader,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BellatrixLightClientHeader {
+    pub beacon: BeaconBlockHeader,
+}
+
+#[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
+pub struct CapellaLightClientHeader {
+    pub beacon: BeaconBlockHeader,
+    pub execution: CapellaExecutionPayloadHeader,
+    pub execution_branch: FixedVector<Root, U4>,
+}
+
+#[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
+pub struct DenebLightClientHeader {
+    pub beacon: BeaconBlockHeader,
+    pub execution: DenebExecutionPayloadHeader,
+    pub execution_branch: FixedVector<Root, U4>,
+}
+
+// TODO: why are there constructors for altair and bellatrix, but not the other forks? either remove these constructors, or add more.
+#[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
+pub struct ElectraLightClientHeader {
+    pub beacon: BeaconBlockHeader,
+    pub execution: DenebExecutionPayloadHeader,
+    pub execution_branch: FixedVector<Root, U4>,
+}
+
+impl LightClientHeader {
+    pub(crate) fn altair(beacon: BeaconBlockHeader) -> Self {
+        Self::Altair(AltairLightClientHeader { beacon })
+    }
+
+    pub(crate) fn bellatrix(beacon: BeaconBlockHeader) -> Self {
+        Self::Bellatrix(BellatrixLightClientHeader { beacon })
+    }
+
+    pub fn beacon(&self) -> &BeaconBlockHeader {
+        match self {
+            Self::Altair(h) => &h.beacon,
+            Self::Bellatrix(h) => &h.beacon,
+            Self::Capella(h) => &h.beacon,
+            Self::Deneb(h) => &h.beacon,
+            Self::Electra(h) => &h.beacon,
+        }
+    }
+
+    pub fn slot(&self) -> Slot {
+        self.beacon().slot
+    }
+
+    pub fn state_root(&self) -> &Root {
+        &self.beacon().state_root
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, TreeHash, Encode, Decode)]
 pub struct BeaconBlockHeader {
     pub slot: Slot,
@@ -95,80 +166,5 @@ pub struct DenebExecutionPayloadHeader {
 impl DenebExecutionPayloadHeader {
     pub(crate) fn hash_tree_root(&self) -> Root {
         self.tree_hash_root().0
-    }
-}
-
-/// Verification logic accesses the inner `BeaconBlockHeader` through [`beacon()`](Self::beacon), keeping the pipeline fork-agnostic.
-#[derive(Debug, Clone, PartialEq)]
-#[allow(clippy::large_enum_variant)]
-pub enum LightClientHeader {
-    Altair(AltairLightClientHeader),
-    Bellatrix(BellatrixLightClientHeader),
-    Capella(CapellaLightClientHeader),
-    Deneb(DenebLightClientHeader),
-    Electra(ElectraLightClientHeader),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AltairLightClientHeader {
-    pub beacon: BeaconBlockHeader,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BellatrixLightClientHeader {
-    pub beacon: BeaconBlockHeader,
-}
-
-#[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
-pub struct CapellaLightClientHeader {
-    pub beacon: BeaconBlockHeader,
-    pub execution: CapellaExecutionPayloadHeader,
-    pub execution_branch: FixedVector<Root, U4>,
-}
-
-#[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
-pub struct DenebLightClientHeader {
-    pub beacon: BeaconBlockHeader,
-    pub execution: DenebExecutionPayloadHeader,
-    pub execution_branch: FixedVector<Root, U4>,
-}
-
-// Electra leaves the execution payload header unchanged from Deneb (the new
-// execution-layer requests live in a separate BeaconBlockBody field, not the
-// payload), and EXECUTION_PAYLOAD_GINDEX is unchanged, so the wire shape matches
-// Deneb. What changes are the BeaconState branch lengths in the surrounding
-// update/bootstrap containers (see ssz.rs), not this header.
-#[derive(Debug, Clone, PartialEq, Encode, Decode, TreeHash)]
-pub struct ElectraLightClientHeader {
-    pub beacon: BeaconBlockHeader,
-    pub execution: DenebExecutionPayloadHeader,
-    pub execution_branch: FixedVector<Root, U4>,
-}
-
-impl LightClientHeader {
-    pub(crate) fn altair(beacon: BeaconBlockHeader) -> Self {
-        Self::Altair(AltairLightClientHeader { beacon })
-    }
-
-    pub(crate) fn bellatrix(beacon: BeaconBlockHeader) -> Self {
-        Self::Bellatrix(BellatrixLightClientHeader { beacon })
-    }
-
-    pub fn beacon(&self) -> &BeaconBlockHeader {
-        match self {
-            Self::Altair(h) => &h.beacon,
-            Self::Bellatrix(h) => &h.beacon,
-            Self::Capella(h) => &h.beacon,
-            Self::Deneb(h) => &h.beacon,
-            Self::Electra(h) => &h.beacon,
-        }
-    }
-
-    pub fn slot(&self) -> Slot {
-        self.beacon().slot
-    }
-
-    pub fn state_root(&self) -> &Root {
-        &self.beacon().state_root
     }
 }
