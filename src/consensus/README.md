@@ -190,7 +190,7 @@ third property, *whether a test uses official spec fixtures*, cuts across both.
 
 | Scope | What it does | Where |
 |-------|--------------|-------|
-| **Unit** | Exercises one function/method in isolation. | `bls.rs`, `merkle.rs`, `sync_committee.rs`, `processor.rs` |
+| **Unit** | Exercises one function/method in isolation. | `merkle.rs`, `sync_committee.rs`, `processor.rs` |
 | **Conformance replay** | Bootstraps a store and replays the official `light_client_sync` step sequence (updates + expected post-state) end-to-end. Replays stop at the first `force_update` step (rather than skipping it) — later steps depend on the state transition it would have made. | `light_client_spec_tests.rs` (+ its public-API counterpart under `tests/`) |
 
 A conformance replay is *not* a unit test even though it lives in a
@@ -229,17 +229,16 @@ consensus tests only consume the typed objects it returns.
 
 | Area | Test Location | What It Covers |
 |---|---|---|
-| End-to-end spec sync | `consensus/light_client_spec_tests.rs` | Altair–Electra replays + the Deneb→Electra transition; full force-update path remains `#[ignore]` |
-| BLS spec vectors | `consensus/bls_spec_tests.rs` | Official Ethereum BLS test vectors exercising the production `fast_aggregate_verify` path |
-| BLS primitives | `consensus/bls.rs::tests` | Single sig, aggregate sig, infinity handling |
+| End-to-end spec sync | `consensus/light_client_spec_tests.rs` | Altair–Electra replays + every fork transition; full force-update path remains `#[ignore]` |
+| BLS spec vectors | `consensus/bls_spec_tests.rs` | Official Ethereum BLS test vectors exercising the production `fast_aggregate_verify` path — including the negative cases (tampered signatures, infinity pubkeys) |
 | Merkle verification | `consensus/merkle.rs::tests` | Branch validation, sync committee root, spec fixture root match |
 | Domain computation | `consensus/sync_committee.rs::tests` | Fork boundary domain, signing root, fork data root |
 | Committee selection | `consensus/sync_committee.rs::tests` | `committee_for_slot` period logic, next-period guard |
 | Rotation drift | `consensus/processor.rs::tests` | Store period correctness after rotation (finalized-derived period remains consistent) |
 | Update validation | `consensus/processor.rs::tests` | Basic header age checks, future-slot rejection |
-| Public API | `light_client.rs::tests` | `LightClient` creation, getters, `UpdateOutcome` variants |
-| Store logic | `types/consensus.rs::tests` | Store creation, period computation, supermajority math |
-| ChainSpec | `config.rs::tests` | Slot/period arithmetic, fork detection, gindex boundaries, custom config validation |
+| Public API | `tests/light_client_sync.rs` | Full replays through the public `LightClient`; `UpdateOutcome` contract |
+| Supermajority threshold | `types/consensus/committee.rs::tests` | Exact 2/3 participation boundary |
+| ChainSpec | `config/tests.rs` | Slot/period arithmetic, fork detection, gindex boundaries, custom config validation |
 
 ### Spec-case coverage
 
