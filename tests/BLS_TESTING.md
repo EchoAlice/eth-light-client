@@ -17,7 +17,7 @@ is the only production BLS entry point — and the only path these vectors drive
 cargo test --lib fast_aggregate_verify_spec_vectors
 ```
 
-The test (`src/consensus/bls_spec_tests.rs`) walks every
+The test (`spec_tests` in `src/consensus/bls.rs`) walks every
 `fast_aggregate_verify/bls/*` vector and asserts each result strictly — any
 mismatch fails the suite and all mismatches are reported at once.
 

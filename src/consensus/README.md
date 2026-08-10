@@ -212,7 +212,7 @@ they drive, which is why both exist. They are complementary, not redundant.
 A *spec test* uses official Ethereum consensus fixtures — independent of scope.
 Fixtures appear at **unit** scope too, not just in the replays:
 
-- `bls_spec_tests.rs` — official `fast_aggregate_verify` vectors (sync-committee verification is same-message aggregate, so that's the only production BLS entry point). They pin down *our* `bls.rs` adapter — DST, infinity handling, parameter marshaling — including the negative cases (tampered signatures, wrong pubkey sets) that the honest-path fixture replays never reach.
+- `bls.rs::spec_tests` — official `fast_aggregate_verify` vectors (sync-committee verification is same-message aggregate, so that's the only production BLS entry point). They pin down *our* `bls.rs` adapter — DST, infinity handling, parameter marshaling — including the negative cases (tampered signatures, wrong pubkey sets) that the honest-path fixture replays never reach.
 - `merkle.rs::test_sync_committee_root_against_spec_fixture` — one sync-committee root + branch, checked against a bootstrap fixture.
 
 The BLS vectors are vendored under `tests/fixtures/general/phase0/bls` (the
@@ -230,7 +230,7 @@ consensus tests only consume the typed objects it returns.
 | Area | Test Location | What It Covers |
 |---|---|---|
 | End-to-end spec sync | `consensus/light_client_spec_tests.rs` | Altair–Electra replays + every fork transition; full force-update path remains `#[ignore]` |
-| BLS spec vectors | `consensus/bls_spec_tests.rs` | Official Ethereum BLS test vectors exercising the production `fast_aggregate_verify` path — including the negative cases (tampered signatures, infinity pubkeys) |
+| BLS spec vectors | `consensus/bls.rs::spec_tests` | Official Ethereum BLS test vectors exercising the production `fast_aggregate_verify` path — including the negative cases (tampered signatures, infinity pubkeys) |
 | Merkle verification | `consensus/merkle.rs::tests` | Branch validation, sync committee root, spec fixture root match |
 | Domain computation | `consensus/sync_committee.rs::tests` | Fork boundary domain, signing root, fork data root |
 | Committee selection | `consensus/sync_committee.rs::tests` | `committee_for_slot` period logic, next-period guard |

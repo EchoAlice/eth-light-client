@@ -7,6 +7,4 @@ pub(crate) mod store;
 pub mod sync_committee;
 
 #[cfg(test)]
-mod bls_spec_tests;
-#[cfg(test)]
 pub(crate) mod light_client_spec_tests;
