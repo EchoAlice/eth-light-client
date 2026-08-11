@@ -56,6 +56,7 @@ pub(crate) fn verify_sync_aggregate(
     ))
 }
 
+/// Rotate on finalized-period advance (invariant I-2; see consensus/README).
 pub(crate) fn should_rotate(
     update_finalized_slot: Slot,
     store_period: u64,

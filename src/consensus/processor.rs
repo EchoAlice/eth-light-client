@@ -17,7 +17,6 @@ pub(crate) struct LightClientProcessor {
     store: LightClientStore,
 }
 
-/// What a processed update changed in the store.
 #[derive(Default)]
 pub(crate) struct UpdateChanges {
     pub finalized_updated: bool,
@@ -51,7 +50,6 @@ impl LightClientProcessor {
         Ok(Self { chain_spec, store })
     }
 
-    /// The processor is time-injectable
     pub(crate) fn process_update_at_slot(
         &mut self,
         update: LightClientUpdate,
@@ -126,9 +124,6 @@ impl LightClientProcessor {
 
         if let Some(ref finalized) = update.finalized {
             if finalized.header.slot() > self.store.finalized_header.slot() {
-                // The finality branch proves that beacon.hash_tree_root() matches
-                // finalized_checkpoint.root in the attested state — use the beacon
-                // root, not the full LightClientHeader root.
                 let finalized_header_root = finalized.header.beacon().hash_tree_root();
                 verify_finality_branch(
                     &finalized_header_root,
@@ -142,7 +137,6 @@ impl LightClientProcessor {
                 changes.finalized_updated = true;
             }
 
-            // Rotate on finalized-period advance (invariant I-2; see consensus/README).
             if sync_committee::should_rotate(
                 finalized.header.slot(),
                 store_period,
@@ -179,48 +173,45 @@ impl LightClientProcessor {
         Ok(changes)
     }
 
+    // TODO: Rename to finalized_beacon_block_header
     pub(crate) fn finalized_header(&self) -> &BeaconBlockHeader {
         self.store.finalized_header.beacon()
     }
 
-    /// Full fork-aware finalized header (for fork-specific checks in tests).
     #[cfg(test)]
     pub(crate) fn finalized_light_client_header(&self) -> &LightClientHeader {
         &self.store.finalized_header
     }
 
-    /// Current optimistic header (may be ahead of finalized).
+    // TODO: Rename to optimistic_beacon_block_header
     pub(crate) fn optimistic_header(&self) -> &BeaconBlockHeader {
         self.store.optimistic_header.beacon()
     }
 
-    /// Full fork-aware optimistic header (for fork-specific checks in tests).
     #[cfg(test)]
     pub(crate) fn optimistic_light_client_header(&self) -> &LightClientHeader {
         &self.store.optimistic_header
     }
 
-    /// Current sync committee
     pub(crate) fn current_sync_committee(&self) -> &SyncCommittee {
         &self.store.current_sync_committee
     }
 
-    /// Next sync committee if available
     pub(crate) fn next_sync_committee(&self) -> Option<&SyncCommittee> {
         self.store.next_sync_committee.as_ref()
     }
 
-    /// Current sync committee period (derived from finalized header).
+    // TODO: Rename to `current_sync_period`
     pub(crate) fn current_period(&self) -> u64 {
         self.store.finalized_sync_committee_period(&self.chain_spec)
     }
 
-    /// Chain specification
     pub(crate) fn chain_spec(&self) -> &ChainSpec {
         &self.chain_spec
     }
 }
 
+// TODO: Do we need this test module at all? Processor is tested against spec tests
 #[cfg(test)]
 mod tests {
     use super::*;
