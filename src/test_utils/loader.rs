@@ -22,6 +22,22 @@ impl SyncTestCase {
         )
     }
 
+    pub fn advance_finality_without_sync_committee(fork: Fork) -> Self {
+        let fork_dir = fork_dir(fork);
+        Self::open(
+            case_path(fork_dir, "advance_finality_without_sync_committee"),
+            single_fork_config(fork),
+        )
+    }
+
+    pub fn supply_sync_committee_from_past_update(fork: Fork) -> Self {
+        let fork_dir = fork_dir(fork);
+        Self::open(
+            case_path(fork_dir, "supply_sync_committee_from_past_update"),
+            single_fork_config(fork),
+        )
+    }
+
     pub fn fork_transition(from: Fork, to: Fork) -> Self {
         let from_dir = fork_dir(from);
         let to_dir = fork_dir(to);
