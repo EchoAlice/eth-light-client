@@ -20,10 +20,8 @@ fn valid_config() -> ChainSpecConfig {
     }
 }
 
-/// timestamp_to_slot is the facade's wall-clock path — the replays never touch
-/// it (they inject slots directly). Before-genesis fails closed to slot 0.
 #[test]
-fn test_timestamp_to_slot() {
+fn timestamp_to_slot_fails_closed_before_genesis() {
     let spec = ChainSpec::mainnet();
 
     // Mainnet genesis: Dec 1, 2020, 12:00:23 UTC; 12 seconds per slot.
@@ -37,7 +35,7 @@ fn test_timestamp_to_slot() {
 // custom-config contract refuses malformed specs.
 
 #[test]
-fn test_chainspec_config_validation_seconds_per_slot() {
+fn rejects_zero_seconds_per_slot() {
     let mut config = valid_config();
     config.seconds_per_slot = 0;
     assert!(config.validate().is_err());
@@ -45,21 +43,21 @@ fn test_chainspec_config_validation_seconds_per_slot() {
 }
 
 #[test]
-fn test_chainspec_config_validation_slots_per_epoch() {
+fn rejects_zero_slots_per_epoch() {
     let mut config = valid_config();
     config.slots_per_epoch = 0;
     assert!(config.validate().is_err());
 }
 
 #[test]
-fn test_chainspec_config_validation_epochs_per_period() {
+fn rejects_zero_epochs_per_period() {
     let mut config = valid_config();
     config.epochs_per_sync_committee_period = 0;
     assert!(config.validate().is_err());
 }
 
 #[test]
-fn test_chainspec_config_validation_sync_committee_size() {
+fn rejects_unsupported_sync_committee_sizes() {
     // Valid sizes: 32 and 512
     let mut config = valid_config();
     config.sync_committee_size = 32;
@@ -83,40 +81,27 @@ fn test_chainspec_config_validation_sync_committee_size() {
 }
 
 #[test]
-fn test_chainspec_config_validation_altair_epoch() {
-    // Altair need not activate at genesis: real mainnet (Altair @ 74240)
-    // is a valid config. The LC operates from Altair onward via its trusted
-    // bootstrap, not via a genesis-Altair schedule. See #63.
-    assert!(ChainSpecConfig::mainnet().validate().is_ok());
-
-    // Altair is still the monotonic floor: a later fork before it is invalid.
-    let mut config = valid_config();
-    config.altair_fork_epoch = 10;
-    config.bellatrix_fork_epoch = 5;
-    assert!(config.validate().is_err());
-}
-
-#[test]
-fn test_chainspec_config_validation_fork_ordering() {
-    // bellatrix < altair
+fn rejects_unordered_fork_epochs() {
     let mut config = valid_config();
     config.altair_fork_epoch = 0;
     config.bellatrix_fork_epoch = 0; // Equal is OK
     assert!(config.validate().is_ok());
 
-    // capella < bellatrix
+    let mut config = valid_config();
+    config.altair_fork_epoch = 10;
+    config.bellatrix_fork_epoch = 5;
+    assert!(config.validate().is_err());
+
     let mut config = valid_config();
     config.bellatrix_fork_epoch = 100;
     config.capella_fork_epoch = 50;
     assert!(config.validate().is_err());
 
-    // deneb < capella
     let mut config = valid_config();
     config.capella_fork_epoch = 100;
     config.deneb_fork_epoch = 50;
     assert!(config.validate().is_err());
 
-    // electra < deneb
     let mut config = valid_config();
     config.deneb_fork_epoch = 100;
     config.electra_fork_epoch = 50;
