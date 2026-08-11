@@ -232,8 +232,7 @@ consensus tests only consume the typed objects it returns.
 | End-to-end spec sync | `consensus/light_client_spec_tests.rs` | Altair–Electra replays + every fork transition; full force-update path remains `#[ignore]` |
 | BLS spec vectors | `consensus/bls.rs::spec_tests` | Official Ethereum BLS test vectors exercising the production `fast_aggregate_verify` path — including the negative cases (tampered signatures, infinity pubkeys) |
 | Merkle verification | `consensus/merkle.rs::tests` | Branch validation, sync committee root, spec fixture root match |
-| Domain computation | `consensus/sync_committee.rs::tests` | Fork boundary domain, signing root, fork data root |
-| Committee selection | `consensus/sync_committee.rs::tests` | `committee_for_signature_slot` period logic, next-period guard |
+| Committee guards | `consensus/sync_committee.rs::tests` | `Err` paths the valid-only fixtures never produce: unservable signature periods, next-committee learning guard |
 | Rotation drift | `consensus/processor.rs::tests` | Store period correctness after rotation (finalized-derived period remains consistent) |
 | Update validation | `consensus/processor.rs::tests` | Basic header age checks, future-slot rejection |
 | Public API | `tests/light_client_sync.rs` | Full replays through the public `LightClient`; `UpdateOutcome` contract |
