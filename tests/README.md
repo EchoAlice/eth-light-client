@@ -84,8 +84,7 @@ To add a new integration test:
 1. **Create test file**: `tests/my_new_test.rs`
 2. **Import dependencies**:
    ```rust
-   use eth_light_client::config::ChainSpec;
-   use eth_light_client::consensus::BeaconConsensus;
+   use eth_light_client::{ChainSpec, LightClient};
    // ... other imports
    ```
 3. **Load fixtures** (if needed):
