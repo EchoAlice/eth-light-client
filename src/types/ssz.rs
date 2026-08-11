@@ -11,7 +11,7 @@
 //! structs are generic over it (`N`) and the caller supplies
 //! `sync_committee_size`. These generics stay internal to this module.
 
-use crate::config::Fork;
+use crate::chain_spec::Fork;
 use crate::types::consensus::{
     AltairLightClientHeader, BeaconBlockHeader, BellatrixLightClientHeader,
     CapellaLightClientHeader, DenebLightClientHeader, ElectraLightClientHeader, FinalityUpdate,

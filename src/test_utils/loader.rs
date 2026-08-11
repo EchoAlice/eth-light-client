@@ -1,7 +1,7 @@
 use super::fork::{case_path, fork_dir, single_fork_config, transition_config};
 use super::steps::{TestMeta, TestStep};
 use super::TestUtilsResult;
-use crate::config::{ChainSpec, ChainSpecConfig, Fork};
+use crate::chain_spec::{ChainSpec, ChainSpecConfig, Fork};
 use crate::types::consensus::{LightClientBootstrap, LightClientUpdate};
 use std::fs;
 use std::path::{Path, PathBuf};

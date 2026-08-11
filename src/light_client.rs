@@ -1,4 +1,4 @@
-use crate::config::ChainSpec;
+use crate::chain_spec::ChainSpec;
 use crate::consensus::processor::{LightClientProcessor, UpdateChanges};
 use crate::error::{Error, Result};
 use crate::types::consensus::{

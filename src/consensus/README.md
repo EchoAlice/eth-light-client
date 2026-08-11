@@ -162,7 +162,7 @@ Generalized indices for merkle proofs are fork-dependent (change at Electra):
 | `next_sync_committee` | 55 | 87 |
 | `finalized_checkpoint.root` | 105 | 169 |
 
-See `ChainSpec::current_sync_committee_gindex()` and siblings in `../config.rs`.
+See `ChainSpec::current_sync_committee_gindex()` and siblings in `../chain_spec.rs`.
 
 ## Fork Awareness
 
@@ -233,10 +233,9 @@ consensus tests only consume the typed objects it returns.
 | Merkle verification | `consensus/merkle.rs::tests` | Branch validation, sync committee root, spec fixture root match |
 | Committee guards | `consensus/sync_committee.rs::tests` | `Err` paths the valid-only fixtures never produce: unservable signature periods, next-committee learning guard |
 | Rotation drift | `consensus/processor.rs::tests` | Store period correctness after rotation (finalized-derived period remains consistent) |
-| Update validation | `consensus/processor.rs::tests` | Basic header age checks, future-slot rejection |
 | Public API | `tests/light_client_sync.rs` | Full replays through the public `LightClient`; `UpdateOutcome` contract |
 | Supermajority threshold | `types/consensus/committee.rs::tests` | Exact 2/3 participation boundary |
-| ChainSpec | `config/tests.rs` | Slot/period arithmetic, fork detection, gindex boundaries, custom config validation |
+| ChainSpec | `chain_spec/tests.rs` | `ChainSpecConfig` validation `Err` paths (the custom-config contract); `timestamp_to_slot` (wall-clock path the replays never touch) |
 
 ### Spec-case coverage
 

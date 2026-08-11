@@ -1,5 +1,5 @@
 use super::{LightClientHeader, SyncAggregate, SyncCommittee};
-use crate::config::Fork;
+use crate::chain_spec::Fork;
 use crate::error::{Error, Result};
 use crate::types::primitives::{Root, Slot};
 

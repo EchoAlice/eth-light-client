@@ -1,4 +1,4 @@
-use crate::config::{ChainSpecConfig, Fork};
+use crate::chain_spec::{ChainSpecConfig, Fork};
 use std::path::{Path, PathBuf};
 
 pub(crate) fn fork_dir(fork: Fork) -> &'static str {
