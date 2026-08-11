@@ -101,14 +101,11 @@ impl LightClientProcessor {
         Ok(())
     }
 
-    /// The sync committee signs `hash_tree_root(attested_header.beacon)` — the
-    /// beacon block root, not the full `LightClientHeader` root (which includes
-    /// execution payload fields starting at Capella).
     fn verify_update_signature(&self, update: &LightClientUpdate) -> Result<()> {
         let attested_header_root = update.attested_header.beacon().hash_tree_root();
 
         // Look up the committee for the signature slot from the store
-        let committee = sync_committee::committee_for_slot(
+        let committee = sync_committee::committee_for_signature_slot(
             update.signature_slot,
             self.store.finalized_header.slot(),
             &self.store.current_sync_committee,
@@ -178,7 +175,7 @@ impl LightClientProcessor {
         // Learn next AFTER the finalized-header update + rotation, using the now-
         // updated finalized period (see consensus/README data flow).
         let finalized_period = self.store.finalized_sync_committee_period(&self.chain_spec);
-        if let Some(verified) = sync_committee::learn_next_sync_committee_from_update(
+        if let Some(verified) = sync_committee::learn_next_sync_committee(
             &update,
             finalized_period,
             self.store.next_sync_committee.is_some(),

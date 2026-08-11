@@ -43,7 +43,7 @@ LightClientProcessor::process_update_at_slot(update, current_slot)
     │
     ├─[2]─► verify_update_signature  (&self, no mutation)
     │         │
-    │         ├─► sync_committee::committee_for_slot(sig_slot,
+    │         ├─► sync_committee::committee_for_signature_slot(sig_slot,
     │         │       store.finalized_header.slot,
     │         │       &store.current_sync_committee, store.next_sync_committee.as_ref(),
     │         │       spec)
@@ -51,7 +51,7 @@ LightClientProcessor::process_update_at_slot(update, current_slot)
     │         │
     │         └─► sync_committee::verify_sync_aggregate(committee, sig_slot,
     │                 header_root, bits, signature, genesis_root, spec)
-    │               domain = compute_sync_committee_domain_for_slot(sig_slot, …)
+    │               domain = compute_sync_committee_domain_for_signature_slot(sig_slot, …)
     │               bls::fast_aggregate_verify(participating_pubkeys, signing_root, sig)
     │
     └─[3]─► apply_light_client_update  (&mut self)
@@ -66,7 +66,7 @@ LightClientProcessor::process_update_at_slot(update, current_slot)
               │             AND store.next_sync_committee.is_some():
               │    ► store.current_sync_committee = store.next_sync_committee.take()
               │
-              ├─ COMMITTEE LEARNING: sync_committee::learn_next_sync_committee_from_update(
+              ├─ COMMITTEE LEARNING: sync_committee::learn_next_sync_committee(
               │       update, finalized_period, next_known, spec)
               │    guards: has committee data, next not already known,
               │            attested period == finalized period
@@ -129,11 +129,11 @@ The fork version is determined by the epoch of `fork_version_slot`, not the
 epoch of `signature_slot` itself. This matches the consensus spec and is
 tested across fork boundaries.
 
-See `compute_sync_committee_domain_for_slot()` in `sync_committee.rs`.
+See `compute_sync_committee_domain_for_signature_slot()` in `sync_committee.rs`.
 
 ### I-5: Committee Selection by Period
 
-`committee_for_slot()` selects the signing committee:
+`committee_for_signature_slot()` selects the signing committee:
 
 - `sig_period == store_period` → `current_sync_committee`
 - `sig_period == store_period + 1` → `next_sync_committee` (must be Some)
@@ -141,7 +141,7 @@ See `compute_sync_committee_domain_for_slot()` in `sync_committee.rs`.
 
 Period comparison is keyed off `store.finalized_header.slot`.
 
-See `committee_for_slot()` in `sync_committee.rs`.
+See `committee_for_signature_slot()` in `sync_committee.rs`.
 
 ## Cryptography
 
@@ -150,7 +150,7 @@ See `committee_for_slot()` in `sync_committee.rs`.
 | BLS aggregate verify | `bls::fast_aggregate_verify` | `blst` (min_pk) | `eth2_fast_aggregate_verify` |
 | Signing root | `compute_signing_root` | `tree_hash` | `compute_signing_root` |
 | Domain computation | `compute_domain` → `compute_fork_data_root` | `tree_hash` | `compute_domain` |
-| Sync committee domain | `compute_sync_committee_domain_for_slot` | — | Domain with `DOMAIN_SYNC_COMMITTEE` |
+| Sync committee domain | `compute_sync_committee_domain_for_signature_slot` | — | Domain with `DOMAIN_SYNC_COMMITTEE` |
 | Merkle branch verify | `merkle::is_valid_merkle_branch` | `tree_hash` | `is_valid_merkle_branch` |
 | Sync committee root | `SyncCommittee::hash_tree_root` (size-dispatched derive) | `tree_hash_derive` | SSZ `hash_tree_root(SyncCommittee)` |
 | Header root | `BeaconBlockHeader::hash_tree_root` | `tree_hash_derive` | SSZ `hash_tree_root(BeaconBlockHeader)` |
@@ -233,7 +233,7 @@ consensus tests only consume the typed objects it returns.
 | BLS spec vectors | `consensus/bls.rs::spec_tests` | Official Ethereum BLS test vectors exercising the production `fast_aggregate_verify` path — including the negative cases (tampered signatures, infinity pubkeys) |
 | Merkle verification | `consensus/merkle.rs::tests` | Branch validation, sync committee root, spec fixture root match |
 | Domain computation | `consensus/sync_committee.rs::tests` | Fork boundary domain, signing root, fork data root |
-| Committee selection | `consensus/sync_committee.rs::tests` | `committee_for_slot` period logic, next-period guard |
+| Committee selection | `consensus/sync_committee.rs::tests` | `committee_for_signature_slot` period logic, next-period guard |
 | Rotation drift | `consensus/processor.rs::tests` | Store period correctness after rotation (finalized-derived period remains consistent) |
 | Update validation | `consensus/processor.rs::tests` | Basic header age checks, future-slot rejection |
 | Public API | `tests/light_client_sync.rs` | Full replays through the public `LightClient`; `UpdateOutcome` contract |
