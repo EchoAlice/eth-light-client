@@ -39,7 +39,6 @@ LightClientProcessor::process_update_at_slot(update, current_slot)
     ├─[1]─► validate_light_client_update
     │         • validate_basic: signature_slot > attested.slot, supermajority
     │         • signature_slot <= current_slot
-    │         • relevance/age checks (attested vs store.finalized)
     │
     ├─[2]─► verify_update_signature  (&self, no mutation)
     │         │
@@ -229,7 +228,7 @@ consensus tests only consume the typed objects it returns.
 
 | Area | Test Location | What It Covers |
 |---|---|---|
-| End-to-end spec sync | `consensus/light_client_spec_tests.rs` | Altair–Electra replays + every fork transition; full force-update path remains `#[ignore]` |
+| End-to-end spec sync | `consensus/light_client_spec_tests.rs` | Altair–Electra replays + every fork transition + per-fork behavioral cases; full force-update path remains `#[ignore]` |
 | BLS spec vectors | `consensus/bls.rs::spec_tests` | Official Ethereum BLS test vectors exercising the production `fast_aggregate_verify` path — including the negative cases (tampered signatures, infinity pubkeys) |
 | Merkle verification | `consensus/merkle.rs::tests` | Branch validation, sync committee root, spec fixture root match |
 | Committee guards | `consensus/sync_committee.rs::tests` | `Err` paths the valid-only fixtures never produce: unservable signature periods, next-committee learning guard |
@@ -251,11 +250,13 @@ upstream offers (updated as cases are vendored; worklist in issue #106):
 | Fork transitions (`capella_fork`, `deneb_fork`, `electra_fork`) | 3 / 3 |
 | Multi-hop transitions (e.g. `capella_electra_fork`) | 0 / 3 |
 | `*_store_with_legacy_data` (bootstrap fork ≠ store fork) | 0 / 9 |
-| `advance_finality_without_sync_committee` | 0 / 5 |
-| `supply_sync_committee_from_past_update` | 0 / 5 |
+| `advance_finality_without_sync_committee` | 5 / 5 |
+| `supply_sync_committee_from_past_update` | 5 / 5 |
 
 So the honest conformance claim today: the primary scenario is proven for
 every supported fork, plus every fork boundary (Bellatrix→Capella,
-Capella→Deneb, Deneb→Electra) — 8 of ~30 official cases.
+Capella→Deneb, Deneb→Electra), plus the per-fork behavioral cases
+(finality-only advancement; committee supplied by a non-advancing past
+update) — 18 of ~30 official cases.
 
 **Not yet tested:** `force_update` (steps 6-10 are `#[ignore]`), serialization/persistence.
