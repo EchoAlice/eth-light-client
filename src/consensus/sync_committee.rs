@@ -1,4 +1,4 @@
-use crate::config::ChainSpec;
+use crate::chain_spec::ChainSpec;
 use crate::consensus::bls;
 use crate::consensus::merkle::verify_next_sync_committee;
 use crate::error::{Error, Result};

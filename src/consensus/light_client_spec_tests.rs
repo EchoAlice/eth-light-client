@@ -1,4 +1,4 @@
-use crate::config::Fork;
+use crate::chain_spec::Fork;
 use crate::consensus::processor::LightClientProcessor;
 use crate::test_utils::{ProcessUpdateStep, StateChecks, SyncTestCase, TestStep};
 use crate::types::consensus::LightClientHeader;

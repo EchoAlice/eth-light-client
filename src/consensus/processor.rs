@@ -1,4 +1,4 @@
-use crate::config::ChainSpec;
+use crate::chain_spec::ChainSpec;
 use crate::consensus::merkle::{
     validate_light_client_header, verify_bootstrap_sync_committee, verify_finality_branch,
 };
@@ -215,7 +215,7 @@ impl LightClientProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::Fork;
+    use crate::chain_spec::Fork;
     use crate::test_utils::SyncTestCase;
     use crate::types::consensus::AltairLightClientHeader;
 
@@ -245,7 +245,7 @@ mod tests {
         let bootstrap = SyncTestCase::light_client_sync(Fork::Altair)
             .load_bootstrap()
             .expect("Failed to load bootstrap");
-        let chain_spec = crate::config::ChainSpec::minimal();
+        let chain_spec = crate::chain_spec::ChainSpec::minimal();
         let bootstrap_slot = bootstrap.header.slot();
 
         let mut processor = LightClientProcessor::new(
