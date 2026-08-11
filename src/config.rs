@@ -11,7 +11,7 @@ pub enum Fork {
     Electra,
 }
 
-/// Defines network-specific constants. Includes fork schedule and fork-specific constants.
+/// Defines network-specific constants.
 #[derive(Debug, Clone)]
 pub struct ChainSpec {
     genesis_time: u64,
