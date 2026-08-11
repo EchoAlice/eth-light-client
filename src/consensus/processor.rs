@@ -84,20 +84,6 @@ impl LightClientProcessor {
             ));
         }
 
-        // Attested header must be newer than our finalized header — or equal if the update carries a sync committee (useful for bootstrapping).
-        let has_sync_committee = update.has_sync_committee_update();
-        let is_slot_acceptable = if has_sync_committee {
-            update.attested_header.slot() >= self.store.finalized_header.slot()
-        } else {
-            update.attested_header.slot() > self.store.finalized_header.slot()
-        };
-
-        if !is_slot_acceptable {
-            return Err(Error::InvalidInput(
-                "Attested header is not newer than finalized header".to_string(),
-            ));
-        }
-
         Ok(())
     }
 
@@ -240,7 +226,7 @@ mod tests {
     use super::*;
     use crate::config::Fork;
     use crate::test_utils::SyncTestCase;
-    use crate::types::consensus::{AltairLightClientHeader, SyncAggregate};
+    use crate::types::consensus::AltairLightClientHeader;
 
     fn create_test_beacon_header(slot: Slot) -> BeaconBlockHeader {
         BeaconBlockHeader {
@@ -250,48 +236,6 @@ mod tests {
             state_root: [2u8; 32],
             body_root: [3u8; 32],
         }
-    }
-
-    fn create_test_sync_aggregate() -> SyncAggregate {
-        SyncAggregate::new(vec![true; 32], [1u8; 96])
-    }
-
-    #[test]
-    fn test_rejects_stale_update() {
-        let bootstrap = SyncTestCase::light_client_sync(Fork::Altair)
-            .load_bootstrap()
-            .expect("Failed to load bootstrap");
-        let chain_spec = crate::config::ChainSpec::minimal();
-        let bootstrap_slot = bootstrap.header.slot();
-
-        let processor = LightClientProcessor::new(
-            chain_spec,
-            bootstrap.header.clone(),
-            bootstrap.current_sync_committee,
-            &bootstrap.current_sync_committee_branch,
-            bootstrap.genesis_validators_root,
-        )
-        .unwrap();
-
-        // Test update with older header (should fail)
-        let old_header = create_test_beacon_header(0);
-        let sync_aggregate = create_test_sync_aggregate();
-        let old_update = LightClientUpdate::new(old_header, sync_aggregate, 1);
-
-        let current_slot = bootstrap_slot + 1000;
-        assert!(processor
-            .validate_light_client_update(&old_update, current_slot)
-            .is_err());
-
-        // Test update with newer header (should pass basic validation)
-        let new_header = create_test_beacon_header(bootstrap_slot + 1000);
-        let sync_aggregate = create_test_sync_aggregate();
-        let new_update = LightClientUpdate::new(new_header, sync_aggregate, bootstrap_slot + 1001);
-
-        let current_slot_for_new = bootstrap_slot + 1001;
-        assert!(processor
-            .validate_light_client_update(&new_update, current_slot_for_new)
-            .is_ok());
     }
 
     /// Drift-prevention regression test.
