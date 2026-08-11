@@ -30,6 +30,76 @@ fn electra_sync_via_processor() {
 }
 
 #[test]
+fn altair_advance_finality_without_sync_committee_via_processor() {
+    run_processor_sync(SyncTestCase::advance_finality_without_sync_committee(
+        Fork::Altair,
+    ));
+}
+
+#[test]
+fn bellatrix_advance_finality_without_sync_committee_via_processor() {
+    run_processor_sync(SyncTestCase::advance_finality_without_sync_committee(
+        Fork::Bellatrix,
+    ));
+}
+
+#[test]
+fn capella_advance_finality_without_sync_committee_via_processor() {
+    run_processor_sync(SyncTestCase::advance_finality_without_sync_committee(
+        Fork::Capella,
+    ));
+}
+
+#[test]
+fn deneb_advance_finality_without_sync_committee_via_processor() {
+    run_processor_sync(SyncTestCase::advance_finality_without_sync_committee(
+        Fork::Deneb,
+    ));
+}
+
+#[test]
+fn electra_advance_finality_without_sync_committee_via_processor() {
+    run_processor_sync(SyncTestCase::advance_finality_without_sync_committee(
+        Fork::Electra,
+    ));
+}
+
+#[test]
+fn altair_supply_sync_committee_from_past_update_via_processor() {
+    run_processor_sync(SyncTestCase::supply_sync_committee_from_past_update(
+        Fork::Altair,
+    ));
+}
+
+#[test]
+fn bellatrix_supply_sync_committee_from_past_update_via_processor() {
+    run_processor_sync(SyncTestCase::supply_sync_committee_from_past_update(
+        Fork::Bellatrix,
+    ));
+}
+
+#[test]
+fn capella_supply_sync_committee_from_past_update_via_processor() {
+    run_processor_sync(SyncTestCase::supply_sync_committee_from_past_update(
+        Fork::Capella,
+    ));
+}
+
+#[test]
+fn deneb_supply_sync_committee_from_past_update_via_processor() {
+    run_processor_sync(SyncTestCase::supply_sync_committee_from_past_update(
+        Fork::Deneb,
+    ));
+}
+
+#[test]
+fn electra_supply_sync_committee_from_past_update_via_processor() {
+    run_processor_sync(SyncTestCase::supply_sync_committee_from_past_update(
+        Fork::Electra,
+    ));
+}
+
+#[test]
 fn capella_fork_sync_via_processor() {
     run_processor_sync(SyncTestCase::fork_transition(
         Fork::Bellatrix,
