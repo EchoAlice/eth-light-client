@@ -1,11 +1,3 @@
-//! Public API: [`LightClient`] and [`UpdateOutcome`].
-//!
-//! `LightClient` is a thin, verification-only wrapper over the internal consensus
-//! engine — it does not fetch from the network. The caller supplies a
-//! [`LightClientBootstrap`] to initialize it, then feeds [`LightClientUpdate`]s to
-//! advance its finalized and optimistic views of the chain. See the crate README
-//! for usage, the trust model, and a full example.
-
 use crate::config::ChainSpec;
 use crate::consensus::processor::{LightClientProcessor, UpdateChanges};
 use crate::error::{Error, Result};
