@@ -1,55 +1,6 @@
-use crate::chain_spec::ChainSpec;
 use crate::error::{Error, Result};
-use crate::types::consensus::{LightClientHeader, SyncCommittee};
-use crate::types::primitives::{Root, Slot};
-
-pub(crate) fn verify_bootstrap_sync_committee(
-    sync_committee: &SyncCommittee,
-    sync_committee_branch: &[Root],
-    header_slot: Slot,
-    finalized_state_root: &Root,
-    spec: &ChainSpec,
-) -> Result<()> {
-    verify_merkle_branch(
-        &sync_committee.hash_tree_root(),
-        sync_committee_branch,
-        spec.current_sync_committee_gindex(header_slot),
-        finalized_state_root,
-        "current sync committee",
-    )
-}
-
-pub(crate) fn verify_next_sync_committee(
-    next_sync_committee: &SyncCommittee,
-    next_sync_committee_branch: &[Root],
-    attested_header_slot: Slot,
-    attested_state_root: &Root,
-    spec: &ChainSpec,
-) -> Result<()> {
-    verify_merkle_branch(
-        &next_sync_committee.hash_tree_root(),
-        next_sync_committee_branch,
-        spec.next_sync_committee_gindex(attested_header_slot),
-        attested_state_root,
-        "next sync committee",
-    )
-}
-
-pub(crate) fn verify_finality_branch(
-    finalized_header_root: &Root,
-    finality_branch: &[Root],
-    attested_header_slot: Slot,
-    attested_state_root: &Root,
-    spec: &ChainSpec,
-) -> Result<()> {
-    verify_merkle_branch(
-        finalized_header_root,
-        finality_branch,
-        spec.finalized_root_gindex(attested_header_slot),
-        attested_state_root,
-        "finality branch",
-    )
-}
+use crate::types::consensus::LightClientHeader;
+use crate::types::primitives::Root;
 
 pub(crate) fn validate_light_client_header(header: &LightClientHeader) -> Result<()> {
     match header {
@@ -94,22 +45,21 @@ pub(crate) fn verify_execution_payload_inclusion(
         execution_branch,
         EXECUTION_PAYLOAD_GINDEX,
         body_root,
-        "execution payload",
     )
 }
 
-fn verify_merkle_branch(
+// TODO: Rename to verify_merkle_proof
+pub(crate) fn verify_merkle_branch(
     leaf: &Root,
     branch: &[Root],
     gindex: u64,
     root: &Root,
-    what: &str,
 ) -> Result<()> {
     if is_valid_merkle_branch(leaf, branch, gindex, root)? {
         Ok(())
     } else {
         Err(Error::InvalidInput(format!(
-            "{what} merkle branch verification failed"
+            "merkle branch verification failed at gindex {gindex}"
         )))
     }
 }
@@ -164,6 +114,7 @@ fn hash_pair(left: &Root, right: &Root) -> Root {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chain_spec::ChainSpec;
 
     #[test]
     fn test_merkle_branch_validation() {

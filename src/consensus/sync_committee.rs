@@ -1,6 +1,6 @@
 use crate::chain_spec::ChainSpec;
 use crate::consensus::bls;
-use crate::consensus::merkle::verify_next_sync_committee;
+use crate::consensus::merkle::verify_merkle_branch;
 use crate::error::{Error, Result};
 use crate::types::consensus::{LightClientUpdate, SyncCommittee};
 use crate::types::primitives::{BLSSignature, Domain, ForkVersion, Root, Slot};
@@ -88,12 +88,11 @@ pub(crate) fn learn_next_sync_committee(
         )));
     }
 
-    verify_next_sync_committee(
-        &next.committee,
+    verify_merkle_branch(
+        &next.committee.hash_tree_root(),
         &next.branch,
-        update.attested_header.slot(),
+        chain_spec.next_sync_committee_gindex(update.attested_header.slot()),
         update.attested_header.state_root(),
-        chain_spec,
     )?;
 
     Ok(Some(next.committee.clone()))

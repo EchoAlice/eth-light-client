@@ -59,6 +59,7 @@ impl LightClientHeader {
         }
     }
 
+    // TODO: should this be renamed to proposed_slot?  "slot" could read as proposed or sync committee signature slot.
     pub fn slot(&self) -> Slot {
         self.beacon().slot
     }

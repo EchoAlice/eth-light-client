@@ -1,7 +1,5 @@
 use crate::chain_spec::ChainSpec;
-use crate::consensus::merkle::{
-    validate_light_client_header, verify_bootstrap_sync_committee, verify_finality_branch,
-};
+use crate::consensus::merkle::{validate_light_client_header, verify_merkle_branch};
 use crate::consensus::store::LightClientStore;
 use crate::consensus::sync_committee;
 use crate::error::{Error, Result};
@@ -11,12 +9,6 @@ use crate::types::consensus::{
 use crate::types::primitives::Root;
 use crate::types::primitives::Slot;
 
-#[derive(Debug)]
-pub(crate) struct LightClientProcessor {
-    chain_spec: ChainSpec,
-    store: LightClientStore,
-}
-
 #[derive(Default)]
 pub(crate) struct UpdateChanges {
     pub finalized_updated: bool,
@@ -25,7 +17,14 @@ pub(crate) struct UpdateChanges {
     pub next_committee_learned: bool,
 }
 
+#[derive(Debug)]
+pub(crate) struct LightClientProcessor {
+    chain_spec: ChainSpec,
+    store: LightClientStore,
+}
+
 impl LightClientProcessor {
+    // TODO: Rename to bootstrap_sync_committee_*
     pub(crate) fn new(
         chain_spec: ChainSpec,
         trusted_header: LightClientHeader,
@@ -33,12 +32,11 @@ impl LightClientProcessor {
         current_sync_committee_branch: &[Root],
         genesis_validators_root: Root,
     ) -> Result<Self> {
-        verify_bootstrap_sync_committee(
-            &current_sync_committee,
+        verify_merkle_branch(
+            &current_sync_committee.hash_tree_root(),
             current_sync_committee_branch,
-            trusted_header.slot(),
+            chain_spec.current_sync_committee_gindex(trusted_header.slot()),
             trusted_header.state_root(),
-            &chain_spec,
         )?;
 
         let store = LightClientStore::new(
@@ -68,6 +66,7 @@ impl LightClientProcessor {
         update: &LightClientUpdate,
         current_slot: Slot,
     ) -> Result<()> {
+        // TODO: move `validate_basic`'s` logic inside this function. no need for wrapper
         update.validate_basic(&self.store.current_sync_committee)?;
 
         // Validate header-local consistency (execution branch for Capella+).
@@ -124,13 +123,12 @@ impl LightClientProcessor {
 
         if let Some(ref finalized) = update.finalized {
             if finalized.header.slot() > self.store.finalized_header.slot() {
-                let finalized_header_root = finalized.header.beacon().hash_tree_root();
-                verify_finality_branch(
-                    &finalized_header_root,
+                verify_merkle_branch(
+                    &finalized.header.beacon().hash_tree_root(),
                     &finalized.branch,
-                    update.attested_header.slot(),
+                    self.chain_spec
+                        .finalized_root_gindex(update.attested_header.slot()),
                     update.attested_header.state_root(),
-                    &self.chain_spec,
                 )?;
 
                 self.store.finalized_header = finalized.header.clone();
