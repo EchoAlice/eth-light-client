@@ -1,5 +1,5 @@
 use crate::chain_spec::ChainSpec;
-use crate::consensus::merkle::{validate_light_client_header, verify_merkle_branch};
+use crate::consensus::merkle::{verify_light_client_header, verify_merkle_proof};
 use crate::consensus::store::LightClientStore;
 use crate::consensus::sync_committee;
 use crate::error::{Error, Result};
@@ -24,7 +24,7 @@ pub(crate) struct LightClientProcessor {
 }
 
 impl LightClientProcessor {
-    // TODO: Rename to bootstrap_sync_committee_*
+    // TODO: Rename to bootstrap_sync_committee_* / trusted_sync_committee_*
     pub(crate) fn new(
         chain_spec: ChainSpec,
         trusted_header: LightClientHeader,
@@ -32,7 +32,11 @@ impl LightClientProcessor {
         current_sync_committee_branch: &[Root],
         genesis_validators_root: Root,
     ) -> Result<Self> {
-        verify_merkle_branch(
+        // TODO: verify_light_client_header(&trusted_header)? — the spec's
+        // initialize_light_client_store asserts is_valid_light_client_header
+        // on the bootstrap header; we never check its execution payload
+        // consistency. See #128.
+        verify_merkle_proof(
             &current_sync_committee.hash_tree_root(),
             current_sync_committee_branch,
             chain_spec.current_sync_committee_gindex(trusted_header.slot()),
@@ -70,9 +74,9 @@ impl LightClientProcessor {
         update.validate_basic(&self.store.current_sync_committee)?;
 
         // Validate header-local consistency (execution branch for Capella+).
-        validate_light_client_header(&update.attested_header)?;
+        verify_light_client_header(&update.attested_header)?;
         if let Some(ref finalized) = update.finalized {
-            validate_light_client_header(&finalized.header)?;
+            verify_light_client_header(&finalized.header)?;
         }
 
         if update.signature_slot > current_slot {
@@ -123,7 +127,7 @@ impl LightClientProcessor {
 
         if let Some(ref finalized) = update.finalized {
             if finalized.header.slot() > self.store.finalized_header.slot() {
-                verify_merkle_branch(
+                verify_merkle_proof(
                     &finalized.header.beacon().hash_tree_root(),
                     &finalized.branch,
                     self.chain_spec

@@ -2,54 +2,33 @@ use crate::error::{Error, Result};
 use crate::types::consensus::LightClientHeader;
 use crate::types::primitives::Root;
 
-pub(crate) fn validate_light_client_header(header: &LightClientHeader) -> Result<()> {
+const EXECUTION_PAYLOAD_GINDEX: u64 = 25;
+
+pub(crate) fn verify_light_client_header(header: &LightClientHeader) -> Result<()> {
     match header {
         LightClientHeader::Altair(_) | LightClientHeader::Bellatrix(_) => Ok(()),
-        LightClientHeader::Capella(h) => {
-            let execution_root = h.execution.hash_tree_root();
-            verify_execution_payload_inclusion(
-                &execution_root,
-                &h.execution_branch,
-                &h.beacon.body_root,
-            )
-        }
-        LightClientHeader::Deneb(h) => {
-            let execution_root = h.execution.hash_tree_root();
-            verify_execution_payload_inclusion(
-                &execution_root,
-                &h.execution_branch,
-                &h.beacon.body_root,
-            )
-        }
-        LightClientHeader::Electra(h) => {
-            let execution_root = h.execution.hash_tree_root();
-            verify_execution_payload_inclusion(
-                &execution_root,
-                &h.execution_branch,
-                &h.beacon.body_root,
-            )
-        }
+        LightClientHeader::Capella(h) => verify_merkle_proof(
+            &h.execution.hash_tree_root(),
+            &h.execution_branch,
+            EXECUTION_PAYLOAD_GINDEX,
+            &h.beacon.body_root,
+        ),
+        LightClientHeader::Deneb(h) => verify_merkle_proof(
+            &h.execution.hash_tree_root(),
+            &h.execution_branch,
+            EXECUTION_PAYLOAD_GINDEX,
+            &h.beacon.body_root,
+        ),
+        LightClientHeader::Electra(h) => verify_merkle_proof(
+            &h.execution.hash_tree_root(),
+            &h.execution_branch,
+            EXECUTION_PAYLOAD_GINDEX,
+            &h.beacon.body_root,
+        ),
     }
 }
 
-/// Constant for forks Capella -> Electra
-const EXECUTION_PAYLOAD_GINDEX: u64 = 25;
-
-pub(crate) fn verify_execution_payload_inclusion(
-    execution_root: &Root,
-    execution_branch: &[Root],
-    body_root: &Root,
-) -> Result<()> {
-    verify_merkle_branch(
-        execution_root,
-        execution_branch,
-        EXECUTION_PAYLOAD_GINDEX,
-        body_root,
-    )
-}
-
-// TODO: Rename to verify_merkle_proof
-pub(crate) fn verify_merkle_branch(
+pub(crate) fn verify_merkle_proof(
     leaf: &Root,
     branch: &[Root],
     gindex: u64,
@@ -65,16 +44,13 @@ pub(crate) fn verify_merkle_branch(
 }
 
 fn is_valid_merkle_branch(leaf: &Root, branch: &[Root], gindex: u64, root: &Root) -> Result<bool> {
-    if gindex == 0 {
-        return Err(Error::InvalidInput("gindex cannot be 0".to_string()));
-    }
-
     if gindex == 1 {
         return Ok(branch.is_empty() && leaf == root);
     }
 
-    // depth = floor(log2(gindex)) = 63 - leading_zeros
-    let expected_depth = 63u32 - gindex.leading_zeros();
+    let expected_depth = gindex
+        .checked_ilog2()
+        .ok_or_else(|| Error::InvalidInput("gindex cannot be 0".to_string()))?;
 
     if branch.len() != expected_depth as usize {
         return Err(Error::InvalidInput(format!(
@@ -111,6 +87,7 @@ fn hash_pair(left: &Root, right: &Root) -> Root {
     ethereum_hashing::hash32_concat(left, right)
 }
 
+// TODO: Are these unit tests necessary?
 #[cfg(test)]
 mod tests {
     use super::*;
