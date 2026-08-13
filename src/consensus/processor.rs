@@ -70,10 +70,23 @@ impl LightClientProcessor {
         update: &LightClientUpdate,
         current_slot: Slot,
     ) -> Result<()> {
-        // TODO: move `validate_basic`'s` logic inside this function. no need for wrapper
-        update.validate_basic(&self.store.current_sync_committee)?;
+        if update.signature_slot <= update.attested_header.slot() {
+            return Err(Error::InvalidInput(
+                "Signature slot must be after attested header slot".to_string(),
+            ));
+        }
+        if !update
+            .sync_aggregate
+            .has_supermajority(&self.store.current_sync_committee)
+        {
+            return Err(Error::InvalidInput(
+                "Insufficient sync committee participation".to_string(),
+            ));
+        }
 
         // Validate header-local consistency (execution branch for Capella+).
+        //
+        // TODO: Rename... this function name sounds like it's checking the sync committee's signature over a light client's beacon block header.
         verify_light_client_header(&update.attested_header)?;
         if let Some(ref finalized) = update.finalized {
             verify_light_client_header(&finalized.header)?;
@@ -219,7 +232,7 @@ mod tests {
     use super::*;
     use crate::chain_spec::Fork;
     use crate::test_utils::SyncTestCase;
-    use crate::types::consensus::AltairLightClientHeader;
+    use crate::types::consensus::{AltairLightClientHeader, SyncAggregate};
 
     fn create_test_beacon_header(slot: Slot) -> BeaconBlockHeader {
         BeaconBlockHeader {
@@ -229,6 +242,47 @@ mod tests {
             state_root: [2u8; 32],
             body_root: [3u8; 32],
         }
+    }
+
+    /// The two validate rules are Err paths the valid-only fixtures never
+    /// produce: minority participation (the safety threshold) and a signature
+    /// slot not strictly after the attested slot. Deleting either check leaves
+    /// every replay green.
+    #[test]
+    fn rejects_updates_failing_basic_validation() {
+        let mut processor = LightClientProcessor {
+            chain_spec: crate::chain_spec::ChainSpec::minimal(),
+            store: LightClientStore::new(
+                LightClientHeader::Altair(AltairLightClientHeader {
+                    beacon: create_test_beacon_header(1),
+                }),
+                SyncCommittee::from_parts(vec![[1u8; 48]; 32], [2u8; 48]).unwrap(),
+                [0u8; 32],
+            ),
+        };
+        let update = |bits, signature_slot| {
+            LightClientUpdate::new(
+                create_test_beacon_header(2),
+                SyncAggregate::new(bits, [0u8; 96]),
+                signature_slot,
+            )
+        };
+
+        // 10 of 32 participants — under the 2/3 supermajority.
+        let mut minority = vec![false; 32];
+        minority[..10].fill(true);
+        let err = processor
+            .process_update_at_slot(update(minority, 3), 4)
+            .err()
+            .unwrap();
+        assert!(err.to_string().contains("participation"), "got: {err}");
+
+        // signature_slot == attested slot — must be strictly after.
+        let err = processor
+            .process_update_at_slot(update(vec![true; 32], 2), 4)
+            .err()
+            .unwrap();
+        assert!(err.to_string().contains("Signature slot"), "got: {err}");
     }
 
     /// Drift-prevention regression test.
