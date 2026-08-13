@@ -94,7 +94,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let update = LightClientUpdate::from_ssz(&update_bytes, Fork::Capella, spec.sync_committee_size())?;
     client.process_update(update)?;
 
-    println!("Finalized slot: {}", client.finalized_header().slot);
+    println!("Finalized slot: {}", client.finalized_beacon_block_header().slot);
     Ok(())
 }
 ```
@@ -102,8 +102,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 **API Notes:**
 - Injectable time is available: If you want to supply your own notion of time (tests, embedded devices, custom clocks), use `process_update_at_slot(update, current_slot)`
-- Getters: `finalized_header()`, `optimistic_header()`, `current_sync_committee()`,
-  `next_sync_committee()`, `current_period()`, `chain_spec()`
+- Getters: `finalized_beacon_block_header()`, `optimistic_beacon_block_header()`,
+  `current_sync_committee()`, `next_sync_committee()`,
+  `current_sync_committee_period()`, `chain_spec()`
 
 **Custom/Devnet Configuration:**
 For local testnets or devnets, use `ChainSpecConfig` with `ChainSpec::try_from_config()`. See the rustdoc on `ChainSpecConfig` for usage examples.

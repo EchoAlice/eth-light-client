@@ -156,15 +156,15 @@ fn process_step(
         .load_update(&step.update, step.update_fork_digest)
         .expect("Failed to load update");
 
-    let before_finalized = client.finalized_header().slot;
-    let before_optimistic = client.optimistic_header().slot;
+    let before_finalized = client.finalized_beacon_block_header().slot;
+    let before_optimistic = client.optimistic_beacon_block_header().slot;
 
     let outcome: UpdateOutcome = client
         .process_update_at_slot(update, step.current_slot)
         .unwrap_or_else(|e| panic!("step {}: error processing update: {}", step_num, e));
 
-    let after_finalized = client.finalized_header().slot;
-    let after_optimistic = client.optimistic_header().slot;
+    let after_finalized = client.finalized_beacon_block_header().slot;
+    let after_optimistic = client.optimistic_beacon_block_header().slot;
 
     // UpdateOutcome must agree with observed state.
     if outcome.finalized_updated() {
@@ -190,7 +190,7 @@ fn process_step(
 fn assert_header_checks(client: &LightClient, checks: &StateChecks, step_num: usize) {
     if let Some(expected) = &checks.finalized_header {
         assert!(
-            expected.matches(client.finalized_header()),
+            expected.matches(client.finalized_beacon_block_header()),
             "step {}: finalized header mismatch (expected slot {})",
             step_num,
             expected.slot,
@@ -198,7 +198,7 @@ fn assert_header_checks(client: &LightClient, checks: &StateChecks, step_num: us
     }
     if let Some(expected) = &checks.optimistic_header {
         assert!(
-            expected.matches(client.optimistic_header()),
+            expected.matches(client.optimistic_beacon_block_header()),
             "step {}: optimistic header mismatch (expected slot {})",
             step_num,
             expected.slot,

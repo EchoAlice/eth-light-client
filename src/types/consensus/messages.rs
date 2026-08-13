@@ -1,6 +1,6 @@
 use super::{LightClientHeader, SyncAggregate, SyncCommittee};
 use crate::chain_spec::Fork;
-use crate::error::{Error, Result};
+use crate::error::Result;
 use crate::types::primitives::{Root, Slot};
 
 #[cfg(test)]
@@ -14,18 +14,16 @@ pub struct LightClientUpdate {
     pub finalized: Option<FinalityUpdate>,
     pub next_sync_committee: Option<SyncCommitteeUpdate>,
     pub sync_aggregate: SyncAggregate,
-    /// Should be attested_header.slot + 1
+    /// Must be > attested_header.slot
     pub signature_slot: Slot,
 }
 
-/// A finalized header paired with the Merkle branch proving it in the attested state.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FinalityUpdate {
     pub header: LightClientHeader,
     pub branch: Vec<Root>,
 }
 
-/// A next sync committee paired with the Merkle branch proving it in the attested state.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SyncCommitteeUpdate {
     pub committee: SyncCommittee,
@@ -58,22 +56,6 @@ impl LightClientUpdate {
     pub fn with_next_sync_committee(mut self, committee: SyncCommittee, branch: Vec<Root>) -> Self {
         self.next_sync_committee = Some(SyncCommitteeUpdate { committee, branch });
         self
-    }
-
-    pub(crate) fn validate_basic(&self, sync_committee: &SyncCommittee) -> Result<()> {
-        if self.signature_slot <= self.attested_header.slot() {
-            return Err(Error::InvalidInput(
-                "Signature slot must be after attested header slot".to_string(),
-            ));
-        }
-
-        if !self.sync_aggregate.has_supermajority(sync_committee) {
-            return Err(Error::InvalidInput(
-                "Insufficient sync committee participation".to_string(),
-            ));
-        }
-
-        Ok(())
     }
 
     pub(crate) fn has_sync_committee_update(&self) -> bool {
@@ -116,33 +98,5 @@ impl LightClientBootstrap {
             current_sync_committee_branch,
             genesis_validators_root,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_light_client_update_validation() {
-        let attested_header = BeaconBlockHeader {
-            slot: 1000,
-            proposer_index: 42,
-            parent_root: [1u8; 32],
-            state_root: [2u8; 32],
-            body_root: [3u8; 32],
-        };
-        let sync_aggregate = SyncAggregate::new(vec![true; 32], [1u8; 96]);
-
-        let update = LightClientUpdate::new(
-            attested_header,
-            sync_aggregate,
-            1001, // signature_slot must be > attested_header.slot
-        );
-
-        let sync_committee = SyncCommittee::from_parts(vec![[1u8; 48]; 32], [2u8; 48]).unwrap();
-        assert!(update.validate_basic(&sync_committee).is_ok());
-        assert!(update.finalized.is_none());
-        assert!(!update.has_sync_committee_update());
     }
 }
