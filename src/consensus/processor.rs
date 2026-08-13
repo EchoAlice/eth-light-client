@@ -24,7 +24,6 @@ pub(crate) struct LightClientProcessor {
 }
 
 impl LightClientProcessor {
-    // TODO: Rename to bootstrap_sync_committee_* / trusted_sync_committee_*
     pub(crate) fn new(
         chain_spec: ChainSpec,
         trusted_header: LightClientHeader,
@@ -84,9 +83,6 @@ impl LightClientProcessor {
             ));
         }
 
-        // Validate header-local consistency (execution branch for Capella+).
-        //
-        // TODO: Rename... this function name sounds like it's checking the sync committee's signature over a light client's beacon block header, but it's checking execution payload's inclusion proof.
         verify_light_client_header(&update.attested_header)?;
         if let Some(ref finalized) = update.finalized {
             verify_light_client_header(&finalized.header)?;

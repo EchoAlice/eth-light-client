@@ -22,7 +22,7 @@ LightClient::new(spec, bootstrap)
         ▼
 LightClientProcessor::new(spec, header, committee, branch, genesis_root)
         │
-        ├─► merkle::verify_bootstrap_sync_committee
+        ├─► merkle::verify_merkle_proof
         │       proves committee is within the bootstrap header.state_root
         │
         └─► LightClientStore::new(header, committee, genesis_root)
@@ -37,7 +37,10 @@ LightClient::process_update(update)
 LightClientProcessor::process_update_at_slot(update, current_slot)
     │
     ├─[1]─► validate_light_client_update
-    │         • validate_basic: signature_slot > attested.slot, supermajority
+    │         • signature_slot > attested.slot, supermajority participation
+    │         • merkle::verify_light_client_header on attested (and finalized,
+    │           if present): execution payload inclusion in the beacon body
+    │           (Capella+; header-local, no signatures)
     │         • signature_slot <= current_slot
     │
     ├─[2]─► verify_update_signature  (&self, no mutation)
@@ -58,7 +61,7 @@ LightClientProcessor::process_update_at_slot(update, current_slot)
               │  store_period = store.finalized_sync_committee_period(spec)
               │
               ├─ if update has finalized_header with newer slot:
-              │    ► merkle::verify_finality_branch
+              │    ► merkle::verify_merkle_proof (finality branch → attested state_root)
               │    ► store.finalized_header = finalized_header
               │
               ├─ ROTATION: if period(update.finalized_header) == store_period + 1
@@ -69,10 +72,10 @@ LightClientProcessor::process_update_at_slot(update, current_slot)
               │       update, finalized_period, next_known, spec)
               │    guards: has committee data, next not already known,
               │            attested period == finalized period
-              │    ► merkle::verify_next_sync_committee
+              │    ► merkle::verify_merkle_proof (committee branch → attested state_root)
               │    ► store.next_sync_committee = Some(verified_committee)
               │
-              └─ update optimistic header, participation tracking
+              └─ update optimistic header if attested slot is newer
 ```
 
 **Note:** BLS signature verification answers one thing - did a supermajority of the sync committee we already trust actually sign this new header?
@@ -212,7 +215,6 @@ A *spec test* uses official Ethereum consensus fixtures — independent of scope
 Fixtures appear at **unit** scope too, not just in the replays:
 
 - `bls.rs::spec_tests` — official `fast_aggregate_verify` vectors (sync-committee verification is same-message aggregate, so that's the only production BLS entry point). They pin down *our* `bls.rs` adapter — DST, infinity handling, parameter marshaling — including the negative cases (tampered signatures, wrong pubkey sets) that the honest-path fixture replays never reach.
-- `merkle.rs::test_sync_committee_root_against_spec_fixture` — one sync-committee root + branch, checked against a bootstrap fixture.
 
 The BLS vectors are vendored under `tests/fixtures/general/phase0/bls` (the
 fixtures tree mirrors the upstream `consensus-spec-tests` layout).
@@ -230,9 +232,9 @@ consensus tests only consume the typed objects it returns.
 |---|---|---|
 | End-to-end spec sync | `consensus/light_client_spec_tests.rs` | Altair–Electra replays + every fork transition + per-fork behavioral cases; full force-update path remains `#[ignore]` |
 | BLS spec vectors | `consensus/bls.rs::spec_tests` | Official Ethereum BLS test vectors exercising the production `fast_aggregate_verify` path — including the negative cases (tampered signatures, infinity pubkeys) |
-| Merkle verification | `consensus/merkle.rs::tests` | Branch validation, sync committee root, spec fixture root match |
+| Merkle verification | `consensus/merkle.rs::tests` | Wrong-root rejection and malformed-branch `Err` paths — the false-*acceptance* failures the valid-only replays can never detect |
 | Committee guards | `consensus/sync_committee.rs::tests` | `Err` paths the valid-only fixtures never produce: unservable signature periods, next-committee learning guard |
-| Rotation drift | `consensus/processor.rs::tests` | Store period correctness after rotation (finalized-derived period remains consistent) |
+| Update validation guards | `consensus/processor.rs::tests` | `Err` paths the valid-only fixtures never produce: minority participation, signature-slot ordering |
 | Public API | `tests/light_client_sync.rs` | Full replays through the public `LightClient`; `UpdateOutcome` contract |
 | Supermajority threshold | `types/consensus/committee.rs::tests` | Exact 2/3 participation boundary |
 | ChainSpec | `chain_spec/tests.rs` | `ChainSpecConfig` validation `Err` paths (the custom-config contract); `timestamp_to_slot` (wall-clock path the replays never touch) |
