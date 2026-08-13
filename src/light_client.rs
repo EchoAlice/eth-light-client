@@ -45,16 +45,15 @@ impl LightClient {
     }
 
     #[inline]
-    pub fn finalized_header(&self) -> &BeaconBlockHeader {
-        self.inner.finalized_header()
+    pub fn finalized_beacon_block_header(&self) -> &BeaconBlockHeader {
+        self.inner.finalized_beacon_block_header()
     }
 
     #[inline]
-    pub fn optimistic_header(&self) -> &BeaconBlockHeader {
-        self.inner.optimistic_header()
+    pub fn optimistic_beacon_block_header(&self) -> &BeaconBlockHeader {
+        self.inner.optimistic_beacon_block_header()
     }
 
-    /// The current period's sync committee.
     #[inline]
     pub fn current_sync_committee(&self) -> &SyncCommittee {
         self.inner.current_sync_committee()
@@ -66,10 +65,9 @@ impl LightClient {
         self.inner.next_sync_committee()
     }
 
-    /// The current sync committee period (derived from the finalized header).
     #[inline]
-    pub fn current_period(&self) -> u64 {
-        self.inner.current_period()
+    pub fn current_sync_committee_period(&self) -> u64 {
+        self.inner.current_sync_committee_period()
     }
 
     #[inline]
@@ -81,9 +79,12 @@ impl LightClient {
 impl std::fmt::Debug for LightClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LightClient")
-            .field("finalized_slot", &self.finalized_header().slot)
-            .field("optimistic_slot", &self.optimistic_header().slot)
-            .field("current_period", &self.current_period())
+            .field("finalized_slot", &self.finalized_beacon_block_header().slot)
+            .field(
+                "optimistic_slot",
+                &self.optimistic_beacon_block_header().slot,
+            )
+            .field("current_period", &self.current_sync_committee_period())
             .field("has_next_committee", &self.next_sync_committee().is_some())
             .finish()
     }

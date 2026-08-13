@@ -86,7 +86,7 @@ impl LightClientProcessor {
 
         // Validate header-local consistency (execution branch for Capella+).
         //
-        // TODO: Rename... this function name sounds like it's checking the sync committee's signature over a light client's beacon block header.
+        // TODO: Rename... this function name sounds like it's checking the sync committee's signature over a light client's beacon block header, but it's checking execution payload's inclusion proof.
         verify_light_client_header(&update.attested_header)?;
         if let Some(ref finalized) = update.finalized {
             verify_light_client_header(&finalized.header)?;
@@ -188,24 +188,12 @@ impl LightClientProcessor {
         Ok(changes)
     }
 
-    // TODO: Rename to finalized_beacon_block_header
-    pub(crate) fn finalized_header(&self) -> &BeaconBlockHeader {
-        self.store.finalized_header.beacon()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn finalized_light_client_header(&self) -> &LightClientHeader {
-        &self.store.finalized_header
-    }
-
-    // TODO: Rename to optimistic_beacon_block_header
-    pub(crate) fn optimistic_header(&self) -> &BeaconBlockHeader {
+    pub(crate) fn optimistic_beacon_block_header(&self) -> &BeaconBlockHeader {
         self.store.optimistic_header.beacon()
     }
 
-    #[cfg(test)]
-    pub(crate) fn optimistic_light_client_header(&self) -> &LightClientHeader {
-        &self.store.optimistic_header
+    pub(crate) fn finalized_beacon_block_header(&self) -> &BeaconBlockHeader {
+        self.store.finalized_header.beacon()
     }
 
     pub(crate) fn current_sync_committee(&self) -> &SyncCommittee {
@@ -216,13 +204,22 @@ impl LightClientProcessor {
         self.store.next_sync_committee.as_ref()
     }
 
-    // TODO: Rename to `current_sync_period`
-    pub(crate) fn current_period(&self) -> u64 {
+    pub(crate) fn current_sync_committee_period(&self) -> u64 {
         self.store.finalized_sync_committee_period(&self.chain_spec)
     }
 
     pub(crate) fn chain_spec(&self) -> &ChainSpec {
         &self.chain_spec
+    }
+
+    #[cfg(test)]
+    pub(crate) fn optimistic_light_client_header(&self) -> &LightClientHeader {
+        &self.store.optimistic_header
+    }
+
+    #[cfg(test)]
+    pub(crate) fn finalized_light_client_header(&self) -> &LightClientHeader {
+        &self.store.finalized_header
     }
 }
 
@@ -314,7 +311,7 @@ mod tests {
         .unwrap();
 
         let initial_period = chain_spec.slot_to_sync_committee_period(bootstrap_slot);
-        assert_eq!(processor.current_period(), initial_period);
+        assert_eq!(processor.current_sync_committee_period(), initial_period);
         assert!(processor.store.next_sync_committee.is_none());
 
         // Inject a distinguishable "next" committee directly on the store
@@ -364,7 +361,7 @@ mod tests {
         );
         // Period is derived from finalized header — automatically correct
         assert_eq!(
-            processor.current_period(),
+            processor.current_sync_committee_period(),
             initial_period + 1,
             "period should reflect the new finalized header"
         );
