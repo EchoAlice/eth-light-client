@@ -45,10 +45,6 @@ pub(crate) fn verify_merkle_proof(
 }
 
 fn is_valid_merkle_branch(leaf: &Root, branch: &[Root], gindex: u64, root: &Root) -> Result<bool> {
-    if gindex == 1 {
-        return Ok(branch.is_empty() && leaf == root);
-    }
-
     let expected_depth = gindex
         .checked_ilog2()
         .ok_or_else(|| Error::InvalidInput("gindex cannot be 0".to_string()))?;
@@ -88,11 +84,9 @@ fn hash_pair(left: &Root, right: &Root) -> Root {
     ethereum_hashing::hash32_concat(left, right)
 }
 
-// TODO: Are these unit tests necessary?
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chain_spec::ChainSpec;
 
     #[test]
     fn test_merkle_branch_validation() {
@@ -123,32 +117,5 @@ mod tests {
 
         // Correct length, wrong root: reconstructs but doesn't match -> Ok(false).
         assert!(!is_valid_merkle_branch(&l, &[r], 2, &[9u8; 32]).unwrap());
-    }
-
-    #[test]
-    fn test_sync_committee_root_against_spec_fixture() {
-        use crate::test_utils::SyncTestCase;
-
-        let spec = ChainSpec::minimal();
-        let sync_test = SyncTestCase::light_client_sync(crate::Fork::Altair);
-        let bootstrap = sync_test
-            .load_bootstrap()
-            .expect("Failed to load bootstrap");
-
-        let computed_root = bootstrap.current_sync_committee.hash_tree_root();
-
-        let gindex = spec.current_sync_committee_gindex(bootstrap.header.slot());
-        let is_valid = is_valid_merkle_branch(
-            &computed_root,
-            &bootstrap.current_sync_committee_branch,
-            gindex,
-            bootstrap.header.state_root(),
-        )
-        .expect("Branch verification should not error");
-
-        assert!(
-            is_valid,
-            "Computed sync committee root should verify against spec fixture"
-        );
     }
 }

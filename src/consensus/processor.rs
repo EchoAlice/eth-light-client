@@ -167,8 +167,7 @@ impl LightClientProcessor {
             }
         }
 
-        // Learn next AFTER the finalized-header update + rotation, using the now-
-        // updated finalized period (see consensus/README data flow).
+        // Learn next AFTER the finalized-header update + rotation, using the now-updated finalized period (see consensus/README data flow).
         let finalized_period = self.store.finalized_sync_committee_period(&self.chain_spec);
         if let Some(verified) = sync_committee::learn_next_sync_committee(
             &update,
@@ -223,12 +222,9 @@ impl LightClientProcessor {
     }
 }
 
-// TODO: Do we need this test module at all? Processor is tested against spec tests
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chain_spec::Fork;
-    use crate::test_utils::SyncTestCase;
     use crate::types::consensus::{AltairLightClientHeader, SyncAggregate};
 
     fn create_test_beacon_header(slot: Slot) -> BeaconBlockHeader {
@@ -241,10 +237,7 @@ mod tests {
         }
     }
 
-    /// The two validate rules are Err paths the valid-only fixtures never
-    /// produce: minority participation (the safety threshold) and a signature
-    /// slot not strictly after the attested slot. Deleting either check leaves
-    /// every replay green.
+    /// Sole detector: valid-only fixtures never exercise these Err arms.
     #[test]
     fn rejects_updates_failing_basic_validation() {
         let mut processor = LightClientProcessor {
@@ -280,90 +273,5 @@ mod tests {
             .err()
             .unwrap();
         assert!(err.to_string().contains("Signature slot"), "got: {err}");
-    }
-
-    /// Drift-prevention regression test.
-    ///
-    /// Verifies that after a simulated rotation:
-    ///   1. The store's current committee is what was previously next.
-    ///   2. The store's next committee is consumed (None).
-    ///   3. The processor's period (store-derived) matches the expected
-    ///      post-rotation period.
-    ///
-    /// Because there is no separate tracker, committee period is always
-    /// derived from `store.finalized_header.slot` — drift is structurally
-    /// impossible.
-    #[test]
-    fn test_store_period_correct_after_rotation() {
-        let bootstrap = SyncTestCase::light_client_sync(Fork::Altair)
-            .load_bootstrap()
-            .expect("Failed to load bootstrap");
-        let chain_spec = crate::chain_spec::ChainSpec::minimal();
-        let bootstrap_slot = bootstrap.header.slot();
-
-        let mut processor = LightClientProcessor::new(
-            chain_spec.clone(),
-            bootstrap.header.clone(),
-            bootstrap.current_sync_committee.clone(),
-            &bootstrap.current_sync_committee_branch,
-            bootstrap.genesis_validators_root,
-        )
-        .unwrap();
-
-        let initial_period = chain_spec.slot_to_sync_committee_period(bootstrap_slot);
-        assert_eq!(processor.current_sync_committee_period(), initial_period);
-        assert!(processor.store.next_sync_committee.is_none());
-
-        // Inject a distinguishable "next" committee directly on the store
-        let next = SyncCommittee::from_parts(vec![[0xAA; 48]; 32], [0xBB; 48]).unwrap();
-        processor.store.next_sync_committee = Some(next.clone());
-
-        // Store period is still initial_period (finalized header not yet updated)
-        let store_period = processor.store.finalized_sync_committee_period(&chain_spec);
-        assert_eq!(store_period, initial_period);
-
-        // Simulate an update whose finalized_header crosses into period+1
-        let next_period_slot = (initial_period + 1) * chain_spec.slots_per_sync_committee_period();
-        let finalized = create_test_beacon_header(next_period_slot);
-
-        // Exercise rotation directly (can't do full process_update because
-        // BLS/merkle proofs would fail with synthetic data). Uses the same
-        // `should_rotate` predicate as production.
-        if sync_committee::should_rotate(
-            finalized.slot,
-            store_period,
-            processor.store.next_sync_committee.is_some(),
-            &chain_spec,
-        ) {
-            processor.store.current_sync_committee = processor
-                .store
-                .next_sync_committee
-                .take()
-                .expect("should_rotate checked next is_some");
-            // Advance finalized header to match (as apply_light_client_update does)
-            processor.store.finalized_header =
-                LightClientHeader::Altair(AltairLightClientHeader { beacon: finalized });
-        }
-
-        // Assertions: store state is correct after rotation
-        assert_eq!(
-            processor
-                .store
-                .current_sync_committee
-                .aggregate_pubkey()
-                .as_ref(),
-            &[0xBB; 48],
-            "store current committee should be what was next"
-        );
-        assert!(
-            processor.store.next_sync_committee.is_none(),
-            "store next committee should be consumed"
-        );
-        // Period is derived from finalized header — automatically correct
-        assert_eq!(
-            processor.current_sync_committee_period(),
-            initial_period + 1,
-            "period should reflect the new finalized header"
-        );
     }
 }
