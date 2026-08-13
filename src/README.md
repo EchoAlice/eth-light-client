@@ -42,7 +42,10 @@ The `chain_spec` module is the single source of truth for **network parameters**
 
 This module owns two consensus-critical, fork-dependent lookups:
 - `fork_version_at_epoch` → the signing **domain** (sync-committee sig checks)
-- `*_gindex(slot)` → the Merkle **generalized indices** (proof checks)
+- `fork_at_slot` → which fork's rules apply; callers read fork-keyed constants
+  off the returned `Fork` itself — e.g. the Merkle **generalized indices**
+  (`fork.finalized_root_gindex()`), which are universal layout constants, not
+  network data
 
 **The module holds no verification behavior** — no SSZ, Merkle, or signature logic, only data and pure lookups. Verification lives in `consensus/`, parameterized by what `chain_spec` returns:
 > `chain_spec` module = inert, correctness-critical data + pure lookups
