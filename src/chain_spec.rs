@@ -11,6 +11,29 @@ pub enum Fork {
     Electra,
 }
 
+impl Fork {
+    pub(crate) const fn current_sync_committee_gindex(&self) -> u64 {
+        match self {
+            Fork::Electra => 86,
+            _ => 54,
+        }
+    }
+
+    pub(crate) const fn next_sync_committee_gindex(&self) -> u64 {
+        match self {
+            Fork::Electra => 87,
+            _ => 55,
+        }
+    }
+
+    pub(crate) const fn finalized_root_gindex(&self) -> u64 {
+        match self {
+            Fork::Electra => 169,
+            _ => 105,
+        }
+    }
+}
+
 /// Defines network-specific constants.
 #[derive(Debug, Clone)]
 pub struct ChainSpec {
@@ -44,13 +67,28 @@ impl ChainSpec {
             slots_per_epoch: config.slots_per_epoch,
             epochs_per_sync_committee_period: config.epochs_per_sync_committee_period,
             sync_committee_size: config.sync_committee_size,
-            fork_schedule: ForkSchedule::new(
-                ForkParams::new(config.altair_fork_version, config.altair_fork_epoch),
-                ForkParams::new(config.bellatrix_fork_version, config.bellatrix_fork_epoch),
-                ForkParams::new(config.capella_fork_version, config.capella_fork_epoch),
-                ForkParams::new(config.deneb_fork_version, config.deneb_fork_epoch),
-                ForkParams::new(config.electra_fork_version, config.electra_fork_epoch),
-            ),
+            fork_schedule: ForkSchedule {
+                altair: ForkParams {
+                    version: config.altair_fork_version,
+                    epoch: config.altair_fork_epoch,
+                },
+                bellatrix: ForkParams {
+                    version: config.bellatrix_fork_version,
+                    epoch: config.bellatrix_fork_epoch,
+                },
+                capella: ForkParams {
+                    version: config.capella_fork_version,
+                    epoch: config.capella_fork_epoch,
+                },
+                deneb: ForkParams {
+                    version: config.deneb_fork_version,
+                    epoch: config.deneb_fork_epoch,
+                },
+                electra: ForkParams {
+                    version: config.electra_fork_version,
+                    epoch: config.electra_fork_epoch,
+                },
+            },
         }
     }
 
@@ -74,10 +112,7 @@ impl ChainSpec {
         self.slot_to_epoch(slot) / self.epochs_per_sync_committee_period
     }
 
-    /// Pre-genesis timestamps map to slot 0 — fail-closed: a wrong/early clock
-    /// lowers `current_slot`, and validation rejects updates with
-    /// `signature_slot > current_slot`, so a bad clock rejects more, never
-    /// accepts more.
+    /// Fail-closed: a wrong/early clock lowers `current_slot`, and validation rejects updates with `signature_slot > current_slot`, so a bad clock rejects more, never accepts more.
     pub(crate) fn timestamp_to_slot(&self, timestamp_secs: u64) -> u64 {
         if timestamp_secs >= self.genesis_time {
             (timestamp_secs - self.genesis_time) / self.seconds_per_slot
@@ -90,33 +125,12 @@ impl ChainSpec {
         self.fork_schedule.fork_at_epoch(epoch)
     }
 
-    const fn fork_at_slot(&self, slot: Slot) -> Fork {
+    pub(crate) const fn fork_at_slot(&self, slot: Slot) -> Fork {
         self.fork_at_epoch(slot / self.slots_per_epoch)
     }
 
     pub(crate) const fn fork_version_at_epoch(&self, epoch: u64) -> [u8; 4] {
         self.fork_schedule.version_at_epoch(epoch)
-    }
-
-    pub(crate) const fn current_sync_committee_gindex(&self, slot: Slot) -> u64 {
-        match self.fork_at_slot(slot) {
-            Fork::Electra => 86,
-            _ => 54,
-        }
-    }
-
-    pub(crate) const fn next_sync_committee_gindex(&self, slot: Slot) -> u64 {
-        match self.fork_at_slot(slot) {
-            Fork::Electra => 87,
-            _ => 55,
-        }
-    }
-
-    pub(crate) const fn finalized_root_gindex(&self, slot: Slot) -> u64 {
-        match self.fork_at_slot(slot) {
-            Fork::Electra => 169,
-            _ => 105,
-        }
     }
 }
 
@@ -130,30 +144,14 @@ pub(crate) struct ForkSchedule {
 }
 
 impl ForkSchedule {
-    pub(crate) const fn new(
-        altair: ForkParams,
-        bellatrix: ForkParams,
-        capella: ForkParams,
-        deneb: ForkParams,
-        electra: ForkParams,
-    ) -> Self {
-        Self {
-            altair,
-            bellatrix,
-            capella,
-            deneb,
-            electra,
-        }
-    }
-
     pub(crate) const fn fork_at_epoch(&self, epoch: u64) -> Fork {
-        if epoch >= self.electra.epoch() {
+        if epoch >= self.electra.epoch {
             Fork::Electra
-        } else if epoch >= self.deneb.epoch() {
+        } else if epoch >= self.deneb.epoch {
             Fork::Deneb
-        } else if epoch >= self.capella.epoch() {
+        } else if epoch >= self.capella.epoch {
             Fork::Capella
-        } else if epoch >= self.bellatrix.epoch() {
+        } else if epoch >= self.bellatrix.epoch {
             Fork::Bellatrix
         } else {
             Fork::Altair
@@ -162,11 +160,11 @@ impl ForkSchedule {
 
     pub(crate) const fn version_at_epoch(&self, epoch: u64) -> [u8; 4] {
         match self.fork_at_epoch(epoch) {
-            Fork::Altair => self.altair.version(),
-            Fork::Bellatrix => self.bellatrix.version(),
-            Fork::Capella => self.capella.version(),
-            Fork::Deneb => self.deneb.version(),
-            Fork::Electra => self.electra.version(),
+            Fork::Altair => self.altair.version,
+            Fork::Bellatrix => self.bellatrix.version,
+            Fork::Capella => self.capella.version,
+            Fork::Deneb => self.deneb.version,
+            Fork::Electra => self.electra.version,
         }
     }
 }
@@ -175,20 +173,6 @@ impl ForkSchedule {
 pub(crate) struct ForkParams {
     version: [u8; 4],
     epoch: u64,
-}
-
-impl ForkParams {
-    pub(crate) const fn new(version: [u8; 4], epoch: u64) -> Self {
-        Self { version, epoch }
-    }
-
-    pub(crate) const fn version(&self) -> [u8; 4] {
-        self.version
-    }
-
-    pub(crate) const fn epoch(&self) -> u64 {
-        self.epoch
-    }
 }
 
 /// Configurations for creating a [`ChainSpec`].

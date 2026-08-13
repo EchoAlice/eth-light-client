@@ -91,7 +91,9 @@ pub(crate) fn learn_next_sync_committee(
     verify_merkle_proof(
         &next.committee.hash_tree_root(),
         &next.branch,
-        chain_spec.next_sync_committee_gindex(update.attested_header.slot()),
+        chain_spec
+            .fork_at_slot(update.attested_header.slot())
+            .next_sync_committee_gindex(),
         update.attested_header.state_root(),
     )?;
 

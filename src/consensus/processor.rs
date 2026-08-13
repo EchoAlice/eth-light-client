@@ -38,7 +38,9 @@ impl LightClientProcessor {
         verify_merkle_proof(
             &current_sync_committee.hash_tree_root(),
             current_sync_committee_branch,
-            chain_spec.current_sync_committee_gindex(trusted_header.slot()),
+            chain_spec
+                .fork_at_slot(trusted_header.slot())
+                .current_sync_committee_gindex(),
             trusted_header.state_root(),
         )?;
 
@@ -140,7 +142,8 @@ impl LightClientProcessor {
                     &finalized.header.beacon().hash_tree_root(),
                     &finalized.branch,
                     self.chain_spec
-                        .finalized_root_gindex(update.attested_header.slot()),
+                        .fork_at_slot(update.attested_header.slot())
+                        .finalized_root_gindex(),
                     update.attested_header.state_root(),
                 )?;
 

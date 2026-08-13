@@ -165,7 +165,7 @@ Generalized indices for merkle proofs are fork-dependent (change at Electra):
 | `next_sync_committee` | 55 | 87 |
 | `finalized_checkpoint.root` | 105 | 169 |
 
-See `ChainSpec::current_sync_committee_gindex()` and siblings in `../chain_spec.rs`.
+See the `const fn` gindex methods on `Fork` in `../chain_spec.rs`.
 
 ## Fork Awareness
 
@@ -173,7 +173,8 @@ The engine implements fork-aware light client verification across all
 supported forks (Altair through Electra), including every fork boundary.
 `LightClientHeader` is a fork enum whose Capella+ variants carry the execution
 payload header and its inclusion branch; `ChainSpec` carries the full fork
-schedule and selects the generalized indices, which change at Electra.
+schedule and answers slot → `Fork`, and `Fork` itself carries the generalized
+indices, which change at Electra.
 
 Each supported fork was added by the same steps, which also remain for Fulu
 onward:
