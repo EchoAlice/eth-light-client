@@ -126,6 +126,7 @@ impl SyncAggregate {
         }
     }
 
+    // TODO: Is this wrapper needed?
     pub(crate) fn has_supermajority(&self, sync_committee: &SyncCommittee) -> bool {
         sync_committee.has_supermajority_participation(self.sync_committee_bits.as_ref())
     }

@@ -36,27 +36,27 @@ LightClient::process_update(update)
     ▼
 LightClientProcessor::process_update_at_slot(update, current_slot)
     │
-    ├─[1]─► validate_light_client_update
-    │         • signature_slot > attested.slot, supermajority participation
+    ├─[1]─► validate_light_client_update  (&self, no mutation)
+    │         • supermajority participation
     │         • merkle::verify_light_client_header on attested (and finalized,
     │           if present): execution payload inclusion in the beacon body
     │           (Capella+; header-local, no signatures)
-    │         • signature_slot <= current_slot
-    │
-    ├─[2]─► verify_update_signature  (&self, no mutation)
+    │         • signature_slot > attested.slot, signature_slot <= current_slot
     │         │
-    │         ├─► sync_committee::committee_for_signature_slot(sig_slot,
-    │         │       store.finalized_header.slot,
-    │         │       &store.current_sync_committee, store.next_sync_committee.as_ref(),
-    │         │       spec)
-    │         │     selects current or next committee by period comparison
-    │         │
-    │         └─► sync_committee::verify_sync_aggregate(committee, sig_slot,
-    │                 header_root, bits, signature, genesis_root, spec)
-    │               domain = compute_sync_committee_domain_for_signature_slot(sig_slot, …)
-    │               bls::fast_aggregate_verify(participating_pubkeys, signing_root, sig)
+    │         └─► sync_committee::verify_update_signature  (last validation step)
+    │               │
+    │               ├─► committee_for_signature_slot(sig_slot,
+    │               │       store.finalized_header.slot,
+    │               │       &store.current_sync_committee, store.next_sync_committee.as_ref(),
+    │               │       spec)
+    │               │     selects current or next committee by period comparison
+    │               │
+    │               └─► verify_sync_aggregate(committee, sig_slot,
+    │                       header_root, bits, signature, genesis_root, spec)
+    │                     domain = compute_sync_committee_domain_for_signature_slot(sig_slot, …)
+    │                     bls::fast_aggregate_verify(participating_pubkeys, signing_root, sig)
     │
-    └─[3]─► apply_light_client_update  (&mut self)
+    └─[2]─► apply_light_client_update  (&mut self)
               │
               │  store_period = store.finalized_sync_committee_period(spec)
               │
@@ -237,7 +237,7 @@ consensus tests only consume the typed objects it returns.
 | Committee guards | `consensus/sync_committee.rs::tests` | `Err` paths the valid-only fixtures never produce: unservable signature periods, next-committee learning guard |
 | Update validation guards | `consensus/processor.rs::tests` | `Err` paths the valid-only fixtures never produce: minority participation, signature-slot ordering |
 | Public API | `tests/light_client_sync.rs` | Full replays through the public `LightClient`; `UpdateOutcome` contract |
-| Supermajority threshold | `types/consensus/committee.rs::tests` | Exact 2/3 participation boundary |
+| Supermajority threshold | `types/consensus/sync_committee.rs::tests` | Exact 2/3 participation boundary |
 | ChainSpec | `chain_spec/tests.rs` | `ChainSpecConfig` validation `Err` paths (the custom-config contract); `timestamp_to_slot` (wall-clock path the replays never touch) |
 
 ### Spec-case coverage
