@@ -9,7 +9,43 @@ use tree_hash_derive::TreeHash;
 
 pub(crate) const DOMAIN_SYNC_COMMITTEE: [u8; 4] = [7, 0, 0, 0];
 
-pub(crate) fn committee_for_signature_slot<'a>(
+pub(crate) fn verify_update_signature(
+    update: &LightClientUpdate,
+    store_finalized_slot: Slot,
+    current_committee: &SyncCommittee,
+    next_committee: Option<&SyncCommittee>,
+    chain_spec: &ChainSpec,
+    genesis_validators_root: Root,
+) -> Result<()> {
+    let attested_header_root = update.attested_header.beacon().hash_tree_root();
+
+    let committee = committee_for_signature_slot(
+        update.signature_slot,
+        store_finalized_slot,
+        current_committee,
+        next_committee,
+        chain_spec,
+    )?;
+
+    let is_valid = verify_sync_aggregate(
+        committee,
+        update.signature_slot,
+        attested_header_root,
+        &update.sync_aggregate.sync_committee_bits,
+        &update.sync_aggregate.sync_committee_signature,
+        genesis_validators_root,
+        chain_spec,
+    )?;
+
+    if !is_valid {
+        return Err(Error::InvalidInput(
+            "Invalid sync committee signature".to_string(),
+        ));
+    }
+
+    Ok(())
+}
+fn committee_for_signature_slot<'a>(
     signature_slot: Slot,
     store_finalized_slot: Slot,
     current_committee: &'a SyncCommittee,
@@ -32,7 +68,8 @@ pub(crate) fn committee_for_signature_slot<'a>(
     }
 }
 
-pub(crate) fn verify_sync_aggregate(
+// TODO: Just pass in the SyncAggregate.  No need to decompose in the signature
+fn verify_sync_aggregate(
     committee: &SyncCommittee,
     signature_slot: Slot,
     attested_header_root: Root,
@@ -100,7 +137,7 @@ pub(crate) fn learn_next_sync_committee(
     Ok(Some(next.committee.clone()))
 }
 
-pub(crate) fn compute_sync_committee_domain_for_signature_slot(
+fn compute_sync_committee_domain_for_signature_slot(
     signature_slot: Slot,
     genesis_validators_root: Root,
     chain_spec: &ChainSpec,

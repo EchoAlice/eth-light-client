@@ -1,7 +1,9 @@
 use crate::chain_spec::ChainSpec;
 use crate::consensus::merkle::{verify_light_client_header, verify_merkle_proof};
 use crate::consensus::store::LightClientStore;
-use crate::consensus::sync_committee;
+use crate::consensus::sync_committee::{
+    learn_next_sync_committee, should_rotate, verify_update_signature,
+};
 use crate::error::{Error, Result};
 use crate::types::consensus::{
     BeaconBlockHeader, LightClientHeader, LightClientUpdate, SyncCommittee,
@@ -60,22 +62,15 @@ impl LightClientProcessor {
     ) -> Result<UpdateChanges> {
         self.validate_light_client_update(&update, current_slot)?;
 
-        self.verify_update_signature(&update)?;
-
         self.apply_light_client_update(update)
     }
 
-    /// Validate basic update properties: fail fast principle
     fn validate_light_client_update(
         &self,
         update: &LightClientUpdate,
         current_slot: Slot,
     ) -> Result<()> {
-        if update.signature_slot <= update.attested_header.slot() {
-            return Err(Error::InvalidInput(
-                "Signature slot must be after attested header slot".to_string(),
-            ));
-        }
+        // Verify sync committee has sufficient participants
         if !update
             .sync_aggregate
             .has_supermajority(&self.store.current_sync_committee)
@@ -85,9 +80,19 @@ impl LightClientProcessor {
             ));
         }
 
+        // Verfiy update doesn't skip a sync committee period
+        //
+        // TODO: Make sure `verify_light_client_header` code block implements same functionality as spec's `is_valid_light_client_header`
         verify_light_client_header(&update.attested_header)?;
         if let Some(ref finalized) = update.finalized {
             verify_light_client_header(&finalized.header)?;
+        }
+
+        // TODO: Consolidate slot comparison conditions to one line (#132)
+        if update.signature_slot <= update.attested_header.slot() {
+            return Err(Error::InvalidInput(
+                "Signature slot must be after attested header slot".to_string(),
+            ));
         }
 
         if update.signature_slot > current_slot {
@@ -96,38 +101,14 @@ impl LightClientProcessor {
             ));
         }
 
-        Ok(())
-    }
-
-    fn verify_update_signature(&self, update: &LightClientUpdate) -> Result<()> {
-        let attested_header_root = update.attested_header.beacon().hash_tree_root();
-
-        // Look up the committee for the signature slot from the store
-        let committee = sync_committee::committee_for_signature_slot(
-            update.signature_slot,
+        verify_update_signature(
+            update,
             self.store.finalized_header.slot(),
             &self.store.current_sync_committee,
             self.store.next_sync_committee.as_ref(),
             &self.chain_spec,
-        )?;
-
-        let is_valid = sync_committee::verify_sync_aggregate(
-            committee,
-            update.signature_slot,
-            attested_header_root,
-            &update.sync_aggregate.sync_committee_bits,
-            &update.sync_aggregate.sync_committee_signature,
             self.store.genesis_validators_root,
-            &self.chain_spec,
-        )?;
-
-        if !is_valid {
-            return Err(Error::InvalidInput(
-                "Invalid sync committee signature".to_string(),
-            ));
-        }
-
-        Ok(())
+        )
     }
 
     fn apply_light_client_update(&mut self, update: LightClientUpdate) -> Result<UpdateChanges> {
@@ -151,7 +132,7 @@ impl LightClientProcessor {
                 changes.finalized_updated = true;
             }
 
-            if sync_committee::should_rotate(
+            if should_rotate(
                 finalized.header.slot(),
                 store_period,
                 self.store.next_sync_committee.is_some(),
@@ -168,7 +149,7 @@ impl LightClientProcessor {
 
         // Learn next AFTER the finalized-header update + rotation, using the now-updated finalized period (see consensus/README data flow).
         let finalized_period = self.store.finalized_sync_committee_period(&self.chain_spec);
-        if let Some(verified) = sync_committee::learn_next_sync_committee(
+        if let Some(verified) = learn_next_sync_committee(
             &update,
             finalized_period,
             self.store.next_sync_committee.is_some(),
