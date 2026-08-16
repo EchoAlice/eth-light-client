@@ -5,7 +5,7 @@ use blst::{
 
 const DST: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
 
-pub(crate) fn verify_aggregate_signature(
+pub(crate) fn fast_aggregate_verify(
     pubkeys: &[[u8; 48]],
     message: &[u8],
     signature: &[u8; 96],
@@ -98,7 +98,7 @@ mod spec_tests {
             let message = parse_hex(&case.input.message);
             let signature: [u8; 96] = fixed(&parse_hex(&case.input.signature));
 
-            let actual = verify_aggregate_signature(&pubkeys, &message, &signature);
+            let actual = fast_aggregate_verify(&pubkeys, &message, &signature);
             if actual != case.output {
                 failures.push(format!("{name}: expected {}, got {actual}", case.output));
             }
