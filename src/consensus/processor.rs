@@ -70,7 +70,7 @@ impl LightClientProcessor {
         update: &LightClientUpdate,
         current_slot: Slot,
     ) -> Result<()> {
-        // Verify sync committee has sufficient participants
+        // # Verify sync committee has sufficient participants
         if !update
             .sync_aggregate
             .has_supermajority(&self.store.current_sync_committee)
@@ -80,26 +80,48 @@ impl LightClientProcessor {
             ));
         }
 
-        // Verfiy update doesn't skip a sync committee period
-        //
-        // TODO: Make sure `verify_light_client_header` code block implements same functionality as spec's `is_valid_light_client_header`
+        // # Verify update doesn't skip a sync committee period
         verify_light_client_header(&update.attested_header)?;
-        if let Some(ref finalized) = update.finalized {
-            verify_light_client_header(&finalized.header)?;
-        }
 
-        // TODO: Consolidate slot comparison conditions to one line (#132)
-        if update.signature_slot <= update.attested_header.slot() {
-            return Err(Error::InvalidInput(
-                "Signature slot must be after attested header slot".to_string(),
-            ));
-        }
-
+        // TODO: Consolidate slot comparison conditions to one line
         if update.signature_slot > current_slot {
             return Err(Error::InvalidInput(
                 "Update signature slot is in the future".to_string(),
             ));
         }
+        if update.attested_header.slot() >= update.signature_slot {
+            return Err(Error::InvalidInput(
+                "Update's signature slot must be after attested header slot".to_string(),
+            ));
+        }
+        // TODO: Figure out how to encorporate `update_attested_slot >= update_finalized_slot`
+
+        let store_period = self.store.finalized_sync_committee_period(&self.chain_spec);
+        let update_signature_period = self
+            .chain_spec
+            .slot_to_sync_committee_period(update.signature_slot);
+        if self.store.next_sync_committee.is_some() {
+            if update_signature_period != store_period
+                && update_signature_period != store_period + 1
+            {
+                return Err(Error::InvalidInput(
+                    "Signature period not servable by store's known committees".to_string(),
+                ));
+            }
+        } else if update_signature_period != store_period {
+            return Err(Error::InvalidInput(
+                "Signature period not servable by store's known committees".to_string(),
+            ));
+        }
+
+        // # Verify update is relevant
+
+        // # Verify that the `finality_branch`, if present, confirms `finalized_header` to match the finalized checkpoint root saved in the state of `attested_header`.
+        if let Some(ref finalized) = update.finalized {
+            verify_light_client_header(&finalized.header)?;
+        }
+
+        // # Verify that the `next_sync_committee`, if present, actually is the next sync committee saved in the state of the `attested_header`
 
         verify_update_signature(
             update,
@@ -252,6 +274,6 @@ mod tests {
             .process_update_at_slot(update(vec![true; 32], 2), 4)
             .err()
             .unwrap();
-        assert!(err.to_string().contains("Signature slot"), "got: {err}");
+        assert!(err.to_string().contains("signature slot"), "got: {err}");
     }
 }
