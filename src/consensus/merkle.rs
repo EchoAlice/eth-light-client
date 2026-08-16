@@ -2,10 +2,11 @@ use crate::error::{Error, Result};
 use crate::types::consensus::LightClientHeader;
 use crate::types::primitives::Root;
 
-/// execution_payload's position in BeaconBlockBody. Unchanged Capella through Fulu.
 const EXECUTION_PAYLOAD_GINDEX: u64 = 25;
 
-/// Proves header-internal consistency. No signature checks involved
+/// Spec: `is_valid_light_client_header`, fused with its caller-side `assert`
+/// (returns `Err` instead of a bool).  Proves header-internal consistency.
+/// No signature checks involved.
 pub(crate) fn verify_light_client_header(header: &LightClientHeader) -> Result<()> {
     match header {
         LightClientHeader::Altair(_) | LightClientHeader::Bellatrix(_) => Ok(()),

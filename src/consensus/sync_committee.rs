@@ -86,7 +86,7 @@ fn verify_sync_aggregate(
     );
     let signing_root = compute_signing_root(attested_header_root, domain);
 
-    Ok(bls::verify_aggregate_signature(
+    Ok(bls::fast_aggregate_verify(
         &participating_pubkeys,
         &signing_root,
         sync_committee_signature,
