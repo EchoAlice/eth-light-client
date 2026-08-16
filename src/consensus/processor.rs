@@ -83,18 +83,16 @@ impl LightClientProcessor {
         // # Verify update doesn't skip a sync committee period
         verify_light_client_header(&update.attested_header)?;
 
-        // TODO: Consolidate slot comparison conditions to one line
-        if update.signature_slot > current_slot {
+        let update_finalized_slot = update.finalized.as_ref().map_or(0, |f| f.header.slot());
+        if update.signature_slot > current_slot
+            || update.attested_header.slot() >= update.signature_slot
+            || update_finalized_slot > update.attested_header.slot()
+        {
             return Err(Error::InvalidInput(
-                "Update signature slot is in the future".to_string(),
+                "Update slots must satisfy current slot >= signature slot > attested slot >= finalized slot"
+                    .to_string(),
             ));
         }
-        if update.attested_header.slot() >= update.signature_slot {
-            return Err(Error::InvalidInput(
-                "Update's signature slot must be after attested header slot".to_string(),
-            ));
-        }
-        // TODO: Figure out how to encorporate `update_attested_slot >= update_finalized_slot`
 
         let store_period = self.store.finalized_sync_committee_period(&self.chain_spec);
         let update_signature_period = self
@@ -227,7 +225,7 @@ impl LightClientProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::consensus::{AltairLightClientHeader, SyncAggregate};
+    use crate::types::consensus::{AltairLightClientHeader, FinalityUpdate, SyncAggregate};
 
     fn create_test_beacon_header(slot: Slot) -> BeaconBlockHeader {
         BeaconBlockHeader {
@@ -260,20 +258,48 @@ mod tests {
             )
         };
 
-        // 10 of 32 participants — under the 2/3 supermajority.
+        // 10 of 32 participants (under the 2/3 supermajority).
         let mut minority = vec![false; 32];
         minority[..10].fill(true);
         let err = processor
             .process_update_at_slot(update(minority, 3), 4)
             .err()
             .unwrap();
-        assert!(err.to_string().contains("participation"), "got: {err}");
+        assert!(
+            err.to_string()
+                .contains("Insufficient sync committee participation"),
+            "got: {err}"
+        );
 
-        // signature_slot == attested slot — must be strictly after.
+        let slot_chain_msg =
+            "Update slots must satisfy current slot >= signature slot > attested slot >= finalized slot";
+
+        // signature_slot == attested slot (must be strictly after).
         let err = processor
             .process_update_at_slot(update(vec![true; 32], 2), 4)
             .err()
             .unwrap();
-        assert!(err.to_string().contains("signature slot"), "got: {err}");
+        assert!(err.to_string().contains(slot_chain_msg), "got: {err}");
+
+        // signature_slot one past current_slot (must not be in the future).
+        let err = processor
+            .process_update_at_slot(update(vec![true; 32], 5), 4)
+            .err()
+            .unwrap();
+        assert!(err.to_string().contains(slot_chain_msg), "got: {err}");
+
+        // finalized slot is ahead of attested slot (a state cannot finalize a block from its own future).
+        let mut bad_finality = update(vec![true; 32], 3);
+        bad_finality.finalized = Some(FinalityUpdate {
+            header: LightClientHeader::Altair(AltairLightClientHeader {
+                beacon: create_test_beacon_header(5),
+            }),
+            branch: vec![],
+        });
+        let err = processor
+            .process_update_at_slot(bad_finality, 10)
+            .err()
+            .unwrap();
+        assert!(err.to_string().contains(slot_chain_msg), "got: {err}");
     }
 }
