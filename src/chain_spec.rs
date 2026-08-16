@@ -108,6 +108,7 @@ impl ChainSpec {
         slot / self.slots_per_epoch
     }
 
+    /// Mirrors Spec's `compute_sync_committee_period_at_slot` functionality
     pub(crate) const fn slot_to_sync_committee_period(&self, slot: u64) -> u64 {
         self.slot_to_epoch(slot) / self.epochs_per_sync_committee_period
     }

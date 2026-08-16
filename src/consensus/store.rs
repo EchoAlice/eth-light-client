@@ -27,9 +27,7 @@ impl LightClientStore {
         }
     }
 
-    /// This is the canonical "store period" per consensus-specs.
-    //
-    // TODO: is this function needed?
+    /// The canonical "store period" per consensus-specs.
     pub(crate) fn finalized_sync_committee_period(&self, spec: &ChainSpec) -> u64 {
         spec.slot_to_sync_committee_period(self.finalized_header.slot())
     }
