@@ -6,7 +6,7 @@ const EXECUTION_PAYLOAD_GINDEX: u64 = 25;
 
 /// Spec: `is_valid_light_client_header`, fused with its caller-side `assert`
 /// (returns `Err` instead of a bool).  Proves header-internal consistency.
-/// No signature checks involved.
+/// Handles fork dispatch.  No signature checks involved.
 pub(crate) fn verify_light_client_header(header: &LightClientHeader) -> Result<()> {
     match header {
         LightClientHeader::Altair(_) | LightClientHeader::Bellatrix(_) => Ok(()),

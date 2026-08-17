@@ -3,6 +3,7 @@ use super::steps::{TestMeta, TestStep};
 use super::TestUtilsResult;
 use crate::chain_spec::{ChainSpec, ChainSpecConfig, Fork};
 use crate::types::consensus::{LightClientBootstrap, LightClientUpdate};
+use crate::types::primitives::Root;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -112,6 +113,10 @@ impl SyncTestCase {
 
     pub fn chain_spec(&self) -> &ChainSpec {
         &self.spec
+    }
+
+    pub fn trusted_block_root(&self) -> Root {
+        self.meta.trusted_block_root
     }
 }
 

@@ -122,8 +122,12 @@ fn run_public_api_sync(sync_test: SyncTestCase) {
         .expect("Failed to load bootstrap");
     let steps = sync_test.load_steps().expect("Failed to load steps");
 
-    let mut client = LightClient::new(sync_test.chain_spec().clone(), bootstrap)
-        .expect("Failed to initialize LightClient");
+    let mut client = LightClient::new(
+        sync_test.chain_spec().clone(),
+        sync_test.trusted_block_root(),
+        bootstrap,
+    )
+    .expect("Failed to initialize LightClient");
 
     let mut processed = 0;
     for (i, step) in steps.iter().enumerate() {

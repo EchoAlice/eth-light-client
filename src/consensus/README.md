@@ -14,13 +14,21 @@ public API, see the root [`README.md`](../../README.md).
 
 ### Bootstrap
 ```text
-User supplies LightClientBootstrap (and optionally network specifications)
+User supplies a trusted block root (chosen out-of-band) and a
+LightClientBootstrap (which may come from an untrusted server)
         │
         ▼
-LightClient::new(spec, bootstrap)
+LightClient::new(spec, trusted_block_root, bootstrap)
         │
         ▼
-LightClientProcessor::new(spec, header, committee, branch, genesis_root)
+LightClientProcessor::new(spec, trusted_block_root, bootstrap)
+        │
+        ├─► merkle::verify_light_client_header
+        │       bootstrap header internal consistency (Capella+: execution
+        │       payload committed in the beacon body_root)
+        │
+        ├─► bootstrap.header beacon root == trusted_block_root
+        │       anchors the untrusted bootstrap to the caller's root of trust
         │
         ├─► merkle::verify_merkle_proof
         │       proves committee is within the bootstrap header.state_root
