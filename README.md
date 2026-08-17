@@ -45,7 +45,7 @@ From Capella onward, supported light client headers also include authenticated e
 However, validating information against those roots is the user's responsibility.
 
 ## Trust Model
-- Users must provide a `LightClientBootstrap` from a **trusted** source.  This anchors the light client to a trusted finalized beacon block.  Light clients can independently verify all future updates, stemming from that original bootstrap. 
+- Users must provide a **trusted block root**, chosen out-of-band (a checkpoint provider, a block explorer, a friend's node).  This is the client's entire root of trust.  The `LightClientBootstrap` data itself may come from an untrusted source — the client verifies it against the trusted root and rejects a mismatch.  This anchors the light client to a trusted finalized beacon block; all future updates are independently verified, stemming from that anchor. 
 - Users then fetch `LightClientUpdate`s from any source (beacon node API, relay, etc).  The light client locally verifies each update was signed by the appropriate sync committee before advancing its finalized and/or optimistic view of the chain.
 
 The finalized header is the client’s safest verified view of the chain. The optimistic header is the client’s freshest verified view, but may advance before finality. 
@@ -71,9 +71,14 @@ use eth_light_client::{ChainSpec, Fork, LightClient, LightClientBootstrap, Light
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let spec = ChainSpec::mainnet();
 
-    // Fetch the bootstrap as SSZ bytes from a trusted endpoint, plus the
-    // genesis validators root (GET /eth/v1/beacon/genesis):
-    // GET /eth/v1/beacon/light_client/bootstrap/{block_root}
+    // Choose a trusted block root out-of-band (checkpoint provider, block
+    // explorer). This is the client's root of trust.
+    let trusted_block_root = /* choose */;
+
+    // Fetch the bootstrap as SSZ bytes (any beacon node — it is verified
+    // against the trusted root), plus the genesis validators root
+    // (GET /eth/v1/beacon/genesis):
+    // GET /eth/v1/beacon/light_client/bootstrap/{trusted_block_root}
     let bootstrap_bytes: Vec<u8> = /* fetch */;
     let genesis_validators_root = /* fetch */;
     // `sync_committee_size` is the network preset's committee width (512 mainnet).
@@ -84,8 +89,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         genesis_validators_root,
     )?;
 
-    // Create light client
-    let mut client = LightClient::new(spec, bootstrap)?;
+    // Create light client — rejects a bootstrap that doesn't match the root
+    let mut client = LightClient::new(spec, trusted_block_root, bootstrap)?;
 
     // Then fetch updates from any source and verify them. The fork comes from
     // the response context (Eth-Consensus-Version header / fork-version prefix):

@@ -5,8 +5,10 @@ use crate::consensus::sync_committee::{
     learn_next_sync_committee, should_rotate, verify_update_signature,
 };
 use crate::error::{Error, Result};
+#[cfg(test)]
+use crate::types::consensus::LightClientHeader;
 use crate::types::consensus::{
-    BeaconBlockHeader, LightClientHeader, LightClientUpdate, SyncCommittee,
+    BeaconBlockHeader, LightClientBootstrap, LightClientUpdate, SyncCommittee,
 };
 use crate::types::primitives::Root;
 use crate::types::primitives::Slot;
@@ -26,30 +28,32 @@ pub(crate) struct LightClientProcessor {
 }
 
 impl LightClientProcessor {
+    /// Spec: `initialize_light_client_store()`
     pub(crate) fn new(
         chain_spec: ChainSpec,
-        trusted_header: LightClientHeader,
-        current_sync_committee: SyncCommittee,
-        current_sync_committee_branch: &[Root],
-        genesis_validators_root: Root,
+        trusted_block_root: Root,
+        bootstrap: LightClientBootstrap,
     ) -> Result<Self> {
-        // TODO: verify_light_client_header(&trusted_header)? — the spec's
-        // initialize_light_client_store asserts is_valid_light_client_header
-        // on the bootstrap header; we never check its execution payload
-        // consistency. See #128.
+        verify_light_client_header(&bootstrap.header)?;
+        if bootstrap.header.beacon().hash_tree_root() != trusted_block_root {
+            return Err(Error::InvalidInput(
+                "Bootstrap doesn't match the trusted block root".to_string(),
+            ));
+        }
+
         verify_merkle_proof(
-            &current_sync_committee.hash_tree_root(),
-            current_sync_committee_branch,
+            &bootstrap.current_sync_committee.hash_tree_root(),
+            &bootstrap.current_sync_committee_branch,
             chain_spec
-                .fork_at_slot(trusted_header.slot())
+                .fork_at_slot(bootstrap.header.slot())
                 .current_sync_committee_gindex(),
-            trusted_header.state_root(),
+            bootstrap.header.state_root(),
         )?;
 
         let store = LightClientStore::new(
-            trusted_header,
-            current_sync_committee,
-            genesis_validators_root,
+            bootstrap.header,
+            bootstrap.current_sync_committee,
+            bootstrap.genesis_validators_root,
         );
 
         Ok(Self { chain_spec, store })
@@ -235,6 +239,31 @@ mod tests {
             state_root: [2u8; 32],
             body_root: [3u8; 32],
         }
+    }
+
+    /// Sole detector: the replays bootstrap only with matching roots.
+    #[test]
+    fn rejects_bootstrap_with_mismatched_trusted_root() {
+        let bootstrap = LightClientBootstrap::from_header(
+            LightClientHeader::Altair(AltairLightClientHeader {
+                beacon: create_test_beacon_header(1),
+            }),
+            SyncCommittee::from_parts(vec![[1u8; 48]; 32], [2u8; 48]).unwrap(),
+            vec![],
+            [0u8; 32],
+        );
+        let err = LightClientProcessor::new(
+            crate::chain_spec::ChainSpec::minimal(),
+            [9u8; 32],
+            bootstrap,
+        )
+        .err()
+        .unwrap();
+        assert!(
+            err.to_string()
+                .contains("Bootstrap doesn't match the trusted block root"),
+            "got: {err}"
+        );
     }
 
     /// Sole detector: valid-only fixtures never exercise these Err arms.

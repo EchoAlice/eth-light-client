@@ -4,7 +4,7 @@ use crate::error::{Error, Result};
 use crate::types::consensus::{
     BeaconBlockHeader, LightClientBootstrap, LightClientUpdate, SyncCommittee,
 };
-use crate::types::primitives::Slot;
+use crate::types::primitives::{Root, Slot};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct LightClient {
@@ -12,14 +12,12 @@ pub struct LightClient {
 }
 
 impl LightClient {
-    pub fn new(chain_spec: ChainSpec, bootstrap: LightClientBootstrap) -> Result<Self> {
-        let inner = LightClientProcessor::new(
-            chain_spec,
-            bootstrap.header,
-            bootstrap.current_sync_committee,
-            &bootstrap.current_sync_committee_branch,
-            bootstrap.genesis_validators_root,
-        )?;
+    pub fn new(
+        chain_spec: ChainSpec,
+        trusted_block_root: Root,
+        bootstrap: LightClientBootstrap,
+    ) -> Result<Self> {
+        let inner = LightClientProcessor::new(chain_spec, trusted_block_root, bootstrap)?;
 
         Ok(Self { inner })
     }
@@ -29,7 +27,7 @@ impl LightClient {
             .duration_since(UNIX_EPOCH)
             .map_err(|_| Error::Internal("Failed to get current time".to_string()))?
             .as_secs();
-        let current_slot = self.chain_spec().timestamp_to_slot(current_timestamp);
+        let current_slot = self.inner.chain_spec().timestamp_to_slot(current_timestamp);
         self.process_update_at_slot(update, current_slot)
     }
 
