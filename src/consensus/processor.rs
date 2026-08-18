@@ -84,39 +84,52 @@ impl LightClientProcessor {
             ));
         }
 
-        // # Verify update doesn't skip a sync committee period
+        // # Verify update doesn't skip a sync committee period: "*Can* we check the update?"
         verify_light_client_header(&update.attested_header)?;
-
+        let update_attested_slot = update.attested_header.slot();
         let update_finalized_slot = update.finalized.as_ref().map_or(0, |f| f.header.slot());
-        if update.signature_slot > current_slot
-            || update.attested_header.slot() >= update.signature_slot
-            || update_finalized_slot > update.attested_header.slot()
+
+        if !(current_slot >= update.signature_slot
+            && update.signature_slot > update_attested_slot
+            && update_attested_slot >= update_finalized_slot)
         {
             return Err(Error::InvalidInput(
                 "Update slots must satisfy current slot >= signature slot > attested slot >= finalized slot"
                     .to_string(),
             ));
         }
-
         let store_period = self.store.finalized_sync_committee_period(&self.chain_spec);
         let update_signature_period = self
             .chain_spec
             .slot_to_sync_committee_period(update.signature_slot);
         if self.store.next_sync_committee.is_some() {
-            if update_signature_period != store_period
-                && update_signature_period != store_period + 1
+            if !(update_signature_period == store_period
+                || update_signature_period == store_period + 1)
             {
                 return Err(Error::InvalidInput(
                     "Signature period not servable by store's known committees".to_string(),
                 ));
             }
-        } else if update_signature_period != store_period {
+        } else if !(update_signature_period == store_period) {
             return Err(Error::InvalidInput(
                 "Signature period not servable by store's known committees".to_string(),
             ));
         }
 
-        // # Verify update is relevant
+        // # Verify update is relevant: "*Should* we check the update?"
+        let update_attested_period = self
+            .chain_spec
+            .slot_to_sync_committee_period(update.attested_header.slot());
+        let update_supplies_next_sync_committee = self.store.next_sync_committee.is_none()
+            && update.has_sync_committee_update()
+            && update_attested_period == store_period;
+        if !(update_attested_slot > self.store.finalized_header.beacon().slot
+            || update_supplies_next_sync_committee)
+        {
+            return Err(Error::InvalidInput(
+                "Update doesn't contain relevant information".to_string(),
+            ));
+        }
 
         // # Verify that the `finality_branch`, if present, confirms `finalized_header` to match the finalized checkpoint root saved in the state of `attested_header`.
         if let Some(ref finalized) = update.finalized {
@@ -125,6 +138,7 @@ impl LightClientProcessor {
 
         // # Verify that the `next_sync_committee`, if present, actually is the next sync committee saved in the state of the `attested_header`
 
+        // TODO: Remove redundancy of `committee_for_signature_slot` from within fn
         verify_update_signature(
             update,
             self.store.finalized_header.slot(),
