@@ -134,6 +134,14 @@ impl LightClientProcessor {
         // # Verify that the `finality_branch`, if present, confirms `finalized_header` to match the finalized checkpoint root saved in the state of `attested_header`.
         if let Some(ref finalized) = update.finalized {
             verify_light_client_header(&finalized.header)?;
+            verify_merkle_proof(
+                &finalized.header.beacon().hash_tree_root(),
+                &finalized.branch,
+                self.chain_spec
+                    .fork_at_slot(update.attested_header.slot())
+                    .finalized_root_gindex(),
+                update.attested_header.state_root(),
+            )?;
         }
 
         // # Verify that the `next_sync_committee`, if present, actually is the next sync committee saved in the state of the `attested_header`
@@ -157,15 +165,6 @@ impl LightClientProcessor {
 
         if let Some(ref finalized) = update.finalized {
             if finalized.header.slot() > self.store.finalized_header.slot() {
-                verify_merkle_proof(
-                    &finalized.header.beacon().hash_tree_root(),
-                    &finalized.branch,
-                    self.chain_spec
-                        .fork_at_slot(update.attested_header.slot())
-                        .finalized_root_gindex(),
-                    update.attested_header.state_root(),
-                )?;
-
                 self.store.finalized_header = finalized.header.clone();
                 changes.finalized_updated = true;
             }
