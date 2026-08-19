@@ -153,6 +153,22 @@ Period comparison is keyed off `store.finalized_header.slot`.
 
 See `committee_for_signature_slot()` in `sync_committee.rs`.
 
+## Spec Deviations
+
+Deliberate divergences from `validate_light_client_update` as specified.
+The conformance ledger lives in issue #131; this section explains the ones
+baked into the engine's shape.
+
+**Genesis finality proofs are skipped.** The spec has a special arm for a
+finality update whose finalized header is *empty*: its branch must prove a
+**zero** finalized-checkpoint root (true of a chain that has never
+finalized). Our decode maps an empty finalized header to `None` and drops
+the branch, so that arm is unreachable — we accept such updates without
+proving the zero-root claim. Safe: the claim mutates nothing (a `None`
+finality arm never advances the finalized header), so skipping its proof
+cannot admit false finality. We are merely laxer than the spec on *message
+validity*, which matters only for p2p peer scoring — a layer we don't have.
+
 ## Cryptography
 
 | Operation | Function | Library | Spec Reference |

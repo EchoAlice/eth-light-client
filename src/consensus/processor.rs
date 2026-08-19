@@ -84,7 +84,7 @@ impl LightClientProcessor {
             ));
         }
 
-        // # Verify update doesn't skip a sync committee period: "*Can* we check the update?"
+        // # Verify update's sync committee signature can be checked (based on local store's registry)
         verify_light_client_header(&update.attested_header)?;
         let update_attested_slot = update.attested_header.slot();
         let update_finalized_slot = update.finalized.as_ref().map_or(0, |f| f.header.slot());
@@ -116,7 +116,7 @@ impl LightClientProcessor {
             ));
         }
 
-        // # Verify update is relevant: "*Should* we check the update?"
+        // # Verify update's information is relevant
         let update_attested_period = self
             .chain_spec
             .slot_to_sync_committee_period(update.attested_header.slot());
@@ -131,7 +131,7 @@ impl LightClientProcessor {
             ));
         }
 
-        // # Verify that the `finality_branch`, if present, confirms `finalized_header` to match the finalized checkpoint root saved in the state of `attested_header`.
+        // # Verify that the `finalized_header` (if present) matches the finalized checkpoint root saved in the state of `attested_header`.
         if let Some(ref finalized) = update.finalized {
             verify_light_client_header(&finalized.header)?;
             verify_merkle_proof(
@@ -144,7 +144,25 @@ impl LightClientProcessor {
             )?;
         }
 
-        // # Verify that the `next_sync_committee`, if present, actually is the next sync committee saved in the state of the `attested_header`
+        // # Verify that the `next_sync_committee` (if present) matches next sync committee root within the state of the `attested_header`
+        if let Some(ref next_sync_committee) = update.next_sync_committee {
+            if let Some(ref stored_next) = self.store.next_sync_committee {
+                if update_attested_period == store_period
+                    && next_sync_committee.committee != *stored_next
+                {
+                    return Err(Error::InvalidInput("Sync committee updates should match if they fall within the same sync period".to_string()));
+                }
+            }
+
+            verify_merkle_proof(
+                &next_sync_committee.committee.hash_tree_root(),
+                &next_sync_committee.branch,
+                self.chain_spec
+                    .fork_at_slot(update.attested_header.slot())
+                    .next_sync_committee_gindex(),
+                update.attested_header.state_root(),
+            )?;
+        }
 
         // TODO: Remove redundancy of `committee_for_signature_slot` from within fn
         verify_update_signature(
