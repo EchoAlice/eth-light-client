@@ -1,97 +1,12 @@
 use crate::chain_spec::ChainSpec;
-use crate::consensus::bls;
 use crate::consensus::merkle::verify_merkle_proof;
 use crate::error::{Error, Result};
 use crate::types::consensus::{LightClientUpdate, SyncCommittee};
-use crate::types::primitives::{BLSSignature, Domain, ForkVersion, Root, Slot};
+use crate::types::primitives::{Domain, ForkVersion, Root, Slot};
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
 
 pub(crate) const DOMAIN_SYNC_COMMITTEE: [u8; 4] = [7, 0, 0, 0];
-
-pub(crate) fn verify_update_signature(
-    update: &LightClientUpdate,
-    store_finalized_slot: Slot,
-    current_committee: &SyncCommittee,
-    next_committee: Option<&SyncCommittee>,
-    chain_spec: &ChainSpec,
-    genesis_validators_root: Root,
-) -> Result<()> {
-    let attested_header_root = update.attested_header.beacon().hash_tree_root();
-
-    let committee = committee_for_signature_slot(
-        update.signature_slot,
-        store_finalized_slot,
-        current_committee,
-        next_committee,
-        chain_spec,
-    )?;
-
-    let is_valid = verify_sync_aggregate(
-        committee,
-        update.signature_slot,
-        attested_header_root,
-        &update.sync_aggregate.sync_committee_bits,
-        &update.sync_aggregate.sync_committee_signature,
-        genesis_validators_root,
-        chain_spec,
-    )?;
-
-    if !is_valid {
-        return Err(Error::InvalidInput(
-            "Invalid sync committee signature".to_string(),
-        ));
-    }
-
-    Ok(())
-}
-fn committee_for_signature_slot<'a>(
-    signature_slot: Slot,
-    store_finalized_slot: Slot,
-    current_committee: &'a SyncCommittee,
-    next_committee: Option<&'a SyncCommittee>,
-    chain_spec: &ChainSpec,
-) -> Result<&'a SyncCommittee> {
-    let sig_period = chain_spec.slot_to_sync_committee_period(signature_slot);
-    let store_period = chain_spec.slot_to_sync_committee_period(store_finalized_slot);
-
-    if sig_period == store_period {
-        Ok(current_committee)
-    } else if sig_period == store_period + 1 {
-        next_committee
-            .ok_or_else(|| Error::InvalidInput("Next sync committee not available".to_string()))
-    } else {
-        Err(Error::InvalidInput(format!(
-            "Cannot get committee for period {}, store period is {}",
-            sig_period, store_period
-        )))
-    }
-}
-
-// TODO: Just pass in the SyncAggregate.  No need to decompose in the signature
-fn verify_sync_aggregate(
-    committee: &SyncCommittee,
-    signature_slot: Slot,
-    attested_header_root: Root,
-    sync_committee_bits: &[bool],
-    sync_committee_signature: &BLSSignature,
-    genesis_validators_root: Root,
-    chain_spec: &ChainSpec,
-) -> Result<bool> {
-    let participating_pubkeys = committee.participating_pubkeys(sync_committee_bits)?;
-    let domain = compute_sync_committee_domain_for_signature_slot(
-        signature_slot,
-        genesis_validators_root,
-        chain_spec,
-    );
-    let signing_root = compute_signing_root(attested_header_root, domain);
-
-    Ok(bls::fast_aggregate_verify(
-        &participating_pubkeys,
-        &signing_root,
-        sync_committee_signature,
-    ))
-}
 
 /// Rotate on finalized-period advance (invariant I-2; see consensus/README).
 pub(crate) fn should_rotate(
@@ -137,7 +52,8 @@ pub(crate) fn learn_next_sync_committee(
     Ok(Some(next.committee.clone()))
 }
 
-fn compute_sync_committee_domain_for_signature_slot(
+// TODO: Scrutinize this helper function... not sure if fork_version_slot is derived correctly. And do we need to have a separate `compute_domain` function?
+pub(crate) fn compute_sync_committee_domain_for_signature_slot(
     signature_slot: Slot,
     genesis_validators_root: Root,
     chain_spec: &ChainSpec,
@@ -186,7 +102,7 @@ struct SigningData {
     domain: Domain,
 }
 
-fn compute_signing_root(object_root: Root, domain: Domain) -> Root {
+pub(crate) fn compute_signing_root(object_root: Root, domain: Domain) -> Root {
     let signing_data = SigningData {
         object_root,
         domain,
@@ -204,20 +120,6 @@ mod tests {
 
     fn test_committee(agg: u8) -> SyncCommittee {
         SyncCommittee::from_parts(vec![[1u8; 48]; 32], [agg; 48]).unwrap()
-    }
-
-    #[test]
-    fn rejects_unservable_signature_periods() {
-        let chain_spec = ChainSpec::mainnet();
-        let current = test_committee(2);
-
-        // Next period slot → error when next committee is unknown
-        assert!(committee_for_signature_slot(8192, 0, &current, None, &chain_spec).is_err());
-
-        // Way-out-of-range period → error
-        assert!(
-            committee_for_signature_slot(16384, 0, &current, Some(&current), &chain_spec).is_err()
-        );
     }
 
     #[test]

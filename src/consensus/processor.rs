@@ -1,17 +1,18 @@
 use crate::chain_spec::ChainSpec;
+use crate::consensus::bls;
 use crate::consensus::merkle::{verify_light_client_header, verify_merkle_proof};
 use crate::consensus::store::LightClientStore;
 use crate::consensus::sync_committee::{
-    learn_next_sync_committee, should_rotate, verify_update_signature,
+    compute_signing_root, compute_sync_committee_domain_for_signature_slot,
+    learn_next_sync_committee, should_rotate,
 };
 use crate::error::{Error, Result};
 #[cfg(test)]
-use crate::types::consensus::LightClientHeader;
+use crate::types::consensus::LightClientHeader; // TODO: Why can't i consolidate?
 use crate::types::consensus::{
     BeaconBlockHeader, LightClientBootstrap, LightClientUpdate, SyncCommittee,
 };
-use crate::types::primitives::Root;
-use crate::types::primitives::Slot;
+use crate::types::primitives::{Root, Slot};
 
 #[derive(Default)]
 pub(crate) struct UpdateChanges {
@@ -59,7 +60,7 @@ impl LightClientProcessor {
         Ok(Self { chain_spec, store })
     }
 
-    pub(crate) fn process_update_at_slot(
+    pub(crate) fn process_light_client_update(
         &mut self,
         update: LightClientUpdate,
         current_slot: Slot,
@@ -88,7 +89,6 @@ impl LightClientProcessor {
         verify_light_client_header(&update.attested_header)?;
         let update_attested_slot = update.attested_header.slot();
         let update_finalized_slot = update.finalized.as_ref().map_or(0, |f| f.header.slot());
-
         if !(current_slot >= update.signature_slot
             && update.signature_slot > update_attested_slot
             && update_attested_slot >= update_finalized_slot)
@@ -98,6 +98,7 @@ impl LightClientProcessor {
                     .to_string(),
             ));
         }
+
         let store_period = self.store.finalized_sync_committee_period(&self.chain_spec);
         let update_signature_period = self
             .chain_spec
@@ -153,7 +154,6 @@ impl LightClientProcessor {
                     return Err(Error::InvalidInput("Sync committee updates should match if they fall within the same sync period".to_string()));
                 }
             }
-
             verify_merkle_proof(
                 &next_sync_committee.committee.hash_tree_root(),
                 &next_sync_committee.branch,
@@ -164,15 +164,37 @@ impl LightClientProcessor {
             )?;
         }
 
-        // TODO: Remove redundancy of `committee_for_signature_slot` from within fn
-        verify_update_signature(
-            update,
-            self.store.finalized_header.slot(),
-            &self.store.current_sync_committee,
-            self.store.next_sync_committee.as_ref(),
-            &self.chain_spec,
+        // # Verify sync committee aggregate signature
+        let sync_committee = if update_signature_period == store_period {
+            &self.store.current_sync_committee
+        } else if let Some(ref next) = self.store.next_sync_committee {
+            next
+        } else {
+            return Err(Error::InvalidInput(
+                "Signature period not servable by store's known committees".to_string(),
+            ));
+        };
+
+        let attested_header_root = update.attested_header.beacon().hash_tree_root();
+        let participating_pubkeys =
+            sync_committee.participating_pubkeys(&update.sync_aggregate.sync_committee_bits)?;
+        let domain = compute_sync_committee_domain_for_signature_slot(
+            update.signature_slot,
             self.store.genesis_validators_root,
-        )
+            &self.chain_spec,
+        );
+        let signing_root = compute_signing_root(attested_header_root, domain);
+
+        if !bls::fast_aggregate_verify(
+            &participating_pubkeys,
+            &signing_root,
+            &update.sync_aggregate.sync_committee_signature,
+        ) {
+            return Err(Error::InvalidInput(
+                "Invalid sync committee signature".to_string(),
+            ));
+        }
+        Ok(())
     }
 
     fn apply_light_client_update(&mut self, update: LightClientUpdate) -> Result<UpdateChanges> {
@@ -300,6 +322,8 @@ mod tests {
     /// Sole detector: valid-only fixtures never exercise these Err arms.
     #[test]
     fn rejects_updates_failing_basic_validation() {
+        // Missing Err-arm cases (period servability, relevance, committee
+        // equality) are catalogued in #143.
         let mut processor = LightClientProcessor {
             chain_spec: crate::chain_spec::ChainSpec::minimal(),
             store: LightClientStore::new(
@@ -322,7 +346,7 @@ mod tests {
         let mut minority = vec![false; 32];
         minority[..10].fill(true);
         let err = processor
-            .process_update_at_slot(update(minority, 3), 4)
+            .process_light_client_update(update(minority, 3), 4)
             .err()
             .unwrap();
         assert!(
@@ -336,14 +360,14 @@ mod tests {
 
         // signature_slot == attested slot (must be strictly after).
         let err = processor
-            .process_update_at_slot(update(vec![true; 32], 2), 4)
+            .process_light_client_update(update(vec![true; 32], 2), 4)
             .err()
             .unwrap();
         assert!(err.to_string().contains(slot_chain_msg), "got: {err}");
 
         // signature_slot one past current_slot (must not be in the future).
         let err = processor
-            .process_update_at_slot(update(vec![true; 32], 5), 4)
+            .process_light_client_update(update(vec![true; 32], 5), 4)
             .err()
             .unwrap();
         assert!(err.to_string().contains(slot_chain_msg), "got: {err}");
@@ -357,9 +381,13 @@ mod tests {
             branch: vec![],
         });
         let err = processor
-            .process_update_at_slot(bad_finality, 10)
+            .process_light_client_update(bad_finality, 10)
             .err()
             .unwrap();
         assert!(err.to_string().contains(slot_chain_msg), "got: {err}");
     }
+
+    // TODO: Add new test with a store that has a known next committee
+    //     - rejects unservable sig period beyond known committees
+    //     - rejects conflicting next committee for same period
 }

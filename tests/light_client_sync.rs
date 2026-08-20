@@ -164,7 +164,7 @@ fn process_step(
     let before_optimistic = client.optimistic_beacon_block_header().slot;
 
     let outcome: UpdateOutcome = client
-        .process_update_at_slot(update, step.current_slot)
+        .process_light_client_update(update, step.current_slot)
         .unwrap_or_else(|e| panic!("step {}: error processing update: {}", step_num, e));
 
     let after_finalized = client.finalized_beacon_block_header().slot;
