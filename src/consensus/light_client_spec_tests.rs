@@ -171,7 +171,7 @@ fn execute_process_update_step(
         });
 
     processor
-        .process_update_at_slot(update, step.current_slot)
+        .process_light_client_update(update, step.current_slot)
         .unwrap_or_else(|e| panic!("step {}: process error: {}", step_num, e));
 
     assert_state_checks(step_num, &step.checks, processor);

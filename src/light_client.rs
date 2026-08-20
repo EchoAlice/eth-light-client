@@ -28,17 +28,17 @@ impl LightClient {
             .map_err(|_| Error::Internal("Failed to get current time".to_string()))?
             .as_secs();
         let current_slot = self.inner.chain_spec().timestamp_to_slot(current_timestamp);
-        self.process_update_at_slot(update, current_slot)
+        self.process_light_client_update(update, current_slot)
     }
 
-    pub fn process_update_at_slot(
+    pub fn process_light_client_update(
         &mut self,
         update: LightClientUpdate,
         current_slot: Slot,
     ) -> Result<UpdateOutcome> {
         Ok(self
             .inner
-            .process_update_at_slot(update, current_slot)?
+            .process_light_client_update(update, current_slot)?
             .into())
     }
 
