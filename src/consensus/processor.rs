@@ -3,8 +3,8 @@ use crate::consensus::bls;
 use crate::consensus::merkle::{verify_light_client_header, verify_merkle_proof};
 use crate::consensus::store::LightClientStore;
 use crate::consensus::sync_committee::{
-    compute_signing_root, compute_sync_committee_domain_for_signature_slot,
-    learn_next_sync_committee, should_rotate,
+    compute_domain, compute_signing_root, learn_next_sync_committee, should_rotate,
+    DOMAIN_SYNC_COMMITTEE,
 };
 use crate::error::{Error, Result};
 #[cfg(test)]
@@ -170,19 +170,22 @@ impl LightClientProcessor {
         } else if let Some(ref next) = self.store.next_sync_committee {
             next
         } else {
-            return Err(Error::InvalidInput(
-                "Signature period not servable by store's known committees".to_string(),
+            return Err(Error::Internal(
+                "Unservable signature period reached committee selection; the period-servability check above should have rejected it.".to_string(),
             ));
         };
-
-        let attested_header_root = update.attested_header.beacon().hash_tree_root();
         let participating_pubkeys =
             sync_committee.participating_pubkeys(&update.sync_aggregate.sync_committee_bits)?;
-        let domain = compute_sync_committee_domain_for_signature_slot(
-            update.signature_slot,
+
+        let fork_version_slot = update.signature_slot.saturating_sub(1);
+        let epoch = self.chain_spec.slot_to_epoch(fork_version_slot);
+        let fork_version = self.chain_spec.fork_version_at_epoch(epoch);
+        let domain = compute_domain(
+            DOMAIN_SYNC_COMMITTEE,
+            fork_version,
             self.store.genesis_validators_root,
-            &self.chain_spec,
         );
+        let attested_header_root = update.attested_header.beacon().hash_tree_root();
         let signing_root = compute_signing_root(attested_header_root, domain);
 
         if !bls::fast_aggregate_verify(

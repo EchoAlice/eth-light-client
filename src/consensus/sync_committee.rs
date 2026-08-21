@@ -52,20 +52,7 @@ pub(crate) fn learn_next_sync_committee(
     Ok(Some(next.committee.clone()))
 }
 
-// TODO: Scrutinize this helper function... not sure if fork_version_slot is derived correctly. And do we need to have a separate `compute_domain` function?
-pub(crate) fn compute_sync_committee_domain_for_signature_slot(
-    signature_slot: Slot,
-    genesis_validators_root: Root,
-    chain_spec: &ChainSpec,
-) -> Domain {
-    let fork_version_slot = signature_slot.saturating_sub(1);
-    let epoch = chain_spec.slot_to_epoch(fork_version_slot);
-    let fork_version = chain_spec.fork_version_at_epoch(epoch);
-
-    compute_domain(DOMAIN_SYNC_COMMITTEE, fork_version, genesis_validators_root)
-}
-
-fn compute_domain(
+pub(crate) fn compute_domain(
     domain_type: [u8; 4],
     fork_version: ForkVersion,
     genesis_validators_root: Root,
