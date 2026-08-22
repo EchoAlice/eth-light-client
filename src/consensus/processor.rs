@@ -3,8 +3,7 @@ use crate::consensus::bls;
 use crate::consensus::merkle::{verify_light_client_header, verify_merkle_proof};
 use crate::consensus::store::LightClientStore;
 use crate::consensus::sync_committee::{
-    compute_domain, compute_signing_root, learn_next_sync_committee, should_rotate,
-    DOMAIN_SYNC_COMMITTEE,
+    compute_domain, compute_signing_root, learn_next_sync_committee, DOMAIN_SYNC_COMMITTEE,
 };
 use crate::error::{Error, Result};
 #[cfg(test)]
@@ -171,7 +170,7 @@ impl LightClientProcessor {
             next
         } else {
             return Err(Error::Internal(
-                "Unservable signature period reached committee selection; the period-servability check above should have rejected it.".to_string(),
+                "Unservable signature period reached committee selection; the period-servability check above should have rejected update.".to_string(),
             ));
         };
         let participating_pubkeys =
@@ -202,32 +201,32 @@ impl LightClientProcessor {
 
     fn apply_light_client_update(&mut self, update: LightClientUpdate) -> Result<UpdateChanges> {
         let mut changes = UpdateChanges::default();
-
         // Capture store period BEFORE any finalized-header mutation.
         let store_period = self.store.finalized_sync_committee_period(&self.chain_spec);
 
         if let Some(ref finalized) = update.finalized {
-            if finalized.header.slot() > self.store.finalized_header.slot() {
+            let update_finalized_slot = finalized.header.slot();
+
+            if update_finalized_slot > self.store.finalized_header.slot() {
                 self.store.finalized_header = finalized.header.clone();
                 changes.finalized_updated = true;
             }
-
-            if should_rotate(
-                finalized.header.slot(),
-                store_period,
-                self.store.next_sync_committee.is_some(),
-                &self.chain_spec,
-            ) {
-                self.store.current_sync_committee = self
-                    .store
-                    .next_sync_committee
-                    .take()
-                    .expect("should_rotate checked next is_some");
+            // Rotate on finalized-period advancement (invariant I-2).
+            if self
+                .chain_spec
+                .slot_to_sync_committee_period(update_finalized_slot)
+                == store_period + 1
+                && self.store.next_sync_committee.is_some()
+            {
+                self.store.current_sync_committee =
+                    self.store.next_sync_committee.take().expect("TODO");
                 changes.rotated = true;
             }
         }
 
-        // Learn next AFTER the finalized-header update + rotation, using the now-updated finalized period (see consensus/README data flow).
+        // TODO: Scrutinize this block of code
+        //
+        // Learn next sync committee AFTER the finalized-header update + rotation, using the now-updated finalized period (see consensus/README data flow).
         let finalized_period = self.store.finalized_sync_committee_period(&self.chain_spec);
         if let Some(verified) = learn_next_sync_committee(
             &update,

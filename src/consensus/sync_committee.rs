@@ -2,22 +2,11 @@ use crate::chain_spec::ChainSpec;
 use crate::consensus::merkle::verify_merkle_proof;
 use crate::error::{Error, Result};
 use crate::types::consensus::{LightClientUpdate, SyncCommittee};
-use crate::types::primitives::{Domain, ForkVersion, Root, Slot};
+use crate::types::primitives::{Domain, ForkVersion, Root};
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
 
 pub(crate) const DOMAIN_SYNC_COMMITTEE: [u8; 4] = [7, 0, 0, 0];
-
-/// Rotate on finalized-period advance (invariant I-2; see consensus/README).
-pub(crate) fn should_rotate(
-    update_finalized_slot: Slot,
-    store_period: u64,
-    has_next_committee: bool,
-    chain_spec: &ChainSpec,
-) -> bool {
-    let update_finalized_period = chain_spec.slot_to_sync_committee_period(update_finalized_slot);
-    update_finalized_period == store_period + 1 && has_next_committee
-}
 
 pub(crate) fn learn_next_sync_committee(
     update: &LightClientUpdate,
