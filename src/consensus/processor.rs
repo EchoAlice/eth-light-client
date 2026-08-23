@@ -64,17 +64,8 @@ impl LightClientProcessor {
         update: LightClientUpdate,
         current_slot: Slot,
     ) -> Result<UpdateChanges> {
-        self.validate_light_client_update(&update, current_slot)?;
-
-        self.apply_light_client_update(update)
-    }
-
-    fn validate_light_client_update(
-        &self,
-        update: &LightClientUpdate,
-        current_slot: Slot,
-    ) -> Result<()> {
-        // # Verify sync committee has sufficient participants
+        let mut changes = UpdateChanges::default();
+        // Verify sync committee has sufficient participants.  (Strict 2/3 participation requirements up front. Diverges from spec for simplicity.)
         if !update
             .sync_aggregate
             .has_supermajority(&self.store.current_sync_committee)
@@ -84,6 +75,24 @@ impl LightClientProcessor {
             ));
         }
 
+        self.validate_light_client_update(&update, current_slot)?;
+
+        if update.attested_header.slot() > self.store.optimistic_header.slot() {
+            self.store.optimistic_header = update.attested_header.clone();
+            changes.optimistic_updated = true;
+        }
+
+        // TODO: Gate finality and sync committee updates based on spec's conditions
+        self.apply_light_client_update(update, &mut changes);
+
+        Ok(changes)
+    }
+
+    fn validate_light_client_update(
+        &self,
+        update: &LightClientUpdate,
+        current_slot: Slot,
+    ) -> Result<()> {
         // # Verify update's sync committee signature can be checked (based on local store's registry)
         verify_light_client_header(&update.attested_header)?;
         let update_attested_slot = update.attested_header.slot();
@@ -199,23 +208,26 @@ impl LightClientProcessor {
         Ok(())
     }
 
-    fn apply_light_client_update(&mut self, update: LightClientUpdate) -> Result<UpdateChanges> {
-        let mut changes = UpdateChanges::default();
-        // Capture store period BEFORE any finalized-header mutation.
+    fn apply_light_client_update(
+        &mut self,
+        update: LightClientUpdate,
+        changes: &mut UpdateChanges,
+    ) {
         let store_period = self.store.finalized_sync_committee_period(&self.chain_spec);
 
-        if let Some(ref finalized) = update.finalized {
-            let update_finalized_slot = finalized.header.slot();
+        // TODO: Why do we need this `let Some()` logic?
+        if let Some(ref update_finalized) = update.finalized {
+            let update_finalized_slot = update_finalized.header.slot();
+            let update_finalized_period = self
+                .chain_spec
+                .slot_to_sync_committee_period(update_finalized_slot);
 
             if update_finalized_slot > self.store.finalized_header.slot() {
-                self.store.finalized_header = finalized.header.clone();
+                self.store.finalized_header = update_finalized.header.clone();
                 changes.finalized_updated = true;
             }
             // Rotate on finalized-period advancement (invariant I-2).
-            if self
-                .chain_spec
-                .slot_to_sync_committee_period(update_finalized_slot)
-                == store_period + 1
+            if update_finalized_period == store_period + 1
                 && self.store.next_sync_committee.is_some()
             {
                 self.store.current_sync_committee =
@@ -233,17 +245,10 @@ impl LightClientProcessor {
             finalized_period,
             self.store.next_sync_committee.is_some(),
             &self.chain_spec,
-        )? {
+        ) {
             self.store.next_sync_committee = Some(verified);
             changes.next_committee_learned = true;
         }
-
-        if update.attested_header.slot() > self.store.optimistic_header.slot() {
-            self.store.optimistic_header = update.attested_header.clone();
-            changes.optimistic_updated = true;
-        }
-
-        Ok(changes)
     }
 
     pub(crate) fn optimistic_beacon_block_header(&self) -> &BeaconBlockHeader {
