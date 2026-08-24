@@ -138,3 +138,5 @@ impl DenebExecutionPayloadHeader {
         self.tree_hash_root().0
     }
 }
+
+// TODO: Create an alias for ElectraExecutionPayloadHeader

@@ -64,17 +64,8 @@ impl LightClientProcessor {
         update: LightClientUpdate,
         current_slot: Slot,
     ) -> Result<UpdateChanges> {
-        self.validate_light_client_update(&update, current_slot)?;
-
-        self.apply_light_client_update(update)
-    }
-
-    fn validate_light_client_update(
-        &self,
-        update: &LightClientUpdate,
-        current_slot: Slot,
-    ) -> Result<()> {
-        // # Verify sync committee has sufficient participants
+        let mut changes = UpdateChanges::default();
+        // Strict 2/3 participation requirement up front. Diverges from spec for simplicity.
         if !update
             .sync_aggregate
             .has_supermajority(&self.store.current_sync_committee)
@@ -84,7 +75,44 @@ impl LightClientProcessor {
             ));
         }
 
-        // # Verify update's sync committee signature can be checked (based on local store's registry)
+        self.validate_light_client_update(&update, current_slot)?;
+
+        // Update the optimistic header
+        if update.attested_header.slot() > self.store.optimistic_header.slot() {
+            self.store.optimistic_header = update.attested_header.clone();
+            changes.optimistic_updated = true;
+        }
+
+        // Update finalized header and/or sync committee
+        let update_attested_period = self
+            .chain_spec
+            .slot_to_sync_committee_period(update.attested_header.slot());
+        let update_finalized_slot = update.finalized.as_ref().map_or(0, |f| f.header.slot());
+        let update_finalized_period = self
+            .chain_spec
+            .slot_to_sync_committee_period(update_finalized_slot);
+
+        let update_has_finalized_next_sync_committee = self.store.next_sync_committee.is_none()
+            && update.next_sync_committee.is_some()
+            && update.finalized.is_some()
+            && update_finalized_period == update_attested_period;
+
+        if update_finalized_slot > self.store.finalized_header.slot()
+            || update_has_finalized_next_sync_committee
+        {
+            self.apply_light_client_update(update, &mut changes);
+        }
+
+        Ok(changes)
+    }
+
+    /// Verifies update's (i) internal construction and (ii) sync committee signature is sound
+    fn validate_light_client_update(
+        &self,
+        update: &LightClientUpdate,
+        current_slot: Slot,
+    ) -> Result<()> {
+        // Verify update's sync committee signature can be checked (based on local store's registry)
         verify_light_client_header(&update.attested_header)?;
         let update_attested_slot = update.attested_header.slot();
         let update_finalized_slot = update.finalized.as_ref().map_or(0, |f| f.header.slot());
@@ -116,12 +144,12 @@ impl LightClientProcessor {
             ));
         }
 
-        // # Verify update's information is relevant
+        // Verify update's information is relevant
         let update_attested_period = self
             .chain_spec
             .slot_to_sync_committee_period(update.attested_header.slot());
         let update_supplies_next_sync_committee = self.store.next_sync_committee.is_none()
-            && update.has_sync_committee_update()
+            && update.next_sync_committee.is_some()
             && update_attested_period == store_period;
         if !(update_attested_slot > self.store.finalized_header.beacon().slot
             || update_supplies_next_sync_committee)
@@ -131,7 +159,7 @@ impl LightClientProcessor {
             ));
         }
 
-        // # Verify that the `finalized_header` (if present) matches the finalized checkpoint root saved in the state of `attested_header`.
+        // Verify that the `finalized_header` (if present) is rooted in the state of `attested_header`.
         if let Some(ref finalized) = update.finalized {
             verify_light_client_header(&finalized.header)?;
             verify_merkle_proof(
@@ -144,7 +172,7 @@ impl LightClientProcessor {
             )?;
         }
 
-        // # Verify that the `next_sync_committee` (if present) matches next sync committee root within the state of the `attested_header`
+        // Verify that the `next_sync_committee` (if present) is rooted within the state of the `attested_header`
         if let Some(ref next_sync_committee) = update.next_sync_committee {
             if let Some(ref stored_next) = self.store.next_sync_committee {
                 if update_attested_period == store_period
@@ -163,7 +191,7 @@ impl LightClientProcessor {
             )?;
         }
 
-        // # Verify sync committee aggregate signature
+        // Verify sync committee aggregate signature
         let sync_committee = if update_signature_period == store_period {
             &self.store.current_sync_committee
         } else if let Some(ref next) = self.store.next_sync_committee {
@@ -199,23 +227,27 @@ impl LightClientProcessor {
         Ok(())
     }
 
-    fn apply_light_client_update(&mut self, update: LightClientUpdate) -> Result<UpdateChanges> {
-        let mut changes = UpdateChanges::default();
-        // Capture store period BEFORE any finalized-header mutation.
+    /// Mutates store (write-once). Assumes validation and gated-admission
+    fn apply_light_client_update(
+        &mut self,
+        update: LightClientUpdate,
+        changes: &mut UpdateChanges,
+    ) {
         let store_period = self.store.finalized_sync_committee_period(&self.chain_spec);
 
-        if let Some(ref finalized) = update.finalized {
-            let update_finalized_slot = finalized.header.slot();
+        // TODO: Why do we need this `let Some()` logic?
+        if let Some(ref update_finalized) = update.finalized {
+            let update_finalized_slot = update_finalized.header.slot();
+            let update_finalized_period = self
+                .chain_spec
+                .slot_to_sync_committee_period(update_finalized_slot);
 
             if update_finalized_slot > self.store.finalized_header.slot() {
-                self.store.finalized_header = finalized.header.clone();
+                self.store.finalized_header = update_finalized.header.clone();
                 changes.finalized_updated = true;
             }
             // Rotate on finalized-period advancement (invariant I-2).
-            if self
-                .chain_spec
-                .slot_to_sync_committee_period(update_finalized_slot)
-                == store_period + 1
+            if update_finalized_period == store_period + 1
                 && self.store.next_sync_committee.is_some()
             {
                 self.store.current_sync_committee =
@@ -233,17 +265,10 @@ impl LightClientProcessor {
             finalized_period,
             self.store.next_sync_committee.is_some(),
             &self.chain_spec,
-        )? {
+        ) {
             self.store.next_sync_committee = Some(verified);
             changes.next_committee_learned = true;
         }
-
-        if update.attested_header.slot() > self.store.optimistic_header.slot() {
-            self.store.optimistic_header = update.attested_header.clone();
-            changes.optimistic_updated = true;
-        }
-
-        Ok(changes)
     }
 
     pub(crate) fn optimistic_beacon_block_header(&self) -> &BeaconBlockHeader {
