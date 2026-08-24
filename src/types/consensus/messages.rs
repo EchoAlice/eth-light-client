@@ -31,6 +31,7 @@ impl LightClientBootstrap {
         )
     }
 
+    // TODO: Delete this. Use struct literal instead
     pub(crate) fn from_header(
         header: LightClientHeader,
         current_sync_committee: SyncCommittee,
@@ -58,10 +59,6 @@ pub struct LightClientUpdate {
 impl LightClientUpdate {
     pub fn from_ssz(bytes: &[u8], fork: Fork, sync_committee_size: usize) -> Result<Self> {
         crate::types::ssz::decode_update(bytes, fork, sync_committee_size)
-    }
-
-    pub(crate) fn has_sync_committee_update(&self) -> bool {
-        self.next_sync_committee.is_some()
     }
 
     #[cfg(test)]

@@ -9,15 +9,15 @@ pub(crate) const DOMAIN_SYNC_COMMITTEE: [u8; 4] = [7, 0, 0, 0];
 // TODO: Delete this helper function. `process_*` and `apply_*` should hold this logic
 pub(crate) fn learn_next_sync_committee(
     update: &LightClientUpdate,
-    finalized_period: u64,
-    next_committee_known: bool,
+    _finalized_period: u64,
+    _next_committee_known: bool,
     chain_spec: &ChainSpec,
 ) -> Option<SyncCommittee> {
     // if !update.has_sync_committee_update() || next_committee_known {
     //     return Ok(None);
     // }
 
-    let update_period = chain_spec.slot_to_sync_committee_period(update.attested_header.slot());
+    let _update_period = chain_spec.slot_to_sync_committee_period(update.attested_header.slot());
     let next = update.next_sync_committee.as_ref().unwrap();
 
     // if update_period != finalized_period {
@@ -29,6 +29,25 @@ pub(crate) fn learn_next_sync_committee(
     // }
 
     Some(next.committee.clone())
+}
+
+#[derive(TreeHash)]
+struct SigningData {
+    object_root: Root,
+    domain: Domain,
+}
+
+// TODO: Should this be a method of SigningData? Should SigningData be called SigningRoot?
+pub(crate) fn compute_signing_root(object_root: Root, domain: Domain) -> Root {
+    let signing_data = SigningData {
+        object_root,
+        domain,
+    };
+    let root = signing_data.tree_hash_root();
+
+    let mut signing_root = [0u8; 32];
+    signing_root.copy_from_slice(root.as_bytes());
+    signing_root
 }
 
 pub(crate) fn compute_domain(
@@ -62,24 +81,6 @@ fn compute_fork_data_root(fork_version: ForkVersion, genesis_validators_root: Ro
     result
 }
 
-#[derive(TreeHash)]
-struct SigningData {
-    object_root: Root,
-    domain: Domain,
-}
-
-pub(crate) fn compute_signing_root(object_root: Root, domain: Domain) -> Root {
-    let signing_data = SigningData {
-        object_root,
-        domain,
-    };
-    let root = signing_data.tree_hash_root();
-
-    let mut signing_root = [0u8; 32];
-    signing_root.copy_from_slice(root.as_bytes());
-    signing_root
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -109,7 +110,7 @@ mod tests {
 
         // next_committee_known = false, but update attests to period 1 while
         // finalized period is 0 → rejected by period guard
-        let result = learn_next_sync_committee(&update, finalized_period, false, &chain_spec);
+        let _result = learn_next_sync_committee(&update, finalized_period, false, &chain_spec);
 
         // TODO: Fix unit test
         //
