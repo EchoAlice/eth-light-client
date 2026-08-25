@@ -27,17 +27,13 @@ struct SigningData {
     domain: Domain,
 }
 
-// TODO: Should this be a method of SigningData? Should SigningData be called SigningRoot?
 pub(crate) fn compute_signing_root(object_root: Root, domain: Domain) -> Root {
-    let signing_data = SigningData {
+    SigningData {
         object_root,
         domain,
-    };
-    let root = signing_data.tree_hash_root();
-
-    let mut signing_root = [0u8; 32];
-    signing_root.copy_from_slice(root.as_bytes());
-    signing_root
+    }
+    .tree_hash_root()
+    .0
 }
 
 pub(crate) fn compute_domain(
@@ -61,12 +57,10 @@ struct ForkData {
 }
 
 fn compute_fork_data_root(fork_version: ForkVersion, genesis_validators_root: Root) -> Root {
-    let fork_data = ForkData {
+    ForkData {
         current_version: fork_version,
         genesis_validators_root,
-    };
-    let hash256 = TreeHash::tree_hash_root(&fork_data);
-    let mut result = [0u8; 32];
-    result.copy_from_slice(hash256.as_bytes());
-    result
+    }
+    .tree_hash_root()
+    .0
 }
