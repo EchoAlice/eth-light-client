@@ -324,12 +324,12 @@ fn decode_beacon_only_bootstrap<N: Unsigned>(
     genesis_validators_root: Root,
 ) -> crate::error::Result<LightClientBootstrap> {
     let raw = RawLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
-    Ok(LightClientBootstrap::from_header(
-        wrap_beacon_only(fork, raw.header),
-        raw.current_sync_committee.into_sync_committee(),
-        raw.current_sync_committee_branch.to_vec(),
+    Ok(LightClientBootstrap {
+        header: wrap_beacon_only(fork, raw.header),
+        current_sync_committee: raw.current_sync_committee.into_sync_committee(),
+        current_sync_committee_branch: raw.current_sync_committee_branch.to_vec(),
         genesis_validators_root,
-    ))
+    })
 }
 
 fn decode_capella_bootstrap<N: Unsigned>(
@@ -337,12 +337,12 @@ fn decode_capella_bootstrap<N: Unsigned>(
     genesis_validators_root: Root,
 ) -> crate::error::Result<LightClientBootstrap> {
     let raw = RawCapellaLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
-    Ok(LightClientBootstrap::from_header(
-        LightClientHeader::Capella(raw.header),
-        raw.current_sync_committee.into_sync_committee(),
-        raw.current_sync_committee_branch.to_vec(),
+    Ok(LightClientBootstrap {
+        header: LightClientHeader::Capella(raw.header),
+        current_sync_committee: raw.current_sync_committee.into_sync_committee(),
+        current_sync_committee_branch: raw.current_sync_committee_branch.to_vec(),
         genesis_validators_root,
-    ))
+    })
 }
 
 fn decode_deneb_bootstrap<N: Unsigned>(
@@ -350,12 +350,12 @@ fn decode_deneb_bootstrap<N: Unsigned>(
     genesis_validators_root: Root,
 ) -> crate::error::Result<LightClientBootstrap> {
     let raw = RawDenebLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
-    Ok(LightClientBootstrap::from_header(
-        LightClientHeader::Deneb(raw.header),
-        raw.current_sync_committee.into_sync_committee(),
-        raw.current_sync_committee_branch.to_vec(),
+    Ok(LightClientBootstrap {
+        header: LightClientHeader::Deneb(raw.header),
+        current_sync_committee: raw.current_sync_committee.into_sync_committee(),
+        current_sync_committee_branch: raw.current_sync_committee_branch.to_vec(),
         genesis_validators_root,
-    ))
+    })
 }
 
 fn decode_electra_bootstrap<N: Unsigned>(
@@ -363,12 +363,12 @@ fn decode_electra_bootstrap<N: Unsigned>(
     genesis_validators_root: Root,
 ) -> crate::error::Result<LightClientBootstrap> {
     let raw = RawElectraLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
-    Ok(LightClientBootstrap::from_header(
-        LightClientHeader::Electra(raw.header),
-        raw.current_sync_committee.into_sync_committee(),
-        raw.current_sync_committee_branch.to_vec(),
+    Ok(LightClientBootstrap {
+        header: LightClientHeader::Electra(raw.header),
+        current_sync_committee: raw.current_sync_committee.into_sync_committee(),
+        current_sync_committee_branch: raw.current_sync_committee_branch.to_vec(),
         genesis_validators_root,
-    ))
+    })
 }
 
 pub(crate) fn decode_bootstrap(

@@ -35,6 +35,7 @@ impl LightClientProcessor {
         bootstrap: LightClientBootstrap,
     ) -> Result<Self> {
         verify_light_client_header(&bootstrap.header)?;
+
         if bootstrap.header.beacon().hash_tree_root() != trusted_block_root {
             return Err(Error::InvalidInput(
                 "Bootstrap doesn't match the trusted block root".to_string(),
@@ -100,6 +101,7 @@ impl LightClientProcessor {
         if update_finalized_slot > self.store.finalized_header.slot()
             || update_has_finalized_next_sync_committee
         {
+            // TODO: Finish `apply_light_client_update`'s spec skelaton
             self.apply_light_client_update(update, &mut changes);
         }
 
@@ -260,6 +262,8 @@ impl LightClientProcessor {
         //
         // Learn next sync committee AFTER the finalized-header update + rotation, using the now-updated finalized period (see consensus/README data flow).
         let finalized_period = self.store.finalized_sync_committee_period(&self.chain_spec);
+
+        // TODO: Delete `learn_next_sync_committee`
         if let Some(verified) = learn_next_sync_committee(
             &update,
             finalized_period,
@@ -324,14 +328,15 @@ mod tests {
     /// Sole detector: the replays bootstrap only with matching roots.
     #[test]
     fn rejects_bootstrap_with_mismatched_trusted_root() {
-        let bootstrap = LightClientBootstrap::from_header(
-            LightClientHeader::Altair(AltairLightClientHeader {
+        let bootstrap = LightClientBootstrap {
+            header: LightClientHeader::Altair(AltairLightClientHeader {
                 beacon: create_test_beacon_header(1),
             }),
-            SyncCommittee::from_parts(vec![[1u8; 48]; 32], [2u8; 48]).unwrap(),
-            vec![],
-            [0u8; 32],
-        );
+            current_sync_committee: SyncCommittee::from_parts(vec![[1u8; 48]; 32], [2u8; 48])
+                .unwrap(),
+            current_sync_committee_branch: vec![],
+            genesis_validators_root: [0u8; 32],
+        };
         let err = LightClientProcessor::new(
             crate::chain_spec::ChainSpec::minimal(),
             [9u8; 32],

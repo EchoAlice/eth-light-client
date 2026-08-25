@@ -30,21 +30,6 @@ impl LightClientBootstrap {
             genesis_validators_root,
         )
     }
-
-    // TODO: Delete this. Use struct literal instead
-    pub(crate) fn from_header(
-        header: LightClientHeader,
-        current_sync_committee: SyncCommittee,
-        current_sync_committee_branch: Vec<Root>,
-        genesis_validators_root: Root,
-    ) -> Self {
-        Self {
-            header,
-            current_sync_committee,
-            current_sync_committee_branch,
-            genesis_validators_root,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

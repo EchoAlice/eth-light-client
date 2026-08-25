@@ -5,10 +5,10 @@ use crate::types::primitives::Root;
 /// The persistent state that a light client maintains across updates.
 #[derive(Debug)]
 pub(crate) struct LightClientStore {
+    pub optimistic_header: LightClientHeader,
     pub finalized_header: LightClientHeader,
     pub current_sync_committee: SyncCommittee,
     pub next_sync_committee: Option<SyncCommittee>,
-    pub optimistic_header: LightClientHeader,
     pub genesis_validators_root: Root,
 }
 
