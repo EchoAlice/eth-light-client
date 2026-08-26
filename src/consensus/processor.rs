@@ -3,7 +3,7 @@ use crate::consensus::bls;
 use crate::consensus::merkle::{verify_light_client_header, verify_merkle_proof};
 use crate::consensus::store::LightClientStore;
 use crate::consensus::sync_committee::{
-    compute_domain, compute_signing_root, learn_next_sync_committee, DOMAIN_SYNC_COMMITTEE,
+    compute_domain, compute_signing_root, DOMAIN_SYNC_COMMITTEE,
 };
 use crate::error::{Error, Result};
 #[cfg(test)]
@@ -84,11 +84,11 @@ impl LightClientProcessor {
             changes.optimistic_updated = true;
         }
 
-        // Update finalized header and/or sync committee
+        // Update finalized header and/or sync committee within the store
+        let update_finalized_slot = update.finalized.as_ref().map_or(0, |f| f.header.slot());
         let update_attested_period = self
             .chain_spec
             .slot_to_sync_committee_period(update.attested_header.slot());
-        let update_finalized_slot = update.finalized.as_ref().map_or(0, |f| f.header.slot());
         let update_finalized_period = self
             .chain_spec
             .slot_to_sync_committee_period(update_finalized_slot);
@@ -101,14 +101,13 @@ impl LightClientProcessor {
         if update_finalized_slot > self.store.finalized_header.slot()
             || update_has_finalized_next_sync_committee
         {
-            // TODO: Finish `apply_light_client_update`'s spec skelaton
             self.apply_light_client_update(update, &mut changes);
         }
 
         Ok(changes)
     }
 
-    /// Verifies update's (i) internal construction and (ii) sync committee signature is sound
+    /// Verifies update's (i) relevance, (ii) internal construction, and (iii) sync committee signature is sound
     fn validate_light_client_update(
         &self,
         update: &LightClientUpdate,
@@ -229,49 +228,51 @@ impl LightClientProcessor {
         Ok(())
     }
 
-    /// Mutates store (write-once). Assumes validation and gated-admission
+    /// Mutates store (write-once). Assumes validation and gate admission
     fn apply_light_client_update(
         &mut self,
         update: LightClientUpdate,
         changes: &mut UpdateChanges,
     ) {
         let store_period = self.store.finalized_sync_committee_period(&self.chain_spec);
+        let finality_update = update
+            .finalized
+            .expect("apply gate admits only updates carrying finality");
+        let update_finalized_period = self
+            .chain_spec
+            .slot_to_sync_committee_period(finality_update.header.slot());
+        let clock_ticked = update_finalized_period == store_period + 1;
 
-        // TODO: Why do we need this `let Some()` logic?
-        if let Some(ref update_finalized) = update.finalized {
-            let update_finalized_slot = update_finalized.header.slot();
-            let update_finalized_period = self
-                .chain_spec
-                .slot_to_sync_committee_period(update_finalized_slot);
-
-            if update_finalized_slot > self.store.finalized_header.slot() {
-                self.store.finalized_header = update_finalized.header.clone();
-                changes.finalized_updated = true;
+        // Spec: `if not is_next_sync_committee_known / elif` logic.  This is the full, uncollapsed (known, ticked) grid
+        match (self.store.next_sync_committee.is_some(), clock_ticked) {
+            (false, false) => {
+                if let Some(next_sync_committee) = update.next_sync_committee {
+                    self.store.next_sync_committee = Some(next_sync_committee.committee);
+                    changes.next_committee_learned = true;
+                }
             }
-            // Rotate on finalized-period advancement (invariant I-2).
-            if update_finalized_period == store_period + 1
-                && self.store.next_sync_committee.is_some()
-            {
-                self.store.current_sync_committee =
-                    self.store.next_sync_committee.take().expect("TODO");
+            // unreachable: next unknown ⇒ sig_period == store_period (validate) ⇒ finality ≤ store_period
+            (false, true) => {}
+            // finality moved within store_period; committee labels still correct
+            (true, false) => {}
+            (true, true) => {
+                self.store.current_sync_committee = self
+                    .store
+                    .next_sync_committee
+                    .take()
+                    .expect("this arm matches `next_sync_committee` is Some");
                 changes.rotated = true;
+
+                if let Some(committee_update) = update.next_sync_committee {
+                    self.store.next_sync_committee = Some(committee_update.committee);
+                    changes.next_committee_learned = true;
+                }
             }
         }
 
-        // TODO: Scrutinize this block of code
-        //
-        // Learn next sync committee AFTER the finalized-header update + rotation, using the now-updated finalized period (see consensus/README data flow).
-        let finalized_period = self.store.finalized_sync_committee_period(&self.chain_spec);
-
-        // TODO: Delete `learn_next_sync_committee`
-        if let Some(verified) = learn_next_sync_committee(
-            &update,
-            finalized_period,
-            self.store.next_sync_committee.is_some(),
-            &self.chain_spec,
-        ) {
-            self.store.next_sync_committee = Some(verified);
-            changes.next_committee_learned = true;
+        if finality_update.header.slot() > self.store.finalized_header.slot() {
+            self.store.finalized_header = finality_update.header;
+            changes.finalized_updated = true;
         }
     }
 

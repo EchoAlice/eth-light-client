@@ -101,7 +101,7 @@ The canonical "store period" is always:
 store_period = spec.slot_to_sync_committee_period(store.finalized_header.slot)
 ```
 
-See `LightClientStore::finalized_sync_committee_period()` in `store.rs`.
+`store_period` can be seen as the light client's clock.  See `LightClientStore::finalized_sync_committee_period()` in `store.rs`.
 
 ### I-2: Rotation Gating
 
