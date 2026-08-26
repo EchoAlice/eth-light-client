@@ -1,25 +1,8 @@
-use crate::chain_spec::ChainSpec;
-use crate::types::consensus::{LightClientUpdate, SyncCommittee};
 use crate::types::primitives::{Domain, ForkVersion, Root};
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
 
 pub(crate) const DOMAIN_SYNC_COMMITTEE: [u8; 4] = [7, 0, 0, 0];
-
-// TODO: Delete this helper function. `process_*` and `apply_*` should hold this logic
-pub(crate) fn learn_next_sync_committee(
-    update: &LightClientUpdate,
-    _finalized_period: u64,
-    next_committee_known: bool,
-    _chain_spec: &ChainSpec,
-) -> Option<SyncCommittee> {
-    if next_committee_known {
-        return None;
-    }
-    let next = update.next_sync_committee.as_ref()?;
-
-    Some(next.committee.clone())
-}
 
 #[derive(TreeHash)]
 struct SigningData {
