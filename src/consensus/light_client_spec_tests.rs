@@ -117,18 +117,6 @@ fn electra_fork_sync_via_processor() {
     run_processor_sync(SyncTestCase::fork_transition(Fork::Deneb, Fork::Electra));
 }
 
-fn initialize_processor_from(sync_test: &SyncTestCase) -> LightClientProcessor {
-    let bootstrap = sync_test
-        .load_bootstrap()
-        .expect("Failed to load bootstrap");
-    LightClientProcessor::new(
-        sync_test.chain_spec().clone(),
-        sync_test.trusted_block_root(),
-        bootstrap,
-    )
-    .expect("Failed to initialize LightClientProcessor")
-}
-
 /// Replay a fixture's steps, asserting each against the fixture's expected output.
 fn run_processor_sync(sync_test: SyncTestCase) {
     let steps = sync_test.load_steps().expect("Failed to load steps");
@@ -153,6 +141,18 @@ fn run_processor_sync(sync_test: SyncTestCase) {
         processed > 0,
         "no process_update steps ran before the first force_update"
     );
+}
+
+fn initialize_processor_from(sync_test: &SyncTestCase) -> LightClientProcessor {
+    let bootstrap = sync_test
+        .load_bootstrap()
+        .expect("Failed to load bootstrap");
+    LightClientProcessor::new(
+        sync_test.chain_spec().clone(),
+        sync_test.trusted_block_root(),
+        bootstrap,
+    )
+    .expect("Failed to initialize LightClientProcessor")
 }
 
 fn execute_process_update_step(

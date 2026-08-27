@@ -1,7 +1,6 @@
 # Test Utilities (unstable)
 
-**Not part of the stable public API.** This module is gated behind the
-`test-utils` feature and may change or be removed without notice.
+**Not part of the stable public API.** This module is gated behind the `test-utils` feature and may change or be removed without notice.
 
 Enable with:
 
@@ -10,9 +9,7 @@ Enable with:
 eth-light-client = { version = "0.1", features = ["test-utils"] }
 ```
 
-It loads the vendored Ethereum consensus **light-client spec-test fixtures**
-off disk and returns them as the crate's production types, so tests can drive
-the light client against the official vectors with no network or beacon node.
+It loads the vendored Ethereum consensus **light-client spec-test fixtures** off disk and returns them as the crate's production types, so tests can drive the light client against the official vectors with no network or beacon node.
 
 ## Module map
 
@@ -25,9 +22,7 @@ the light client against the official vectors with no network or beacon node.
 
 ## Fixtures
 
-Each fork's fixture directory (`tests/fixtures/minimal/<fork>/…`) holds the
-consensus objects as SSZ (the light client's inputs) alongside YAML that
-scripts the test:
+Each fork's fixture directory (`tests/fixtures/minimal/<fork>/…`) holds the consensus objects as SSZ (the light client's inputs) alongside YAML that scripts the test:
 
 | File | Contents |
 |------|----------|

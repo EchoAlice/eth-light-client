@@ -4,13 +4,26 @@ use crate::types::primitives::{Root, Slot};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
-pub(crate) struct TestMeta {
-    #[serde(deserialize_with = "de_root")]
-    pub(crate) genesis_validators_root: Root,
-    #[serde(deserialize_with = "de_root")]
-    pub(crate) trusted_block_root: Root,
+#[serde(rename_all = "snake_case")]
+pub enum TestStep {
+    ProcessUpdate(ProcessUpdateStep),
+    UpgradeStore { checks: StateChecks },
+    ForceUpdate(serde::de::IgnoredAny),
+}
+
+#[derive(Deserialize)]
+pub struct ProcessUpdateStep {
     #[serde(deserialize_with = "de_fork_digest")]
-    pub(crate) bootstrap_fork_digest: [u8; 4],
+    pub update_fork_digest: [u8; 4],
+    pub update: String, // Update file name (without .ssz_snappy extension).
+    pub current_slot: Slot,
+    pub checks: StateChecks,
+}
+
+#[derive(Deserialize)]
+pub struct StateChecks {
+    pub finalized_header: Option<HeaderCheck>,
+    pub optimistic_header: Option<HeaderCheck>,
 }
 
 #[derive(Deserialize)]
@@ -30,26 +43,13 @@ impl HeaderCheck {
 }
 
 #[derive(Deserialize)]
-pub struct StateChecks {
-    pub finalized_header: Option<HeaderCheck>,
-    pub optimistic_header: Option<HeaderCheck>,
-}
-
-#[derive(Deserialize)]
-pub struct ProcessUpdateStep {
+pub(crate) struct TestMeta {
+    #[serde(deserialize_with = "de_root")]
+    pub(crate) genesis_validators_root: Root,
+    #[serde(deserialize_with = "de_root")]
+    pub(crate) trusted_block_root: Root,
     #[serde(deserialize_with = "de_fork_digest")]
-    pub update_fork_digest: [u8; 4],
-    pub update: String, // Update file name (without .ssz_snappy extension).
-    pub current_slot: Slot,
-    pub checks: StateChecks,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum TestStep {
-    ProcessUpdate(ProcessUpdateStep),
-    UpgradeStore { checks: StateChecks },
-    ForceUpdate(serde::de::IgnoredAny),
+    pub(crate) bootstrap_fork_digest: [u8; 4],
 }
 
 fn de_root<'de, D>(deserializer: D) -> Result<Root, D::Error>

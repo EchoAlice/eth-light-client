@@ -3,11 +3,6 @@ use crate::chain_spec::Fork;
 use crate::error::Result;
 use crate::types::primitives::{Root, Slot};
 
-#[cfg(test)]
-use super::AltairLightClientHeader;
-#[cfg(test)]
-use super::BeaconBlockHeader;
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct LightClientBootstrap {
     pub header: LightClientHeader,
@@ -44,29 +39,6 @@ pub struct LightClientUpdate {
 impl LightClientUpdate {
     pub fn from_ssz(bytes: &[u8], fork: Fork, sync_committee_size: usize) -> Result<Self> {
         crate::types::ssz::decode_update(bytes, fork, sync_committee_size)
-    }
-
-    #[cfg(test)]
-    pub fn new(
-        attested_header: BeaconBlockHeader,
-        sync_aggregate: SyncAggregate,
-        signature_slot: Slot,
-    ) -> Self {
-        Self {
-            attested_header: LightClientHeader::Altair(AltairLightClientHeader {
-                beacon: attested_header,
-            }),
-            finalized: None,
-            next_sync_committee: None,
-            sync_aggregate,
-            signature_slot,
-        }
-    }
-
-    #[cfg(test)]
-    pub fn with_next_sync_committee(mut self, committee: SyncCommittee, branch: Vec<Root>) -> Self {
-        self.next_sync_committee = Some(SyncCommitteeUpdate { committee, branch });
-        self
     }
 }
 

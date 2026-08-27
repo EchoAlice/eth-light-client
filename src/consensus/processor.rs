@@ -311,10 +311,13 @@ impl LightClientProcessor {
     }
 }
 
+/// Spec tests have *valid-only* fixtures.  They never exercise negative cases.
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::{SyncTestCase, TestStep};
     use crate::types::consensus::{AltairLightClientHeader, FinalityUpdate, SyncAggregate};
+    use crate::Fork;
 
     fn create_test_beacon_header(slot: Slot) -> BeaconBlockHeader {
         BeaconBlockHeader {
@@ -326,7 +329,6 @@ mod tests {
         }
     }
 
-    /// Sole detector: the replays bootstrap only with matching roots.
     #[test]
     fn rejects_bootstrap_with_mismatched_trusted_root() {
         let bootstrap = LightClientBootstrap {
@@ -352,11 +354,8 @@ mod tests {
         );
     }
 
-    /// Sole detector: valid-only fixtures never exercise these Err arms.
     #[test]
     fn rejects_updates_failing_basic_validation() {
-        // Missing Err-arm cases (period servability, relevance, committee
-        // equality) are catalogued in #143.
         let mut processor = LightClientProcessor {
             chain_spec: crate::chain_spec::ChainSpec::minimal(),
             store: LightClientStore::new(
@@ -367,15 +366,17 @@ mod tests {
                 [0u8; 32],
             ),
         };
-        let update = |bits, signature_slot| {
-            LightClientUpdate::new(
-                create_test_beacon_header(2),
-                SyncAggregate::new(bits, [0u8; 96]),
-                signature_slot,
-            )
+        let update = |bits, signature_slot| LightClientUpdate {
+            attested_header: LightClientHeader::Altair(AltairLightClientHeader {
+                beacon: create_test_beacon_header(2),
+            }),
+            finalized: None,
+            next_sync_committee: None,
+            sync_aggregate: SyncAggregate::new(bits, [0u8; 96]),
+            signature_slot,
         };
 
-        // 10 of 32 participants (under the 2/3 supermajority).
+        // Case 1: Supermajority Gate. Only 10 of 32 participants
         let mut minority = vec![false; 32];
         minority[..10].fill(true);
         let err = processor
@@ -391,21 +392,21 @@ mod tests {
         let slot_chain_msg =
             "Update slots must satisfy current slot >= signature slot > attested slot >= finalized slot";
 
-        // signature_slot == attested slot (must be strictly after).
+        // Case 2: Slot Chain.  Signature_slot == attested slot (must be strictly after).
         let err = processor
             .process_light_client_update(update(vec![true; 32], 2), 4)
             .err()
             .unwrap();
         assert!(err.to_string().contains(slot_chain_msg), "got: {err}");
 
-        // signature_slot one past current_slot (must not be in the future).
+        // Case 3: Slot Chain.  Signature_slot is one past current_slot (update must not be in the future, relative to the light client).
         let err = processor
             .process_light_client_update(update(vec![true; 32], 5), 4)
             .err()
             .unwrap();
         assert!(err.to_string().contains(slot_chain_msg), "got: {err}");
 
-        // finalized slot is ahead of attested slot (a state cannot finalize a block from its own future).
+        // Case 4: Slot Chain.  Finalized slot is ahead of attested slot (a state cannot finalize a block from its own future).
         let mut bad_finality = update(vec![true; 32], 3);
         bad_finality.finalized = Some(FinalityUpdate {
             header: LightClientHeader::Altair(AltairLightClientHeader {
@@ -418,9 +419,49 @@ mod tests {
             .err()
             .unwrap();
         assert!(err.to_string().contains(slot_chain_msg), "got: {err}");
+
+        // TODO: Case 5:  Period Servability.  Signature slot 65 is period 1; store is period 0 with no next committee, so LC can't check its sig
+
+        // TODO: Case 6:  Relevance.  Attested slot 1 == store's finalized slot and no committee data: the update can't change the store
     }
 
-    // TODO: Add new test with a store that has a known next committee
-    //     - rejects unservable sig period beyond known committees
-    //     - rejects conflicting next committee for same period
+    #[test]
+    #[ignore = "TODO: servability-beyond-known and committee-equality cases"]
+    fn rejects_updates_failing_validation_with_known_next_committee() {
+        // Store at slot 1 (period 0) with `next = committee_A`, so it can serve periods 0 and 1.
+
+        // TODO: Case 1: Period Servability.  Signature slot 129 is period 2; store holds committees for periods 0 and 1 only.
+
+        // TODO: Case 2: Committee Equality.  Store holds `next = committee_A`; update carries B for the same period. Must match
+    }
+
+    #[test]
+    fn committee_update_without_finality_is_not_learned() {
+        let sync_test_case = SyncTestCase::light_client_sync(Fork::Altair);
+
+        let bootstrap = sync_test_case.load_bootstrap().unwrap();
+        let mut processor = LightClientProcessor::new(
+            sync_test_case.chain_spec().clone(),
+            sync_test_case.trusted_block_root(),
+            bootstrap,
+        )
+        .unwrap();
+
+        let steps = sync_test_case.load_steps().unwrap();
+        let TestStep::ProcessUpdate(step) = &steps[0] else {
+            panic!("first step is a process_update")
+        };
+        let mut update = sync_test_case
+            .load_update(&step.update, step.update_fork_digest)
+            .unwrap();
+        assert!(update.next_sync_committee.is_some());
+        update.finalized = None;
+
+        let changes = processor
+            .process_light_client_update(update, step.current_slot)
+            .unwrap();
+        assert!(changes.optimistic_updated);
+        assert!(!changes.next_committee_learned);
+        assert!(processor.next_sync_committee().is_none());
+    }
 }
