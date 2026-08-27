@@ -251,10 +251,10 @@ impl LightClientProcessor {
                     changes.next_committee_learned = true;
                 }
             }
-            (false, true) => { /* unreachable: next unknown ⇒ sig_period == store_period (validate) ⇒ finality ≤ store_period */
-            }
-            (true, false) => { /* finality moved within store_period; committee labels still correct */
-            }
+            // unreachable: next unknown ⇒ sig_period == store_period (validate) ⇒ finality ≤ store_period
+            (false, true) => {}
+            // finality moved within store_period; committee labels still correct
+            (true, false) => {}
             (true, true) => {
                 self.store.current_sync_committee = self
                     .store
