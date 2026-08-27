@@ -8,9 +8,7 @@ use crate::consensus::sync_committee::{
 use crate::error::{Error, Result};
 #[cfg(test)]
 use crate::types::consensus::LightClientHeader; // TODO: Why can't i consolidate?
-use crate::types::consensus::{
-    BeaconBlockHeader, LightClientBootstrap, LightClientUpdate, SyncCommittee,
-};
+use crate::types::consensus::{LightClientBootstrap, LightClientUpdate};
 use crate::types::primitives::{Root, Slot};
 
 #[derive(Default)]
@@ -276,38 +274,12 @@ impl LightClientProcessor {
         }
     }
 
-    pub(crate) fn optimistic_beacon_block_header(&self) -> &BeaconBlockHeader {
-        self.store.optimistic_header.beacon()
-    }
-
-    pub(crate) fn finalized_beacon_block_header(&self) -> &BeaconBlockHeader {
-        self.store.finalized_header.beacon()
-    }
-
-    pub(crate) fn current_sync_committee(&self) -> &SyncCommittee {
-        &self.store.current_sync_committee
-    }
-
-    pub(crate) fn next_sync_committee(&self) -> Option<&SyncCommittee> {
-        self.store.next_sync_committee.as_ref()
-    }
-
-    pub(crate) fn current_sync_committee_period(&self) -> u64 {
-        self.store.finalized_sync_committee_period(&self.chain_spec)
-    }
-
     pub(crate) fn chain_spec(&self) -> &ChainSpec {
         &self.chain_spec
     }
 
-    #[cfg(test)]
-    pub(crate) fn optimistic_light_client_header(&self) -> &LightClientHeader {
-        &self.store.optimistic_header
-    }
-
-    #[cfg(test)]
-    pub(crate) fn finalized_light_client_header(&self) -> &LightClientHeader {
-        &self.store.finalized_header
+    pub(crate) fn store(&self) -> &LightClientStore {
+        &self.store
     }
 }
 
@@ -316,7 +288,9 @@ impl LightClientProcessor {
 mod tests {
     use super::*;
     use crate::test_utils::{SyncTestCase, TestStep};
-    use crate::types::consensus::{AltairLightClientHeader, FinalityUpdate, SyncAggregate};
+    use crate::types::consensus::{
+        AltairLightClientHeader, BeaconBlockHeader, FinalityUpdate, SyncAggregate, SyncCommittee,
+    };
     use crate::Fork;
 
     fn create_test_beacon_header(slot: Slot) -> BeaconBlockHeader {
@@ -462,6 +436,6 @@ mod tests {
             .unwrap();
         assert!(changes.optimistic_updated);
         assert!(!changes.next_committee_learned);
-        assert!(processor.next_sync_committee().is_none());
+        assert!(processor.store.next_sync_committee.is_none());
     }
 }

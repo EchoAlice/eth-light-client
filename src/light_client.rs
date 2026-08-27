@@ -42,33 +42,29 @@ impl LightClient {
             .into())
     }
 
-    #[inline]
     pub fn finalized_beacon_block_header(&self) -> &BeaconBlockHeader {
-        self.inner.finalized_beacon_block_header()
+        self.inner.store().finalized_header.beacon()
     }
 
-    #[inline]
     pub fn optimistic_beacon_block_header(&self) -> &BeaconBlockHeader {
-        self.inner.optimistic_beacon_block_header()
+        self.inner.store().optimistic_header.beacon()
     }
 
-    #[inline]
     pub fn current_sync_committee(&self) -> &SyncCommittee {
-        self.inner.current_sync_committee()
+        &self.inner.store().current_sync_committee
     }
 
     /// The next period's sync committee, if it has been learned yet.
-    #[inline]
     pub fn next_sync_committee(&self) -> Option<&SyncCommittee> {
-        self.inner.next_sync_committee()
+        self.inner.store().next_sync_committee.as_ref()
     }
 
-    #[inline]
     pub fn current_sync_committee_period(&self) -> u64 {
-        self.inner.current_sync_committee_period()
+        self.inner
+            .store()
+            .finalized_sync_committee_period(self.inner.chain_spec())
     }
 
-    #[inline]
     pub fn chain_spec(&self) -> &ChainSpec {
         self.inner.chain_spec()
     }

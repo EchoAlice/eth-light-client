@@ -182,14 +182,14 @@ fn execute_process_update_step(
 fn assert_state_checks(step_num: usize, checks: &StateChecks, processor: &LightClientProcessor) {
     if let Some(expected) = &checks.finalized_header {
         assert!(
-            expected.matches(processor.finalized_beacon_block_header()),
+            expected.matches(processor.store().finalized_header.beacon()),
             "step {}: finalized header mismatch (expected slot {})",
             step_num,
             expected.slot,
         );
         if let Some(expected_exec_root) = &expected.execution_root {
             assert_execution_root(
-                processor.finalized_light_client_header(),
+                &processor.store().finalized_header,
                 expected_exec_root,
                 "finalized",
                 step_num,
@@ -199,14 +199,14 @@ fn assert_state_checks(step_num: usize, checks: &StateChecks, processor: &LightC
 
     if let Some(expected) = &checks.optimistic_header {
         assert!(
-            expected.matches(processor.optimistic_beacon_block_header()),
+            expected.matches(processor.store().optimistic_header.beacon()),
             "step {}: optimistic header mismatch (expected slot {})",
             step_num,
             expected.slot,
         );
         if let Some(expected_exec_root) = &expected.execution_root {
             assert_execution_root(
-                processor.optimistic_light_client_header(),
+                &processor.store().optimistic_header,
                 expected_exec_root,
                 "optimistic",
                 step_num,
