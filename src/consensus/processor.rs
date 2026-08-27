@@ -6,8 +6,6 @@ use crate::consensus::sync_committee::{
     compute_domain, compute_signing_root, DOMAIN_SYNC_COMMITTEE,
 };
 use crate::error::{Error, Result};
-#[cfg(test)]
-use crate::types::consensus::LightClientHeader; // TODO: Why can't i consolidate?
 use crate::types::consensus::{LightClientBootstrap, LightClientUpdate};
 use crate::types::primitives::{Root, Slot};
 
@@ -19,7 +17,6 @@ pub(crate) struct UpdateChanges {
     pub next_committee_learned: bool,
 }
 
-#[derive(Debug)]
 pub(crate) struct LightClientProcessor {
     chain_spec: ChainSpec,
     store: LightClientStore,
@@ -289,7 +286,8 @@ mod tests {
     use super::*;
     use crate::test_utils::{SyncTestCase, TestStep};
     use crate::types::consensus::{
-        AltairLightClientHeader, BeaconBlockHeader, FinalityUpdate, SyncAggregate, SyncCommittee,
+        AltairLightClientHeader, BeaconBlockHeader, FinalityUpdate, LightClientHeader,
+        SyncAggregate, SyncCommittee,
     };
     use crate::Fork;
 
