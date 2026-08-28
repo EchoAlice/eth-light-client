@@ -57,12 +57,15 @@ struct RawSyncAggregate<N: Unsigned> {
 
 impl<N: Unsigned> RawSyncAggregate<N> {
     fn into_sync_aggregate(self) -> SyncAggregate {
-        let bits: Vec<bool> = self.sync_committee_bits.iter().collect();
+        let sync_committee_bits: Vec<bool> = self.sync_committee_bits.iter().collect();
 
-        let mut signature = [0u8; 96];
-        signature.copy_from_slice(self.sync_committee_signature.as_ref());
+        let mut sync_committee_signature = [0u8; 96];
+        sync_committee_signature.copy_from_slice(self.sync_committee_signature.as_ref());
 
-        SyncAggregate::new(bits, signature)
+        SyncAggregate {
+            sync_committee_bits,
+            sync_committee_signature,
+        }
     }
 }
 

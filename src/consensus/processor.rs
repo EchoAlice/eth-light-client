@@ -60,9 +60,10 @@ impl LightClientProcessor {
     ) -> Result<UpdateChanges> {
         let mut changes = UpdateChanges::default();
         // Strict 2/3 participation requirement up front. Diverges from spec for simplicity.
-        if !update
-            .sync_aggregate
-            .has_supermajority(&self.store.current_sync_committee)
+        if !self
+            .store
+            .current_sync_committee
+            .has_supermajority_participation(&update.sync_aggregate.sync_committee_bits)
         {
             return Err(Error::InvalidInput(
                 "Insufficient sync committee participation".to_string(),
@@ -336,13 +337,16 @@ mod tests {
                 [0u8; 32],
             ),
         };
-        let update = |bits, signature_slot| LightClientUpdate {
+        let update = |sync_committee_bits, signature_slot| LightClientUpdate {
             attested_header: LightClientHeader::Altair(AltairLightClientHeader {
                 beacon: create_test_beacon_header(2),
             }),
             finalized: None,
             next_sync_committee: None,
-            sync_aggregate: SyncAggregate::new(bits, [0u8; 96]),
+            sync_aggregate: SyncAggregate {
+                sync_committee_bits,
+                sync_committee_signature: [0u8; 96],
+            },
             signature_slot,
         };
 
