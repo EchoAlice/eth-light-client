@@ -50,6 +50,8 @@ impl SyncCommittee {
         }
     }
 
+    // TODO: Should i delete these helpers?
+
     pub fn pubkeys(&self) -> &[PubkeyBytes] {
         &self.pubkeys
     }
@@ -58,23 +60,19 @@ impl SyncCommittee {
         &self.aggregate_pubkey
     }
 
-    pub(crate) fn len(&self) -> usize {
-        self.pubkeys.len()
-    }
-
     pub(crate) fn has_supermajority_participation(&self, participation_bits: &[bool]) -> bool {
-        if participation_bits.len() != self.len() {
+        if participation_bits.len() != self.pubkeys.len() {
             return false;
         }
         let participants = participation_bits.iter().filter(|&&b| b).count();
-        participants >= (self.len() * 2 / 3)
+        participants * 3 >= self.pubkeys.len() * 2
     }
 
     pub(crate) fn participating_pubkeys(
         &self,
         participation_bits: &[bool],
     ) -> Result<Vec<BLSPublicKey>> {
-        if participation_bits.len() != self.len() {
+        if participation_bits.len() != self.pubkeys.len() {
             return Err(Error::InvalidInput(
                 "Participation bits length mismatch".to_string(),
             ));
@@ -118,6 +116,7 @@ pub struct SyncAggregate {
     pub sync_committee_signature: BLSSignature,
 }
 
+// TODO: Delete both functions
 impl SyncAggregate {
     pub fn new(sync_committee_bits: Vec<bool>, sync_committee_signature: BLSSignature) -> Self {
         Self {
@@ -126,7 +125,6 @@ impl SyncAggregate {
         }
     }
 
-    // TODO: Is this wrapper needed?
     pub(crate) fn has_supermajority(&self, sync_committee: &SyncCommittee) -> bool {
         sync_committee.has_supermajority_participation(self.sync_committee_bits.as_ref())
     }
@@ -143,9 +141,9 @@ mod tests {
     #[test]
     fn test_sync_committee_supermajority() {
         let committee = test_committee();
-        let threshold = 32 * 2 / 3; // 21 of 32
+        // 2/3 of 32 is 21.33…, so 22 is the smallest supermajority for minimal spec values.
+        let threshold = 22;
 
-        // Exactly 2/3 passes.
         let mut participation = vec![false; 32];
         participation
             .iter_mut()
@@ -153,7 +151,6 @@ mod tests {
             .for_each(|p| *p = true);
         assert!(committee.has_supermajority_participation(&participation));
 
-        // One below 2/3 fails.
         let mut participation = vec![false; 32];
         participation
             .iter_mut()
@@ -161,7 +158,6 @@ mod tests {
             .for_each(|p| *p = true);
         assert!(!committee.has_supermajority_participation(&participation));
 
-        // Full participation passes.
         assert!(committee.has_supermajority_participation(&[true; 32]));
     }
 }
