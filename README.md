@@ -97,7 +97,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // GET /eth/v1/beacon/light_client/updates?start_period=X&count=1
     let update_bytes: Vec<u8> = /* fetch */;
     let update = LightClientUpdate::from_ssz(&update_bytes, Fork::Capella, spec.sync_committee_size())?;
-    client.process_update(update)?;
+
+    // The caller supplies the clock: convert wall time (Unix seconds) to the
+    // chain's current slot. Updates signed after `current_slot` are rejected.
+    let now_secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_secs();
+    let current_slot = client.chain_spec().timestamp_to_slot(now_secs);
+    client.process_light_client_update(update, current_slot)?;
 
     println!("Finalized slot: {}", client.finalized_beacon_block_header().slot);
     Ok(())
@@ -106,7 +113,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 **Note:** This library begins at the SSZ-decode and verification boundary.
 
 **API Notes:**
-- Injectable time is available: If you want to supply your own notion of time (tests, embedded devices, custom clocks), use `process_update_at_slot(update, current_slot)`
+- Time is always the caller's: `process_light_client_update(update, current_slot)` takes the current slot explicitly and never reads the system clock. `ChainSpec::timestamp_to_slot(unix_secs)` does the conversion; a clock that runs slow rejects more, never accepts more.
 - Getters: `finalized_beacon_block_header()`, `optimistic_beacon_block_header()`,
   `current_sync_committee()`, `next_sync_committee()`,
   `current_sync_committee_period()`, `chain_spec()`
@@ -127,7 +134,7 @@ The one piece of custom SSZ code is the wire-decode adapter in `src/types/ssz.rs
 
 ## Testing
 This library is end-to-end tested against official Ethereum Consensus minimal-preset light client spec tests for every supported fork (Altair through Electra), plus every fork-transition boundary (Bellatrix→Capella, Capella→Deneb, Deneb→Electra).  Tests exercise the full verification flow through the public API:
-`LightClient::new` (bootstrap verification) and `process_update` (update verification).  For the full case inventory (vendored vs. upstream), see the spec-case coverage table in [`src/consensus/README.md`](src/consensus/README.md).  End-to-end coverage against mainnet parameters (512-member committees) is still pending.
+`LightClient::new` (bootstrap verification) and `process_light_client_update` (update verification).  For the full case inventory (vendored vs. upstream), see the spec-case coverage table in [`src/consensus/README.md`](src/consensus/README.md).  End-to-end coverage against mainnet parameters (512-member committees) is still pending.
 
 ```bash
 # Unit + integration tests

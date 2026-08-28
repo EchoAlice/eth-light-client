@@ -74,7 +74,7 @@ sequenceDiagram
 ```
 
 The `test` then feeds the returned `LightClientBootstrap` / `LightClientUpdate`
-into `LightClient::new` / `process_update` — the code actually under test.
+into `LightClient::new` / `process_light_client_update` — the code actually under test.
 
 
 ## Usage
