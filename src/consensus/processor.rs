@@ -9,8 +9,8 @@ use crate::error::{Error, Result};
 use crate::types::consensus::{LightClientBootstrap, LightClientUpdate};
 use crate::types::primitives::{Root, Slot};
 
-#[derive(Default)]
-pub(crate) struct UpdateChanges {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct UpdateChanges {
     pub finalized_updated: bool,
     pub optimistic_updated: bool,
     pub rotated: bool,

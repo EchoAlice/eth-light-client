@@ -232,7 +232,7 @@ they drive, which is why both exist. They are complementary, not redundant.
 | Surface | Driver / test names | Notes |
 |---------|---------------------|-------|
 | **Internal processor** | `light_client_spec_tests.rs` — `run_processor_sync`, `<fork>_sync_via_processor` | Drives `LightClientProcessor` (`pub(crate)`); also verifies Capella execution roots via the fork-aware header. |
-| **Public API** | `tests/light_client_sync.rs` — `run_public_api_sync`, `<fork>_sync_via_public_api` | Drives the public `LightClient` with public types only; also checks the `UpdateOutcome` contract. Lives in the integration-test crate, outside this module. |
+| **Public API** | `tests/light_client_sync.rs` — `run_public_api_sync`, `<fork>_sync_via_public_api` | Drives the public `LightClient` with public types only; also checks the `UpdateChanges` contract. Lives in the integration-test crate, outside this module. |
 
 ### "Spec test" is orthogonal to scope
 
@@ -260,7 +260,7 @@ consensus tests only consume the typed objects it returns.
 | Merkle verification | `consensus/merkle.rs::tests` | Wrong-root rejection and malformed-branch `Err` paths — the false-*acceptance* failures the valid-only replays can never detect |
 | Committee guards | `consensus/sync_committee.rs::tests` | `Err` paths the valid-only fixtures never produce: unservable signature periods, next-committee learning guard |
 | Update validation guards | `consensus/processor.rs::tests` | `Err` paths the valid-only fixtures never produce: minority participation, signature-slot ordering |
-| Public API | `tests/light_client_sync.rs` | Full replays through the public `LightClient`; `UpdateOutcome` contract |
+| Public API | `tests/light_client_sync.rs` | Full replays through the public `LightClient`; `UpdateChanges` contract |
 | Supermajority threshold | `types/consensus/sync_committee.rs::tests` | Exact 2/3 participation boundary |
 | ChainSpec | `chain_spec/tests.rs` | `ChainSpecConfig` validation `Err` paths (the custom-config contract); `timestamp_to_slot` (wall-clock path the replays never touch) |
 

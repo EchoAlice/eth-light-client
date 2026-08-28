@@ -22,7 +22,7 @@ impl LightClient {
         Ok(Self { inner })
     }
 
-    pub fn process_update(&mut self, update: LightClientUpdate) -> Result<UpdateOutcome> {
+    pub fn process_update(&mut self, update: LightClientUpdate) -> Result<UpdateChanges> {
         let current_timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| Error::Internal("Failed to get current time".to_string()))?
@@ -31,15 +31,13 @@ impl LightClient {
         self.process_light_client_update(update, current_slot)
     }
 
+    // TODO: Do we actually want to expose both process update functions? or should i just require the user to pass in a current_slot?
     pub fn process_light_client_update(
         &mut self,
         update: LightClientUpdate,
         current_slot: Slot,
-    ) -> Result<UpdateOutcome> {
-        Ok(self
-            .inner
-            .process_light_client_update(update, current_slot)?
-            .into())
+    ) -> Result<UpdateChanges> {
+        self.inner.process_light_client_update(update, current_slot)
     }
 
     pub fn finalized_beacon_block_header(&self) -> &BeaconBlockHeader {
@@ -81,76 +79,5 @@ impl std::fmt::Debug for LightClient {
             .field("current_period", &self.current_sync_committee_period())
             .field("has_next_committee", &self.next_sync_committee().is_some())
             .finish()
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum UpdateOutcome {
-    StateAdvanced {
-        finalized_updated: bool,
-        optimistic_updated: bool,
-        rotated: bool,
-        next_committee_learned: bool,
-    },
-    NoChange,
-}
-
-impl UpdateOutcome {
-    #[inline]
-    pub fn state_changed(&self) -> bool {
-        matches!(self, UpdateOutcome::StateAdvanced { .. })
-    }
-
-    #[inline]
-    pub fn finalized_updated(&self) -> bool {
-        matches!(
-            self,
-            UpdateOutcome::StateAdvanced {
-                finalized_updated: true,
-                ..
-            }
-        )
-    }
-
-    #[inline]
-    pub fn optimistic_updated(&self) -> bool {
-        matches!(
-            self,
-            UpdateOutcome::StateAdvanced {
-                optimistic_updated: true,
-                ..
-            }
-        )
-    }
-
-    #[inline]
-    pub fn rotated(&self) -> bool {
-        matches!(self, UpdateOutcome::StateAdvanced { rotated: true, .. })
-    }
-
-    #[inline]
-    pub fn next_committee_learned(&self) -> bool {
-        matches!(
-            self,
-            UpdateOutcome::StateAdvanced {
-                next_committee_learned: true,
-                ..
-            }
-        )
-    }
-}
-
-impl From<UpdateChanges> for UpdateOutcome {
-    fn from(c: UpdateChanges) -> Self {
-        if !(c.finalized_updated || c.optimistic_updated || c.rotated || c.next_committee_learned) {
-            UpdateOutcome::NoChange
-        } else {
-            UpdateOutcome::StateAdvanced {
-                finalized_updated: c.finalized_updated,
-                optimistic_updated: c.optimistic_updated,
-                rotated: c.rotated,
-                next_committee_learned: c.next_committee_learned,
-            }
-        }
     }
 }

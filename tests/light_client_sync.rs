@@ -1,7 +1,7 @@
 #![cfg(feature = "test-utils")]
 
 use eth_light_client::test_utils::{ProcessUpdateStep, StateChecks, SyncTestCase, TestStep};
-use eth_light_client::{Fork, LightClient, UpdateOutcome};
+use eth_light_client::{Fork, LightClient, UpdateChanges};
 
 #[test]
 fn altair_sync_via_public_api() {
@@ -163,25 +163,25 @@ fn process_step(
     let before_finalized = client.finalized_beacon_block_header().slot;
     let before_optimistic = client.optimistic_beacon_block_header().slot;
 
-    let outcome: UpdateOutcome = client
+    let changes: UpdateChanges = client
         .process_light_client_update(update, step.current_slot)
         .unwrap_or_else(|e| panic!("step {}: error processing update: {}", step_num, e));
 
     let after_finalized = client.finalized_beacon_block_header().slot;
     let after_optimistic = client.optimistic_beacon_block_header().slot;
 
-    // UpdateOutcome must agree with observed state.
-    if outcome.finalized_updated() {
+    // UpdateChanges must agree with observed state.
+    if changes.finalized_updated {
         assert!(
             after_finalized > before_finalized,
-            "step {}: finalized_updated()=true but slot didn't advance",
+            "step {}: finalized_updated but slot didn't advance",
             step_num
         );
     }
-    if outcome.optimistic_updated() {
+    if changes.optimistic_updated {
         assert!(
             after_optimistic > before_optimistic,
-            "step {}: optimistic_updated()=true but slot didn't advance",
+            "step {}: optimistic_updated but slot didn't advance",
             step_num
         );
     }
