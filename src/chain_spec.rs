@@ -114,7 +114,7 @@ impl ChainSpec {
     }
 
     /// Fail-closed: a wrong/early clock lowers `current_slot`, and validation rejects updates with `signature_slot > current_slot`, so a bad clock rejects more, never accepts more.
-    pub(crate) fn timestamp_to_slot(&self, timestamp_secs: u64) -> u64 {
+    pub fn timestamp_to_slot(&self, timestamp_secs: u64) -> u64 {
         if timestamp_secs >= self.genesis_time {
             (timestamp_secs - self.genesis_time) / self.seconds_per_slot
         } else {

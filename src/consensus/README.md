@@ -39,10 +39,10 @@ LightClientProcessor::new(spec, trusted_block_root, bootstrap)
 
 ### Processing an Update
 ```text
-LightClient::process_update(update)
+LightClient::process_light_client_update(update, current_slot)
     │
     ▼
-LightClientProcessor::process_update_at_slot(update, current_slot)
+LightClientProcessor::process_light_client_update(update, current_slot)
     │
     ├─[1]─► validate_light_client_update  (&self, no mutation)
     │         • supermajority participation

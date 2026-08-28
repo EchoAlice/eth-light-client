@@ -1,11 +1,10 @@
 use crate::chain_spec::ChainSpec;
 use crate::consensus::processor::{LightClientProcessor, UpdateChanges};
-use crate::error::{Error, Result};
+use crate::error::Result;
 use crate::types::consensus::{
     BeaconBlockHeader, LightClientBootstrap, LightClientUpdate, SyncCommittee,
 };
 use crate::types::primitives::{Root, Slot};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct LightClient {
     inner: LightClientProcessor,
@@ -22,16 +21,6 @@ impl LightClient {
         Ok(Self { inner })
     }
 
-    pub fn process_update(&mut self, update: LightClientUpdate) -> Result<UpdateChanges> {
-        let current_timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|_| Error::Internal("Failed to get current time".to_string()))?
-            .as_secs();
-        let current_slot = self.inner.chain_spec().timestamp_to_slot(current_timestamp);
-        self.process_light_client_update(update, current_slot)
-    }
-
-    // TODO: Do we actually want to expose both process update functions? or should i just require the user to pass in a current_slot?
     pub fn process_light_client_update(
         &mut self,
         update: LightClientUpdate,
