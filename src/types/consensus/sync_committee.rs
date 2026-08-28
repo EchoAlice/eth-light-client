@@ -7,6 +7,12 @@ use tree_hash_derive::TreeHash;
 
 pub type PubkeyBytes = FixedVector<u8, U48>;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SyncAggregate {
+    pub sync_committee_bits: Vec<bool>,
+    pub sync_committee_signature: BLSSignature,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct SyncCommittee {
     pubkeys: Vec<PubkeyBytes>,
@@ -49,8 +55,6 @@ impl SyncCommittee {
             n => unreachable!("sync committee is 32 or 512 members, got {n}"),
         }
     }
-
-    // TODO: Should i delete these helpers?
 
     pub fn pubkeys(&self) -> &[PubkeyBytes] {
         &self.pubkeys
@@ -107,26 +111,6 @@ impl SyncCommittee {
                 .collect(),
             aggregate_pubkey: PubkeyBytes::new(aggregate_pubkey.to_vec()).expect("48-byte pubkey"),
         })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SyncAggregate {
-    pub sync_committee_bits: Vec<bool>,
-    pub sync_committee_signature: BLSSignature,
-}
-
-// TODO: Delete both functions
-impl SyncAggregate {
-    pub fn new(sync_committee_bits: Vec<bool>, sync_committee_signature: BLSSignature) -> Self {
-        Self {
-            sync_committee_bits,
-            sync_committee_signature,
-        }
-    }
-
-    pub(crate) fn has_supermajority(&self, sync_committee: &SyncCommittee) -> bool {
-        sync_committee.has_supermajority_participation(self.sync_committee_bits.as_ref())
     }
 }
 
