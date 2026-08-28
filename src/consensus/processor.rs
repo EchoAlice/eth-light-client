@@ -1,10 +1,8 @@
 use crate::chain_spec::ChainSpec;
 use crate::consensus::bls;
 use crate::consensus::merkle::{verify_light_client_header, verify_merkle_proof};
+use crate::consensus::signing::{compute_domain, compute_signing_root, DOMAIN_SYNC_COMMITTEE};
 use crate::consensus::store::LightClientStore;
-use crate::consensus::sync_committee::{
-    compute_domain, compute_signing_root, DOMAIN_SYNC_COMMITTEE,
-};
 use crate::error::{Error, Result};
 use crate::types::consensus::{LightClientBootstrap, LightClientUpdate};
 use crate::types::primitives::{Root, Slot};
