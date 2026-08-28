@@ -8,7 +8,7 @@ Nearly all of this crate is verification machinery, kept private in `consensus/`
 
 ```mermaid
 flowchart TD
-    fac["'light_client'<br/>public FACADE —<br/>'LightClient', 'UpdateOutcome'"]
+    fac["'light_client'<br/>public FACADE —<br/>'LightClient'"]
     eng["'consensus/'<br/>verification ENGINE —<br/>'merkle', 'bls', 'sync_committee'<br/>(private)"]
     ct["'types::consensus'<br/>headers, committees,<br/>updates, 'Store'"]
     cfg["'chain_spec'<br/>'ChainSpec' —<br/>fork + param oracle"]
@@ -26,9 +26,9 @@ flowchart TD
 | `chain_spec` | oracle | `ChainSpec`: fork schedule + network params |
 | `types::consensus` | data | fork-aware headers, committees, updates, store |
 | `consensus/` | engine | SSZ / Merkle / BLS verification (private) |
-| `light_client` | facade | `LightClient`, `UpdateOutcome` (public entry) |
+| `light_client` | facade | `LightClient` (public entry) |
 
-**Facade vs engine.** `LightClient` (`src/light_client.rs`) is a thin public wrapper; the real work lives in `LightClientProcessor` (`src/consensus/processor.rs`, `pub(crate)`). `process_update` delegates to the processor and wraps its `bool` into the richer `UpdateOutcome`. Consumers touch only the facade — `consensus/` is private. For the end-to-end verification **data flow** and the **correctness invariants** the engine maintains, see [`consensus/README.md`](consensus/README.md).
+**Facade vs engine.** `LightClient` (`src/light_client.rs`) is a thin public wrapper; the real work lives in `LightClientProcessor` (`src/consensus/processor.rs`, `pub(crate)`). `process_update` delegates to the processor and returns its `UpdateChanges` receipt unchanged (the struct is defined in the engine and re-exported through the prelude). Consumers touch only the facade — `consensus/` is private. For the end-to-end verification **data flow** and the **correctness invariants** the engine maintains, see [`consensus/README.md`](consensus/README.md).
 
 **The `types` umbrella spans two layers.** `types::primitives` sits *below* chain_spec (leaf aliases, no deps); `types::consensus` sits *above* it (its types carry a `&ChainSpec`). So `chain_spec` depends on `types::primitives` while `types::consensus` depends on `chain_spec`, which makes the crate-level `chain_spec ↔ types` edge *look* circular. It isn't — the real order is `primitives → chain_spec → consensus`; only the shared `types` name blurs it.
 
