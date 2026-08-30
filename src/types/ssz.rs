@@ -1,32 +1,21 @@
-//! SSZ wire decode for the light client types.
-//!
-//! Most public types decode themselves (`#[derive(Decode)]`): `BeaconBlockHeader`
-//! and `CapellaLightClientHeader` are used directly as wire fields. What remains
-//! here is the irreducible adapter: fork-dispatched wrapping of headers into the
-//! [`LightClientHeader`] enum, the spec-sized sync committee / aggregate (which
-//! can't be a plain derive), and the spec's optional-field collapse.
-//!
-//! The sync committee / aggregate size (32 minimal, 512 mainnet) is a preset
-//! constant the wire layout depends on but the bytes don't carry, so the `Raw*`
-//! structs are generic over it (`N`) and the caller supplies
-//! `sync_committee_size`. These generics stay internal to this module.
-
 use crate::chain_spec::Fork;
 use crate::types::consensus::{
     AltairLightClientHeader, BeaconBlockHeader, BellatrixLightClientHeader,
     CapellaLightClientHeader, DenebLightClientHeader, ElectraLightClientHeader, FinalityUpdate,
-    LightClientBootstrap, LightClientHeader, LightClientUpdate, SyncAggregate, SyncCommittee,
-    SyncCommitteeUpdate,
+    LightClientBootstrap, LightClientHeader, LightClientUpdate, PubkeyBytes, SyncAggregate,
+    SyncCommittee, SyncCommitteeUpdate,
 };
 use crate::types::primitives::Root;
 use ssz::Decode as _;
 use ssz_derive::Decode;
 use ssz_types::typenum::{Unsigned, U32, U48, U5, U512, U6, U7, U96};
 use ssz_types::{BitVector, FixedVector};
+use tree_hash::TreeHash;
+use tree_hash_derive::TreeHash;
 
-#[derive(Decode)]
+#[derive(Decode, TreeHash)]
 struct RawSyncCommittee<N: Unsigned> {
-    pubkeys: FixedVector<FixedVector<u8, U48>, N>,
+    pubkeys: FixedVector<PubkeyBytes, N>,
     aggregate_pubkey: FixedVector<u8, U48>,
 }
 
@@ -46,6 +35,31 @@ impl<N: Unsigned> RawSyncCommittee<N> {
         aggregate.copy_from_slice(self.aggregate_pubkey.as_ref());
 
         SyncCommittee::from_parts(pubkeys, aggregate).expect("wire committee is spec-sized")
+    }
+
+    fn from_sync_committee(sync_committee: &SyncCommittee) -> Self {
+        Self {
+            pubkeys: FixedVector::new(sync_committee.pubkeys().to_vec()).expect("len checked"),
+            aggregate_pubkey: sync_committee.aggregate_pubkey().clone(),
+        }
+    }
+}
+
+impl SyncCommittee {
+    pub(crate) fn hash_tree_root(&self) -> Root {
+        match self.pubkeys().len() {
+            32 => {
+                RawSyncCommittee::<U32>::from_sync_committee(self)
+                    .tree_hash_root()
+                    .0
+            }
+            512 => {
+                RawSyncCommittee::<U512>::from_sync_committee(self)
+                    .tree_hash_root()
+                    .0
+            }
+            n => unreachable!("sync committee is 32 or 512 members, got {n}"),
+        }
     }
 }
 
@@ -69,8 +83,30 @@ impl<N: Unsigned> RawSyncAggregate<N> {
     }
 }
 
-// Beacon-only (Altair/Bellatrix): the header is a `BeaconBlockHeader` on the wire
-// (the 1-field LightClientHeader wrapper is serialization-transparent).
+// Beacon-only (Altair/Bellatrix): the header is a `BeaconBlockHeader` on the wire (the 1-field LightClientHeader wrapper is serialization-transparent).
+#[derive(Decode)]
+struct RawLightClientBootstrap<N: Unsigned> {
+    header: BeaconBlockHeader,
+    current_sync_committee: RawSyncCommittee<N>,
+    current_sync_committee_branch: FixedVector<Root, U5>,
+}
+
+// Capella+: the header is the public `CapellaLightClientHeader` container.
+#[derive(Decode)]
+struct RawCapellaLightClientBootstrap<N: Unsigned> {
+    header: CapellaLightClientHeader,
+    current_sync_committee: RawSyncCommittee<N>,
+    current_sync_committee_branch: FixedVector<Root, U5>,
+}
+
+// Deneb+: identical wire shape to Capella except the header is a `DenebLightClientHeader` (its execution payload carries the two EIP-4844 fields).
+#[derive(Decode)]
+struct RawDenebLightClientBootstrap<N: Unsigned> {
+    header: DenebLightClientHeader,
+    current_sync_committee: RawSyncCommittee<N>,
+    current_sync_committee_branch: FixedVector<Root, U5>,
+}
+
 #[derive(Decode)]
 struct RawLightClientUpdate<N: Unsigned> {
     attested_header: BeaconBlockHeader,
@@ -83,14 +119,6 @@ struct RawLightClientUpdate<N: Unsigned> {
 }
 
 #[derive(Decode)]
-struct RawLightClientBootstrap<N: Unsigned> {
-    header: BeaconBlockHeader,
-    current_sync_committee: RawSyncCommittee<N>,
-    current_sync_committee_branch: FixedVector<Root, U5>,
-}
-
-// Capella+: the header is the public `CapellaLightClientHeader` container.
-#[derive(Decode)]
 struct RawCapellaLightClientUpdate<N: Unsigned> {
     attested_header: CapellaLightClientHeader,
     next_sync_committee: RawSyncCommittee<N>,
@@ -102,15 +130,6 @@ struct RawCapellaLightClientUpdate<N: Unsigned> {
 }
 
 #[derive(Decode)]
-struct RawCapellaLightClientBootstrap<N: Unsigned> {
-    header: CapellaLightClientHeader,
-    current_sync_committee: RawSyncCommittee<N>,
-    current_sync_committee_branch: FixedVector<Root, U5>,
-}
-
-// Deneb+: identical wire shape to Capella except the header is a
-// `DenebLightClientHeader` (its execution payload carries the two EIP-4844 fields).
-#[derive(Decode)]
 struct RawDenebLightClientUpdate<N: Unsigned> {
     attested_header: DenebLightClientHeader,
     next_sync_committee: RawSyncCommittee<N>,
@@ -121,17 +140,17 @@ struct RawDenebLightClientUpdate<N: Unsigned> {
     signature_slot: u64,
 }
 
-#[derive(Decode)]
-struct RawDenebLightClientBootstrap<N: Unsigned> {
-    header: DenebLightClientHeader,
-    current_sync_committee: RawSyncCommittee<N>,
-    current_sync_committee_branch: FixedVector<Root, U5>,
-}
-
 // Electra: same header wire shape as Deneb, but the Electra BeaconState added a
 // tree level, so every branch into it is one node longer — next_sync_committee
 // and current_sync_committee branches grow U5 -> U6, and the doubly-nested
 // finality branch grows U6 -> U7.
+#[derive(Decode)]
+struct RawElectraLightClientBootstrap<N: Unsigned> {
+    header: ElectraLightClientHeader,
+    current_sync_committee: RawSyncCommittee<N>,
+    current_sync_committee_branch: FixedVector<Root, U6>,
+}
+
 #[derive(Decode)]
 struct RawElectraLightClientUpdate<N: Unsigned> {
     attested_header: ElectraLightClientHeader,
@@ -141,13 +160,6 @@ struct RawElectraLightClientUpdate<N: Unsigned> {
     finality_branch: FixedVector<Root, U7>,
     sync_aggregate: RawSyncAggregate<N>,
     signature_slot: u64,
-}
-
-#[derive(Decode)]
-struct RawElectraLightClientBootstrap<N: Unsigned> {
-    header: ElectraLightClientHeader,
-    current_sync_committee: RawSyncCommittee<N>,
-    current_sync_committee_branch: FixedVector<Root, U6>,
 }
 
 /// Wrap a decoded beacon header into the fork's `LightClientHeader` variant.

@@ -9,7 +9,7 @@ Nearly all of this crate is verification machinery, kept private in `consensus/`
 ```mermaid
 flowchart TD
     fac["'light_client'<br/>public FACADE —<br/>'LightClient'"]
-    eng["'consensus/'<br/>verification ENGINE —<br/>'merkle', 'bls', 'sync_committee'<br/>(private)"]
+    eng["'consensus/'<br/>verification ENGINE —<br/>'merkle', 'bls', 'signing'<br/>(private)"]
     ct["'types::consensus'<br/>headers, committees,<br/>updates, 'Store'"]
     cfg["'chain_spec'<br/>'ChainSpec' —<br/>fork + param oracle"]
     prim["'types::primitives'<br/>leaf aliases — 'Slot', 'Root', …"]
@@ -31,6 +31,8 @@ flowchart TD
 **Facade vs engine.** `LightClient` (`src/light_client.rs`) is a thin public wrapper; the real work lives in `LightClientProcessor` (`src/consensus/processor.rs`, `pub(crate)`). `process_light_client_update` delegates to the processor and returns its `UpdateChanges` receipt unchanged (the struct is defined in the engine and re-exported through the prelude). Consumers touch only the facade — `consensus/` is private. For the end-to-end verification **data flow** and the **correctness invariants** the engine maintains, see [`consensus/README.md`](consensus/README.md).
 
 **The `types` umbrella spans two layers.** `types::primitives` sits *below* chain_spec (leaf aliases, no deps); `types::consensus` sits *above* it (its types carry a `&ChainSpec`). So `chain_spec` depends on `types::primitives` while `types::consensus` depends on `chain_spec`, which makes the crate-level `chain_spec ↔ types` edge *look* circular. It isn't — the real order is `primitives → chain_spec → consensus`; only the shared `types` name blurs it.
+
+**`types::ssz` — the wire adapter.** Most public types decode themselves (`#[derive(Decode)]`); `BeaconBlockHeader` and the Capella+ headers are used directly as wire fields. What `ssz.rs` adds is the irreducible layer between the bytes and the public types: fork-dispatched wrapping of headers into the `LightClientHeader` enum, the spec's optional-field collapse (zeroed committee / finality on the wire → `None`), and the spec-sized sync committee and aggregate. That last one is why the private `Raw*` structs exist and why they are generic over `N`: the committee size (32 minimal, 512 mainnet) is a preset constant the wire layout *depends on* but the bytes *don't carry* — SSZ `Vector[T, N]` encodes no length — so the caller supplies `sync_committee_size` and the decoder picks the `N`. The same size-typed `Raw*` view is what `hash_tree_root` uses, since merkleizing a `Vector` needs `N` at compile time too; the public `SyncCommittee` deliberately stores a plain `Vec` and rebuilds the `Raw` view when it needs SSZ behavior in either direction. These generics never leave the module.
 
 <br/>
 

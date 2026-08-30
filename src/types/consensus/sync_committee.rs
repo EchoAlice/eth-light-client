@@ -1,9 +1,7 @@
 use crate::error::{Error, Result};
-use crate::types::primitives::{BLSPublicKey, BLSSignature, Root};
-use ssz_types::typenum::{U32, U48, U512};
+use crate::types::primitives::{BLSPublicKey, BLSSignature};
+use ssz_types::typenum::U48;
 use ssz_types::FixedVector;
-use tree_hash::TreeHash;
-use tree_hash_derive::TreeHash;
 
 pub type PubkeyBytes = FixedVector<u8, U48>;
 
@@ -19,51 +17,7 @@ pub struct SyncCommittee {
     aggregate_pubkey: PubkeyBytes,
 }
 
-// Size-specific SSZ-native views used only to derive the committee root
-// (`Vector[pubkey, N]`); the library does the merkleization, not hand-rolled.
-#[derive(TreeHash)]
-struct CommitteeRoot512 {
-    pubkeys: FixedVector<PubkeyBytes, U512>,
-    aggregate_pubkey: PubkeyBytes,
-}
-#[derive(TreeHash)]
-struct CommitteeRoot32 {
-    pubkeys: FixedVector<PubkeyBytes, U32>,
-    aggregate_pubkey: PubkeyBytes,
-}
-
 impl SyncCommittee {
-    pub(crate) fn hash_tree_root(&self) -> Root {
-        let agg = self.aggregate_pubkey.clone();
-        match self.pubkeys.len() {
-            512 => {
-                CommitteeRoot512 {
-                    pubkeys: FixedVector::new(self.pubkeys.clone()).expect("len checked"),
-                    aggregate_pubkey: agg,
-                }
-                .tree_hash_root()
-                .0
-            }
-            32 => {
-                CommitteeRoot32 {
-                    pubkeys: FixedVector::new(self.pubkeys.clone()).expect("len checked"),
-                    aggregate_pubkey: agg,
-                }
-                .tree_hash_root()
-                .0
-            }
-            n => unreachable!("sync committee is 32 or 512 members, got {n}"),
-        }
-    }
-
-    pub fn pubkeys(&self) -> &[PubkeyBytes] {
-        &self.pubkeys
-    }
-
-    pub fn aggregate_pubkey(&self) -> &PubkeyBytes {
-        &self.aggregate_pubkey
-    }
-
     pub(crate) fn has_supermajority_participation(&self, participation_bits: &[bool]) -> bool {
         if participation_bits.len() != self.pubkeys.len() {
             return false;
@@ -111,6 +65,14 @@ impl SyncCommittee {
                 .collect(),
             aggregate_pubkey: PubkeyBytes::new(aggregate_pubkey.to_vec()).expect("48-byte pubkey"),
         })
+    }
+
+    pub fn pubkeys(&self) -> &[PubkeyBytes] {
+        &self.pubkeys
+    }
+
+    pub fn aggregate_pubkey(&self) -> &PubkeyBytes {
+        &self.aggregate_pubkey
     }
 }
 
