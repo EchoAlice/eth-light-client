@@ -1,4 +1,5 @@
 use crate::chain_spec::Fork;
+use crate::error::{Error, Result};
 use crate::types::consensus::{
     AltairLightClientHeader, BeaconBlockHeader, BellatrixLightClientHeader,
     CapellaLightClientHeader, DenebLightClientHeader, ElectraLightClientHeader, FinalityUpdate,
@@ -267,25 +268,22 @@ fn raw_electra_update_to_pub<N: Unsigned>(
 // (32 minimal / 512 mainnet) the committee/aggregate width — neither is carried
 // by the bytes.
 
-fn decode_beacon_only_update<N: Unsigned>(
-    bytes: &[u8],
-    fork: Fork,
-) -> crate::error::Result<LightClientUpdate> {
+fn decode_beacon_only_update<N: Unsigned>(bytes: &[u8], fork: Fork) -> Result<LightClientUpdate> {
     let raw = RawLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
     Ok(raw_beacon_only_update_to_pub(fork, raw))
 }
 
-fn decode_capella_update<N: Unsigned>(bytes: &[u8]) -> crate::error::Result<LightClientUpdate> {
+fn decode_capella_update<N: Unsigned>(bytes: &[u8]) -> Result<LightClientUpdate> {
     let raw = RawCapellaLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
     Ok(raw_capella_update_to_pub(raw))
 }
 
-fn decode_deneb_update<N: Unsigned>(bytes: &[u8]) -> crate::error::Result<LightClientUpdate> {
+fn decode_deneb_update<N: Unsigned>(bytes: &[u8]) -> Result<LightClientUpdate> {
     let raw = RawDenebLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
     Ok(raw_deneb_update_to_pub(raw))
 }
 
-fn decode_electra_update<N: Unsigned>(bytes: &[u8]) -> crate::error::Result<LightClientUpdate> {
+fn decode_electra_update<N: Unsigned>(bytes: &[u8]) -> Result<LightClientUpdate> {
     let raw = RawElectraLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
     Ok(raw_electra_update_to_pub(raw))
 }
@@ -296,7 +294,7 @@ pub(crate) fn decode_update(
     bytes: &[u8],
     fork: Fork,
     sync_committee_size: usize,
-) -> crate::error::Result<LightClientUpdate> {
+) -> Result<LightClientUpdate> {
     match fork {
         Fork::Altair | Fork::Bellatrix => match sync_committee_size {
             32 => decode_beacon_only_update::<U32>(bytes, fork),
@@ -325,7 +323,7 @@ fn decode_beacon_only_bootstrap<N: Unsigned>(
     bytes: &[u8],
     fork: Fork,
     genesis_validators_root: Root,
-) -> crate::error::Result<LightClientBootstrap> {
+) -> Result<LightClientBootstrap> {
     let raw = RawLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
     Ok(LightClientBootstrap {
         header: wrap_beacon_only(fork, raw.header),
@@ -338,7 +336,7 @@ fn decode_beacon_only_bootstrap<N: Unsigned>(
 fn decode_capella_bootstrap<N: Unsigned>(
     bytes: &[u8],
     genesis_validators_root: Root,
-) -> crate::error::Result<LightClientBootstrap> {
+) -> Result<LightClientBootstrap> {
     let raw = RawCapellaLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
     Ok(LightClientBootstrap {
         header: LightClientHeader::Capella(raw.header),
@@ -351,7 +349,7 @@ fn decode_capella_bootstrap<N: Unsigned>(
 fn decode_deneb_bootstrap<N: Unsigned>(
     bytes: &[u8],
     genesis_validators_root: Root,
-) -> crate::error::Result<LightClientBootstrap> {
+) -> Result<LightClientBootstrap> {
     let raw = RawDenebLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
     Ok(LightClientBootstrap {
         header: LightClientHeader::Deneb(raw.header),
@@ -364,7 +362,7 @@ fn decode_deneb_bootstrap<N: Unsigned>(
 fn decode_electra_bootstrap<N: Unsigned>(
     bytes: &[u8],
     genesis_validators_root: Root,
-) -> crate::error::Result<LightClientBootstrap> {
+) -> Result<LightClientBootstrap> {
     let raw = RawElectraLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
     Ok(LightClientBootstrap {
         header: LightClientHeader::Electra(raw.header),
@@ -379,7 +377,7 @@ pub(crate) fn decode_bootstrap(
     fork: Fork,
     sync_committee_size: usize,
     genesis_validators_root: Root,
-) -> crate::error::Result<LightClientBootstrap> {
+) -> Result<LightClientBootstrap> {
     match fork {
         Fork::Altair | Fork::Bellatrix => match sync_committee_size {
             32 => decode_beacon_only_bootstrap::<U32>(bytes, fork, genesis_validators_root),
@@ -404,12 +402,12 @@ pub(crate) fn decode_bootstrap(
     }
 }
 
-fn decode_err(e: ssz::DecodeError) -> crate::error::Error {
-    crate::error::Error::Serialization(format!("SSZ decode: {e:?}"))
+fn decode_err(e: ssz::DecodeError) -> Error {
+    Error::Serialization(format!("SSZ decode: {e:?}"))
 }
 
-fn bad_size(n: usize) -> crate::error::Error {
-    crate::error::Error::InvalidInput(format!("sync_committee_size must be 32 or 512, got {n}"))
+fn bad_size(n: usize) -> Error {
+    Error::InvalidInput(format!("sync_committee_size must be 32 or 512, got {n}"))
 }
 
 #[cfg(test)]
