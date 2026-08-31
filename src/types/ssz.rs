@@ -72,7 +72,8 @@ impl<N: Unsigned> RawSyncAggregate<N> {
     }
 }
 
-// Beacon-only (Altair/Bellatrix): the header is a `BeaconBlockHeader` on the wire (the 1-field LightClientHeader wrapper is serialization-transparent).
+// Beacon-only (Altair/Bellatrix): the header is a `BeaconBlockHeader` on the wire
+// (the 1-field LightClientHeader wrapper is serialization-transparent).
 #[derive(Decode)]
 struct RawLightClientBootstrap<N: Unsigned> {
     header: BeaconBlockHeader,
@@ -88,7 +89,8 @@ struct RawCapellaLightClientBootstrap<N: Unsigned> {
     current_sync_committee_branch: FixedVector<Root, U5>,
 }
 
-// Deneb+: identical wire shape to Capella except the header is a `DenebLightClientHeader` (its execution payload carries the two EIP-4844 fields).
+// Deneb+: identical wire shape to Capella except the header is a
+// `DenebLightClientHeader` (its execution payload carries the two EIP-4844 fields).
 #[derive(Decode)]
 struct RawDenebLightClientBootstrap<N: Unsigned> {
     header: DenebLightClientHeader,
