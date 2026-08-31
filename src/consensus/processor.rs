@@ -285,12 +285,17 @@ mod tests {
     use super::*;
     use crate::test_utils::{SyncTestCase, TestStep};
     use crate::types::consensus::{
-        AltairLightClientHeader, BeaconBlockHeader, FinalityUpdate, LightClientHeader,
+        AltairLightClientHeader, BeaconBlockHeader, FinalityUpdate, LightClientHeader, PubkeyBytes,
         SyncAggregate, SyncCommittee,
     };
     use crate::Fork;
 
-    fn create_test_beacon_header(slot: Slot) -> BeaconBlockHeader {
+    fn test_committee() -> SyncCommittee {
+        let pubkey = |byte| PubkeyBytes::new(vec![byte; 48]).unwrap();
+        SyncCommittee::from_parts(vec![pubkey(1); 32], pubkey(2)).unwrap()
+    }
+
+    fn test_beacon_header(slot: Slot) -> BeaconBlockHeader {
         BeaconBlockHeader {
             slot,
             proposer_index: 42,
@@ -304,10 +309,9 @@ mod tests {
     fn rejects_bootstrap_with_mismatched_trusted_root() {
         let bootstrap = LightClientBootstrap {
             header: LightClientHeader::Altair(AltairLightClientHeader {
-                beacon: create_test_beacon_header(1),
+                beacon: test_beacon_header(1),
             }),
-            current_sync_committee: SyncCommittee::from_parts(vec![[1u8; 48]; 32], [2u8; 48])
-                .unwrap(),
+            current_sync_committee: test_committee(),
             current_sync_committee_branch: vec![],
             genesis_validators_root: [0u8; 32],
         };
@@ -331,15 +335,15 @@ mod tests {
             chain_spec: crate::chain_spec::ChainSpec::minimal(),
             store: LightClientStore::new(
                 LightClientHeader::Altair(AltairLightClientHeader {
-                    beacon: create_test_beacon_header(1),
+                    beacon: test_beacon_header(1),
                 }),
-                SyncCommittee::from_parts(vec![[1u8; 48]; 32], [2u8; 48]).unwrap(),
+                test_committee(),
                 [0u8; 32],
             ),
         };
         let update = |sync_committee_bits, signature_slot| LightClientUpdate {
             attested_header: LightClientHeader::Altair(AltairLightClientHeader {
-                beacon: create_test_beacon_header(2),
+                beacon: test_beacon_header(2),
             }),
             finalized: None,
             next_sync_committee: None,
@@ -384,7 +388,7 @@ mod tests {
         let mut bad_finality = update(vec![true; 32], 3);
         bad_finality.finalized = Some(FinalityUpdate {
             header: LightClientHeader::Altair(AltairLightClientHeader {
-                beacon: create_test_beacon_header(5),
+                beacon: test_beacon_header(5),
             }),
             branch: vec![],
         });

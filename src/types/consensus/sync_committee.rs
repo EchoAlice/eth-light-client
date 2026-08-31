@@ -3,6 +3,7 @@ use crate::types::primitives::{BLSPublicKey, BLSSignature};
 use ssz_types::typenum::U48;
 use ssz_types::FixedVector;
 
+// TODO: Should this move to primitives.rs?
 pub type PubkeyBytes = FixedVector<u8, U48>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,10 +48,11 @@ impl SyncCommittee {
     }
 
     /// Enforces the `{32, 512}` size invariant at construction, so the size
-    /// dispatch in [`hash_tree_root`](Self::hash_tree_root) is total.
+    /// dispatch in [`hash_tree_root`](Self::hash_tree_root) (and the
+    /// `FixedVector` rebuild behind it) can treat other lengths as unreachable.
     pub(crate) fn from_parts(
-        pubkeys: Vec<BLSPublicKey>,
-        aggregate_pubkey: BLSPublicKey,
+        pubkeys: Vec<PubkeyBytes>,
+        aggregate_pubkey: PubkeyBytes,
     ) -> Result<Self> {
         if pubkeys.len() != 32 && pubkeys.len() != 512 {
             return Err(Error::InvalidInput(format!(
@@ -59,11 +61,8 @@ impl SyncCommittee {
             )));
         }
         Ok(SyncCommittee {
-            pubkeys: pubkeys
-                .into_iter()
-                .map(|pk| PubkeyBytes::new(pk.to_vec()).expect("48-byte pubkey"))
-                .collect(),
-            aggregate_pubkey: PubkeyBytes::new(aggregate_pubkey.to_vec()).expect("48-byte pubkey"),
+            pubkeys,
+            aggregate_pubkey,
         })
     }
 
@@ -81,7 +80,8 @@ mod tests {
     use super::*;
 
     fn test_committee() -> SyncCommittee {
-        SyncCommittee::from_parts(vec![[1u8; 48]; 32], [2u8; 48]).unwrap()
+        let pubkey = |byte| PubkeyBytes::new(vec![byte; 48]).unwrap();
+        SyncCommittee::from_parts(vec![pubkey(1); 32], pubkey(2)).unwrap()
     }
 
     #[test]
