@@ -13,14 +13,14 @@ resolver = "2"
 serde = { version = "1.0", features = ["derive"] }
 hex = "0.4"
 blst = "0.3.10" 
-ethereum_ssz = "0.5" 
-ethereum_ssz_derive = "0.5" 
-tree_hash = "0.5"
-tree_hash_derive = "0.5" 
-ethereum_hashing = "1.0.0-beta.2" 
+ethereum_ssz = "0.10"
+ethereum_ssz_derive = "0.10"
+tree_hash = "0.12"
+tree_hash_derive = "0.12"
+ethereum_hashing = "0.8"
 thiserror = "1.0"
-ssz_types = "0.5"
-ethereum-types = "0.14"
+ssz_types = "0.14"
+alloy-primitives = "1"
 
 [features]
 default = []

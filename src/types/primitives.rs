@@ -2,8 +2,8 @@
 //!
 //! Execution-payload field types that need SSZ collection semantics
 //! (`fee_recipient`, `logs_bloom`, `extra_data`) live directly on the types in
-//! [`super::consensus`] as `ethereum_types` / `ssz_types` values, so they are no
-//! longer defined here.
+//! [`super::consensus`] as `alloy_primitives` / `ssz_types` values, so they are
+//! no longer defined here.
 
 /// 32-byte hash type used throughout Ethereum
 pub type Hash = [u8; 32];
@@ -11,10 +11,10 @@ pub type Hash = [u8; 32];
 /// Variable-length byte array
 pub type Bytes = Vec<u8>;
 
-/// 256-bit unsigned integer. `ethereum_types::U256` carries the native SSZ
-/// `Encode`/`Decode`/`TreeHash` impls (unlike `ruint`), so execution headers
-/// derive their SSZ directly.
-pub use ethereum_types::U256;
+/// 256-bit unsigned integer. `alloy_primitives::U256` carries the native SSZ
+/// `Decode`/`TreeHash` impls (via the sigp stack's alloy support), so execution
+/// headers derive their SSZ directly.
+pub use alloy_primitives::U256;
 
 /// Beacon chain slot number
 pub type Slot = u64;
