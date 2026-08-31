@@ -1,5 +1,5 @@
 use crate::types::primitives::{Root, Slot, ValidatorIndex};
-use ethereum_types::{Address, U256};
+use alloy_primitives::{Address, U256};
 use ssz_derive::Decode;
 use ssz_types::typenum::{U256 as BloomLen, U32, U4};
 use ssz_types::{FixedVector, VariableList};
@@ -80,10 +80,7 @@ pub struct BeaconBlockHeader {
 
 impl BeaconBlockHeader {
     pub(crate) fn hash_tree_root(&self) -> Root {
-        let hash256 = TreeHash::tree_hash_root(self);
-        let mut result = [0u8; 32];
-        result.copy_from_slice(hash256.as_bytes());
-        result
+        TreeHash::tree_hash_root(self).0
     }
 }
 
