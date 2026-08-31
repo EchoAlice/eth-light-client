@@ -8,7 +8,7 @@ use crate::types::consensus::{
 use crate::types::primitives::Root;
 use ssz::Decode as _;
 use ssz_derive::Decode;
-use ssz_types::typenum::{Unsigned, U32, U48, U5, U512, U6, U7, U96};
+use ssz_types::typenum::{Unsigned, U32, U5, U512, U6, U7, U96};
 use ssz_types::{BitVector, FixedVector};
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
@@ -16,25 +16,13 @@ use tree_hash_derive::TreeHash;
 #[derive(Decode, TreeHash)]
 struct RawSyncCommittee<N: Unsigned> {
     pubkeys: FixedVector<PubkeyBytes, N>,
-    aggregate_pubkey: FixedVector<u8, U48>,
+    aggregate_pubkey: PubkeyBytes,
 }
 
 impl<N: Unsigned> RawSyncCommittee<N> {
     fn into_sync_committee(self) -> SyncCommittee {
-        let pubkeys: Vec<[u8; 48]> = self
-            .pubkeys
-            .iter()
-            .map(|pk| {
-                let mut key = [0u8; 48];
-                key.copy_from_slice(pk.as_ref());
-                key
-            })
-            .collect();
-
-        let mut aggregate = [0u8; 48];
-        aggregate.copy_from_slice(self.aggregate_pubkey.as_ref());
-
-        SyncCommittee::from_parts(pubkeys, aggregate).expect("wire committee is spec-sized")
+        SyncCommittee::from_parts(self.pubkeys.to_vec(), self.aggregate_pubkey)
+            .expect("wire committee is spec-sized")
     }
 
     fn from_sync_committee(sync_committee: &SyncCommittee) -> Self {
