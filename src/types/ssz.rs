@@ -14,6 +14,209 @@ use ssz_types::{BitVector, FixedVector};
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
 
+/// Beacon-only (Altair/Bellatrix)
+#[derive(Decode)]
+struct RawLightClientBootstrap<N: Unsigned> {
+    header: BeaconBlockHeader,
+    current_sync_committee: RawSyncCommittee<N>,
+    current_sync_committee_branch: FixedVector<Root, U5>,
+}
+fn decode_beacon_only_bootstrap<N: Unsigned>(
+    bytes: &[u8],
+    fork: Fork,
+    genesis_validators_root: Root,
+) -> Result<LightClientBootstrap> {
+    let raw = RawLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
+    Ok(LightClientBootstrap {
+        header: wrap_beacon_only(fork, raw.header),
+        current_sync_committee: raw.current_sync_committee.into_sync_committee(),
+        current_sync_committee_branch: raw.current_sync_committee_branch.to_vec(),
+        genesis_validators_root,
+    })
+}
+
+#[derive(Decode)]
+struct RawCapellaLightClientBootstrap<N: Unsigned> {
+    header: CapellaLightClientHeader,
+    current_sync_committee: RawSyncCommittee<N>,
+    current_sync_committee_branch: FixedVector<Root, U5>,
+}
+fn decode_capella_bootstrap<N: Unsigned>(
+    bytes: &[u8],
+    genesis_validators_root: Root,
+) -> Result<LightClientBootstrap> {
+    let raw = RawCapellaLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
+    Ok(LightClientBootstrap {
+        header: LightClientHeader::Capella(raw.header),
+        current_sync_committee: raw.current_sync_committee.into_sync_committee(),
+        current_sync_committee_branch: raw.current_sync_committee_branch.to_vec(),
+        genesis_validators_root,
+    })
+}
+
+#[derive(Decode)]
+struct RawDenebLightClientBootstrap<N: Unsigned> {
+    header: DenebLightClientHeader,
+    current_sync_committee: RawSyncCommittee<N>,
+    current_sync_committee_branch: FixedVector<Root, U5>,
+}
+fn decode_deneb_bootstrap<N: Unsigned>(
+    bytes: &[u8],
+    genesis_validators_root: Root,
+) -> Result<LightClientBootstrap> {
+    let raw = RawDenebLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
+    Ok(LightClientBootstrap {
+        header: LightClientHeader::Deneb(raw.header),
+        current_sync_committee: raw.current_sync_committee.into_sync_committee(),
+        current_sync_committee_branch: raw.current_sync_committee_branch.to_vec(),
+        genesis_validators_root,
+    })
+}
+
+#[derive(Decode)]
+struct RawElectraLightClientBootstrap<N: Unsigned> {
+    header: ElectraLightClientHeader,
+    current_sync_committee: RawSyncCommittee<N>,
+    current_sync_committee_branch: FixedVector<Root, U6>,
+}
+fn decode_electra_bootstrap<N: Unsigned>(
+    bytes: &[u8],
+    genesis_validators_root: Root,
+) -> Result<LightClientBootstrap> {
+    let raw = RawElectraLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
+    Ok(LightClientBootstrap {
+        header: LightClientHeader::Electra(raw.header),
+        current_sync_committee: raw.current_sync_committee.into_sync_committee(),
+        current_sync_committee_branch: raw.current_sync_committee_branch.to_vec(),
+        genesis_validators_root,
+    })
+}
+
+/// Beacon-only (Altair/Bellatrix)
+#[derive(Decode)]
+struct RawLightClientUpdate<N: Unsigned> {
+    attested_header: BeaconBlockHeader,
+    next_sync_committee: RawSyncCommittee<N>,
+    next_sync_committee_branch: FixedVector<Root, U5>,
+    finalized_header: BeaconBlockHeader,
+    finality_branch: FixedVector<Root, U6>,
+    sync_aggregate: RawSyncAggregate<N>,
+    signature_slot: u64,
+}
+fn raw_beacon_only_update_to_pub<N: Unsigned>(
+    fork: Fork,
+    raw: RawLightClientUpdate<N>,
+) -> LightClientUpdate {
+    // A default (slot-0) finalized header means the update carries no finality.
+    let finalized_header =
+        (raw.finalized_header.slot != 0).then_some(wrap_beacon_only(fork, raw.finalized_header));
+
+    assemble_update(
+        wrap_beacon_only(fork, raw.attested_header),
+        finalized_header,
+        raw.finality_branch.to_vec(),
+        raw.next_sync_committee.into_sync_committee(),
+        raw.next_sync_committee_branch.to_vec(),
+        raw.sync_aggregate.into_sync_aggregate(),
+        raw.signature_slot,
+    )
+}
+fn decode_beacon_only_update<N: Unsigned>(bytes: &[u8], fork: Fork) -> Result<LightClientUpdate> {
+    let raw = RawLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
+    Ok(raw_beacon_only_update_to_pub(fork, raw))
+}
+
+#[derive(Decode)]
+struct RawCapellaLightClientUpdate<N: Unsigned> {
+    attested_header: CapellaLightClientHeader,
+    next_sync_committee: RawSyncCommittee<N>,
+    next_sync_committee_branch: FixedVector<Root, U5>,
+    finalized_header: CapellaLightClientHeader,
+    finality_branch: FixedVector<Root, U6>,
+    sync_aggregate: RawSyncAggregate<N>,
+    signature_slot: u64,
+}
+fn raw_capella_update_to_pub<N: Unsigned>(
+    raw: RawCapellaLightClientUpdate<N>,
+) -> LightClientUpdate {
+    let finalized_header = (raw.finalized_header.beacon.slot != 0)
+        .then_some(LightClientHeader::Capella(raw.finalized_header));
+
+    assemble_update(
+        LightClientHeader::Capella(raw.attested_header),
+        finalized_header,
+        raw.finality_branch.to_vec(),
+        raw.next_sync_committee.into_sync_committee(),
+        raw.next_sync_committee_branch.to_vec(),
+        raw.sync_aggregate.into_sync_aggregate(),
+        raw.signature_slot,
+    )
+}
+fn decode_capella_update<N: Unsigned>(bytes: &[u8]) -> Result<LightClientUpdate> {
+    let raw = RawCapellaLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
+    Ok(raw_capella_update_to_pub(raw))
+}
+
+#[derive(Decode)]
+struct RawDenebLightClientUpdate<N: Unsigned> {
+    attested_header: DenebLightClientHeader,
+    next_sync_committee: RawSyncCommittee<N>,
+    next_sync_committee_branch: FixedVector<Root, U5>,
+    finalized_header: DenebLightClientHeader,
+    finality_branch: FixedVector<Root, U6>,
+    sync_aggregate: RawSyncAggregate<N>,
+    signature_slot: u64,
+}
+fn raw_deneb_update_to_pub<N: Unsigned>(raw: RawDenebLightClientUpdate<N>) -> LightClientUpdate {
+    let finalized_header = (raw.finalized_header.beacon.slot != 0)
+        .then_some(LightClientHeader::Deneb(raw.finalized_header));
+
+    assemble_update(
+        LightClientHeader::Deneb(raw.attested_header),
+        finalized_header,
+        raw.finality_branch.to_vec(),
+        raw.next_sync_committee.into_sync_committee(),
+        raw.next_sync_committee_branch.to_vec(),
+        raw.sync_aggregate.into_sync_aggregate(),
+        raw.signature_slot,
+    )
+}
+fn decode_deneb_update<N: Unsigned>(bytes: &[u8]) -> Result<LightClientUpdate> {
+    let raw = RawDenebLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
+    Ok(raw_deneb_update_to_pub(raw))
+}
+
+#[derive(Decode)]
+struct RawElectraLightClientUpdate<N: Unsigned> {
+    attested_header: ElectraLightClientHeader,
+    next_sync_committee: RawSyncCommittee<N>,
+    next_sync_committee_branch: FixedVector<Root, U6>,
+    finalized_header: ElectraLightClientHeader,
+    finality_branch: FixedVector<Root, U7>,
+    sync_aggregate: RawSyncAggregate<N>,
+    signature_slot: u64,
+}
+fn raw_electra_update_to_pub<N: Unsigned>(
+    raw: RawElectraLightClientUpdate<N>,
+) -> LightClientUpdate {
+    let finalized_header = (raw.finalized_header.beacon.slot != 0)
+        .then_some(LightClientHeader::Electra(raw.finalized_header));
+
+    assemble_update(
+        LightClientHeader::Electra(raw.attested_header),
+        finalized_header,
+        raw.finality_branch.to_vec(),
+        raw.next_sync_committee.into_sync_committee(),
+        raw.next_sync_committee_branch.to_vec(),
+        raw.sync_aggregate.into_sync_aggregate(),
+        raw.signature_slot,
+    )
+}
+fn decode_electra_update<N: Unsigned>(bytes: &[u8]) -> Result<LightClientUpdate> {
+    let raw = RawElectraLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
+    Ok(raw_electra_update_to_pub(raw))
+}
+
 #[derive(Decode, TreeHash)]
 struct RawSyncCommittee<N: Unsigned> {
     pubkeys: FixedVector<PubkeyBytes, N>,
@@ -72,87 +275,7 @@ impl<N: Unsigned> RawSyncAggregate<N> {
     }
 }
 
-// Beacon-only (Altair/Bellatrix): the header is a `BeaconBlockHeader` on the wire
-// (the 1-field LightClientHeader wrapper is serialization-transparent).
-#[derive(Decode)]
-struct RawLightClientBootstrap<N: Unsigned> {
-    header: BeaconBlockHeader,
-    current_sync_committee: RawSyncCommittee<N>,
-    current_sync_committee_branch: FixedVector<Root, U5>,
-}
-
-// Capella+: the header is the public `CapellaLightClientHeader` container.
-#[derive(Decode)]
-struct RawCapellaLightClientBootstrap<N: Unsigned> {
-    header: CapellaLightClientHeader,
-    current_sync_committee: RawSyncCommittee<N>,
-    current_sync_committee_branch: FixedVector<Root, U5>,
-}
-
-// Deneb+: identical wire shape to Capella except the header is a
-// `DenebLightClientHeader` (its execution payload carries the two EIP-4844 fields).
-#[derive(Decode)]
-struct RawDenebLightClientBootstrap<N: Unsigned> {
-    header: DenebLightClientHeader,
-    current_sync_committee: RawSyncCommittee<N>,
-    current_sync_committee_branch: FixedVector<Root, U5>,
-}
-
-#[derive(Decode)]
-struct RawLightClientUpdate<N: Unsigned> {
-    attested_header: BeaconBlockHeader,
-    next_sync_committee: RawSyncCommittee<N>,
-    next_sync_committee_branch: FixedVector<Root, U5>,
-    finalized_header: BeaconBlockHeader,
-    finality_branch: FixedVector<Root, U6>,
-    sync_aggregate: RawSyncAggregate<N>,
-    signature_slot: u64,
-}
-
-#[derive(Decode)]
-struct RawCapellaLightClientUpdate<N: Unsigned> {
-    attested_header: CapellaLightClientHeader,
-    next_sync_committee: RawSyncCommittee<N>,
-    next_sync_committee_branch: FixedVector<Root, U5>,
-    finalized_header: CapellaLightClientHeader,
-    finality_branch: FixedVector<Root, U6>,
-    sync_aggregate: RawSyncAggregate<N>,
-    signature_slot: u64,
-}
-
-#[derive(Decode)]
-struct RawDenebLightClientUpdate<N: Unsigned> {
-    attested_header: DenebLightClientHeader,
-    next_sync_committee: RawSyncCommittee<N>,
-    next_sync_committee_branch: FixedVector<Root, U5>,
-    finalized_header: DenebLightClientHeader,
-    finality_branch: FixedVector<Root, U6>,
-    sync_aggregate: RawSyncAggregate<N>,
-    signature_slot: u64,
-}
-
-// Electra: same header wire shape as Deneb, but the Electra BeaconState added a
-// tree level, so every branch into it is one node longer — next_sync_committee
-// and current_sync_committee branches grow U5 -> U6, and the doubly-nested
-// finality branch grows U6 -> U7.
-#[derive(Decode)]
-struct RawElectraLightClientBootstrap<N: Unsigned> {
-    header: ElectraLightClientHeader,
-    current_sync_committee: RawSyncCommittee<N>,
-    current_sync_committee_branch: FixedVector<Root, U6>,
-}
-
-#[derive(Decode)]
-struct RawElectraLightClientUpdate<N: Unsigned> {
-    attested_header: ElectraLightClientHeader,
-    next_sync_committee: RawSyncCommittee<N>,
-    next_sync_committee_branch: FixedVector<Root, U6>,
-    finalized_header: ElectraLightClientHeader,
-    finality_branch: FixedVector<Root, U7>,
-    sync_aggregate: RawSyncAggregate<N>,
-    signature_slot: u64,
-}
-
+// TODO: is this fork parameter necessary?
 /// Wrap a decoded beacon header into the fork's `LightClientHeader` variant.
 fn wrap_beacon_only(fork: Fork, beacon: BeaconBlockHeader) -> LightClientHeader {
     match fork {
@@ -197,97 +320,39 @@ fn assemble_update(
     }
 }
 
-fn raw_beacon_only_update_to_pub<N: Unsigned>(
-    fork: Fork,
-    raw: RawLightClientUpdate<N>,
-) -> LightClientUpdate {
-    // A default (slot-0) finalized header means the update carries no finality.
-    let finalized_header =
-        (raw.finalized_header.slot != 0).then_some(wrap_beacon_only(fork, raw.finalized_header));
-
-    assemble_update(
-        wrap_beacon_only(fork, raw.attested_header),
-        finalized_header,
-        raw.finality_branch.to_vec(),
-        raw.next_sync_committee.into_sync_committee(),
-        raw.next_sync_committee_branch.to_vec(),
-        raw.sync_aggregate.into_sync_aggregate(),
-        raw.signature_slot,
-    )
-}
-
-fn raw_capella_update_to_pub<N: Unsigned>(
-    raw: RawCapellaLightClientUpdate<N>,
-) -> LightClientUpdate {
-    let finalized_header = (raw.finalized_header.beacon.slot != 0)
-        .then_some(LightClientHeader::Capella(raw.finalized_header));
-
-    assemble_update(
-        LightClientHeader::Capella(raw.attested_header),
-        finalized_header,
-        raw.finality_branch.to_vec(),
-        raw.next_sync_committee.into_sync_committee(),
-        raw.next_sync_committee_branch.to_vec(),
-        raw.sync_aggregate.into_sync_aggregate(),
-        raw.signature_slot,
-    )
-}
-
-fn raw_deneb_update_to_pub<N: Unsigned>(raw: RawDenebLightClientUpdate<N>) -> LightClientUpdate {
-    let finalized_header = (raw.finalized_header.beacon.slot != 0)
-        .then_some(LightClientHeader::Deneb(raw.finalized_header));
-
-    assemble_update(
-        LightClientHeader::Deneb(raw.attested_header),
-        finalized_header,
-        raw.finality_branch.to_vec(),
-        raw.next_sync_committee.into_sync_committee(),
-        raw.next_sync_committee_branch.to_vec(),
-        raw.sync_aggregate.into_sync_aggregate(),
-        raw.signature_slot,
-    )
-}
-
-fn raw_electra_update_to_pub<N: Unsigned>(
-    raw: RawElectraLightClientUpdate<N>,
-) -> LightClientUpdate {
-    let finalized_header = (raw.finalized_header.beacon.slot != 0)
-        .then_some(LightClientHeader::Electra(raw.finalized_header));
-
-    assemble_update(
-        LightClientHeader::Electra(raw.attested_header),
-        finalized_header,
-        raw.finality_branch.to_vec(),
-        raw.next_sync_committee.into_sync_committee(),
-        raw.next_sync_committee_branch.to_vec(),
-        raw.sync_aggregate.into_sync_aggregate(),
-        raw.signature_slot,
-    )
-}
-
 // Fork- and size-dispatched SSZ decode: raw bytes -> public type. `bytes` is raw
 // SSZ (not snappy-framed). `fork` selects the wire layout and `sync_committee_size`
 // (32 minimal / 512 mainnet) the committee/aggregate width — neither is carried
 // by the bytes.
 
-fn decode_beacon_only_update<N: Unsigned>(bytes: &[u8], fork: Fork) -> Result<LightClientUpdate> {
-    let raw = RawLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
-    Ok(raw_beacon_only_update_to_pub(fork, raw))
-}
-
-fn decode_capella_update<N: Unsigned>(bytes: &[u8]) -> Result<LightClientUpdate> {
-    let raw = RawCapellaLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
-    Ok(raw_capella_update_to_pub(raw))
-}
-
-fn decode_deneb_update<N: Unsigned>(bytes: &[u8]) -> Result<LightClientUpdate> {
-    let raw = RawDenebLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
-    Ok(raw_deneb_update_to_pub(raw))
-}
-
-fn decode_electra_update<N: Unsigned>(bytes: &[u8]) -> Result<LightClientUpdate> {
-    let raw = RawElectraLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
-    Ok(raw_electra_update_to_pub(raw))
+pub(crate) fn decode_bootstrap(
+    bytes: &[u8],
+    fork: Fork,
+    sync_committee_size: usize,
+    genesis_validators_root: Root,
+) -> Result<LightClientBootstrap> {
+    match fork {
+        Fork::Altair | Fork::Bellatrix => match sync_committee_size {
+            32 => decode_beacon_only_bootstrap::<U32>(bytes, fork, genesis_validators_root),
+            512 => decode_beacon_only_bootstrap::<U512>(bytes, fork, genesis_validators_root),
+            n => Err(bad_size(n)),
+        },
+        Fork::Capella => match sync_committee_size {
+            32 => decode_capella_bootstrap::<U32>(bytes, genesis_validators_root),
+            512 => decode_capella_bootstrap::<U512>(bytes, genesis_validators_root),
+            n => Err(bad_size(n)),
+        },
+        Fork::Deneb => match sync_committee_size {
+            32 => decode_deneb_bootstrap::<U32>(bytes, genesis_validators_root),
+            512 => decode_deneb_bootstrap::<U512>(bytes, genesis_validators_root),
+            n => Err(bad_size(n)),
+        },
+        Fork::Electra => match sync_committee_size {
+            32 => decode_electra_bootstrap::<U32>(bytes, genesis_validators_root),
+            512 => decode_electra_bootstrap::<U512>(bytes, genesis_validators_root),
+            n => Err(bad_size(n)),
+        },
+    }
 }
 
 /// SSZ-decode a light client update for `fork` + `sync_committee_size`
@@ -316,89 +381,6 @@ pub(crate) fn decode_update(
         Fork::Electra => match sync_committee_size {
             32 => decode_electra_update::<U32>(bytes),
             512 => decode_electra_update::<U512>(bytes),
-            n => Err(bad_size(n)),
-        },
-    }
-}
-
-fn decode_beacon_only_bootstrap<N: Unsigned>(
-    bytes: &[u8],
-    fork: Fork,
-    genesis_validators_root: Root,
-) -> Result<LightClientBootstrap> {
-    let raw = RawLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
-    Ok(LightClientBootstrap {
-        header: wrap_beacon_only(fork, raw.header),
-        current_sync_committee: raw.current_sync_committee.into_sync_committee(),
-        current_sync_committee_branch: raw.current_sync_committee_branch.to_vec(),
-        genesis_validators_root,
-    })
-}
-
-fn decode_capella_bootstrap<N: Unsigned>(
-    bytes: &[u8],
-    genesis_validators_root: Root,
-) -> Result<LightClientBootstrap> {
-    let raw = RawCapellaLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
-    Ok(LightClientBootstrap {
-        header: LightClientHeader::Capella(raw.header),
-        current_sync_committee: raw.current_sync_committee.into_sync_committee(),
-        current_sync_committee_branch: raw.current_sync_committee_branch.to_vec(),
-        genesis_validators_root,
-    })
-}
-
-fn decode_deneb_bootstrap<N: Unsigned>(
-    bytes: &[u8],
-    genesis_validators_root: Root,
-) -> Result<LightClientBootstrap> {
-    let raw = RawDenebLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
-    Ok(LightClientBootstrap {
-        header: LightClientHeader::Deneb(raw.header),
-        current_sync_committee: raw.current_sync_committee.into_sync_committee(),
-        current_sync_committee_branch: raw.current_sync_committee_branch.to_vec(),
-        genesis_validators_root,
-    })
-}
-
-fn decode_electra_bootstrap<N: Unsigned>(
-    bytes: &[u8],
-    genesis_validators_root: Root,
-) -> Result<LightClientBootstrap> {
-    let raw = RawElectraLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
-    Ok(LightClientBootstrap {
-        header: LightClientHeader::Electra(raw.header),
-        current_sync_committee: raw.current_sync_committee.into_sync_committee(),
-        current_sync_committee_branch: raw.current_sync_committee_branch.to_vec(),
-        genesis_validators_root,
-    })
-}
-
-pub(crate) fn decode_bootstrap(
-    bytes: &[u8],
-    fork: Fork,
-    sync_committee_size: usize,
-    genesis_validators_root: Root,
-) -> Result<LightClientBootstrap> {
-    match fork {
-        Fork::Altair | Fork::Bellatrix => match sync_committee_size {
-            32 => decode_beacon_only_bootstrap::<U32>(bytes, fork, genesis_validators_root),
-            512 => decode_beacon_only_bootstrap::<U512>(bytes, fork, genesis_validators_root),
-            n => Err(bad_size(n)),
-        },
-        Fork::Capella => match sync_committee_size {
-            32 => decode_capella_bootstrap::<U32>(bytes, genesis_validators_root),
-            512 => decode_capella_bootstrap::<U512>(bytes, genesis_validators_root),
-            n => Err(bad_size(n)),
-        },
-        Fork::Deneb => match sync_committee_size {
-            32 => decode_deneb_bootstrap::<U32>(bytes, genesis_validators_root),
-            512 => decode_deneb_bootstrap::<U512>(bytes, genesis_validators_root),
-            n => Err(bad_size(n)),
-        },
-        Fork::Electra => match sync_committee_size {
-            32 => decode_electra_bootstrap::<U32>(bytes, genesis_validators_root),
-            512 => decode_electra_bootstrap::<U512>(bytes, genesis_validators_root),
             n => Err(bad_size(n)),
         },
     }
