@@ -1,10 +1,10 @@
 use crate::chain_spec::Fork;
 use crate::error::{Error, Result};
 use crate::types::consensus::{
-    AltairLightClientHeader, BeaconBlockHeader, BellatrixLightClientHeader,
-    CapellaLightClientHeader, DenebLightClientHeader, ElectraLightClientHeader, FinalityUpdate,
-    LightClientBootstrap, LightClientHeader, LightClientUpdate, PubkeyBytes, SyncAggregate,
-    SyncCommittee, SyncCommitteeUpdate,
+    AltairLightClientHeader, BellatrixLightClientHeader, CapellaLightClientHeader,
+    DenebLightClientHeader, ElectraLightClientHeader, FinalityUpdate, LightClientBootstrap,
+    LightClientHeader, LightClientUpdate, PubkeyBytes, SyncAggregate, SyncCommittee,
+    SyncCommitteeUpdate,
 };
 use crate::types::primitives::Root;
 use ssz::Decode as _;
@@ -14,21 +14,38 @@ use ssz_types::{BitVector, FixedVector};
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
 
-/// Beacon-only (Altair/Bellatrix)
 #[derive(Decode)]
-struct RawLightClientBootstrap<N: Unsigned> {
-    header: BeaconBlockHeader,
+struct RawAltairLightClientBootstrap<N: Unsigned> {
+    header: AltairLightClientHeader,
     current_sync_committee: RawSyncCommittee<N>,
     current_sync_committee_branch: FixedVector<Root, U5>,
 }
-fn decode_beacon_only_bootstrap<N: Unsigned>(
+fn decode_altair_bootstrap<N: Unsigned>(
     bytes: &[u8],
-    fork: Fork,
     genesis_validators_root: Root,
 ) -> Result<LightClientBootstrap> {
-    let raw = RawLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
+    let raw = RawAltairLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
     Ok(LightClientBootstrap {
-        header: wrap_beacon_only(fork, raw.header),
+        header: LightClientHeader::Altair(raw.header),
+        current_sync_committee: raw.current_sync_committee.into_sync_committee(),
+        current_sync_committee_branch: raw.current_sync_committee_branch.to_vec(),
+        genesis_validators_root,
+    })
+}
+
+#[derive(Decode)]
+struct RawBellatrixLightClientBootstrap<N: Unsigned> {
+    header: BellatrixLightClientHeader,
+    current_sync_committee: RawSyncCommittee<N>,
+    current_sync_committee_branch: FixedVector<Root, U5>,
+}
+fn decode_bellatrix_bootstrap<N: Unsigned>(
+    bytes: &[u8],
+    genesis_validators_root: Root,
+) -> Result<LightClientBootstrap> {
+    let raw = RawBellatrixLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
+    Ok(LightClientBootstrap {
+        header: LightClientHeader::Bellatrix(raw.header),
         current_sync_committee: raw.current_sync_committee.into_sync_committee(),
         current_sync_committee_branch: raw.current_sync_committee_branch.to_vec(),
         genesis_validators_root,
@@ -92,27 +109,22 @@ fn decode_electra_bootstrap<N: Unsigned>(
     })
 }
 
-/// Beacon-only (Altair/Bellatrix)
 #[derive(Decode)]
-struct RawLightClientUpdate<N: Unsigned> {
-    attested_header: BeaconBlockHeader,
+struct RawAltairLightClientUpdate<N: Unsigned> {
+    attested_header: AltairLightClientHeader,
     next_sync_committee: RawSyncCommittee<N>,
     next_sync_committee_branch: FixedVector<Root, U5>,
-    finalized_header: BeaconBlockHeader,
+    finalized_header: AltairLightClientHeader,
     finality_branch: FixedVector<Root, U6>,
     sync_aggregate: RawSyncAggregate<N>,
     signature_slot: u64,
 }
-fn raw_beacon_only_update_to_pub<N: Unsigned>(
-    fork: Fork,
-    raw: RawLightClientUpdate<N>,
-) -> LightClientUpdate {
-    // A default (slot-0) finalized header means the update carries no finality.
-    let finalized_header =
-        (raw.finalized_header.slot != 0).then_some(wrap_beacon_only(fork, raw.finalized_header));
+fn raw_altair_update_to_pub<N: Unsigned>(raw: RawAltairLightClientUpdate<N>) -> LightClientUpdate {
+    let finalized_header = (raw.finalized_header.beacon.slot != 0)
+        .then_some(LightClientHeader::Altair(raw.finalized_header));
 
     assemble_update(
-        wrap_beacon_only(fork, raw.attested_header),
+        LightClientHeader::Altair(raw.attested_header),
         finalized_header,
         raw.finality_branch.to_vec(),
         raw.next_sync_committee.into_sync_committee(),
@@ -121,9 +133,40 @@ fn raw_beacon_only_update_to_pub<N: Unsigned>(
         raw.signature_slot,
     )
 }
-fn decode_beacon_only_update<N: Unsigned>(bytes: &[u8], fork: Fork) -> Result<LightClientUpdate> {
-    let raw = RawLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
-    Ok(raw_beacon_only_update_to_pub(fork, raw))
+fn decode_altair_update<N: Unsigned>(bytes: &[u8]) -> Result<LightClientUpdate> {
+    let raw = RawAltairLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
+    Ok(raw_altair_update_to_pub(raw))
+}
+
+#[derive(Decode)]
+struct RawBellatrixLightClientUpdate<N: Unsigned> {
+    attested_header: BellatrixLightClientHeader,
+    next_sync_committee: RawSyncCommittee<N>,
+    next_sync_committee_branch: FixedVector<Root, U5>,
+    finalized_header: BellatrixLightClientHeader,
+    finality_branch: FixedVector<Root, U6>,
+    sync_aggregate: RawSyncAggregate<N>,
+    signature_slot: u64,
+}
+fn raw_bellatrix_update_to_pub<N: Unsigned>(
+    raw: RawBellatrixLightClientUpdate<N>,
+) -> LightClientUpdate {
+    let finalized_header = (raw.finalized_header.beacon.slot != 0)
+        .then_some(LightClientHeader::Bellatrix(raw.finalized_header));
+
+    assemble_update(
+        LightClientHeader::Bellatrix(raw.attested_header),
+        finalized_header,
+        raw.finality_branch.to_vec(),
+        raw.next_sync_committee.into_sync_committee(),
+        raw.next_sync_committee_branch.to_vec(),
+        raw.sync_aggregate.into_sync_aggregate(),
+        raw.signature_slot,
+    )
+}
+fn decode_bellatrix_update<N: Unsigned>(bytes: &[u8]) -> Result<LightClientUpdate> {
+    let raw = RawBellatrixLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
+    Ok(raw_bellatrix_update_to_pub(raw))
 }
 
 #[derive(Decode)]
@@ -275,18 +318,6 @@ impl<N: Unsigned> RawSyncAggregate<N> {
     }
 }
 
-// TODO: is this fork parameter necessary?
-/// Wrap a decoded beacon header into the fork's `LightClientHeader` variant.
-fn wrap_beacon_only(fork: Fork, beacon: BeaconBlockHeader) -> LightClientHeader {
-    match fork {
-        Fork::Altair => LightClientHeader::Altair(AltairLightClientHeader { beacon }),
-        Fork::Bellatrix => LightClientHeader::Bellatrix(BellatrixLightClientHeader { beacon }),
-        Fork::Capella | Fork::Deneb | Fork::Electra => {
-            unreachable!("beacon-only header for {fork:?}")
-        }
-    }
-}
-
 /// Assemble a `LightClientUpdate` from converted parts, applying the spec's
 /// optional-field rules uniformly: a `None` finalized header means "no finality
 /// update" (empty finality branch), and an all-zero sync committee means "no
@@ -332,9 +363,14 @@ pub(crate) fn decode_bootstrap(
     genesis_validators_root: Root,
 ) -> Result<LightClientBootstrap> {
     match fork {
-        Fork::Altair | Fork::Bellatrix => match sync_committee_size {
-            32 => decode_beacon_only_bootstrap::<U32>(bytes, fork, genesis_validators_root),
-            512 => decode_beacon_only_bootstrap::<U512>(bytes, fork, genesis_validators_root),
+        Fork::Altair => match sync_committee_size {
+            32 => decode_altair_bootstrap::<U32>(bytes, genesis_validators_root),
+            512 => decode_altair_bootstrap::<U512>(bytes, genesis_validators_root),
+            n => Err(bad_size(n)),
+        },
+        Fork::Bellatrix => match sync_committee_size {
+            32 => decode_bellatrix_bootstrap::<U32>(bytes, genesis_validators_root),
+            512 => decode_bellatrix_bootstrap::<U512>(bytes, genesis_validators_root),
             n => Err(bad_size(n)),
         },
         Fork::Capella => match sync_committee_size {
@@ -363,9 +399,14 @@ pub(crate) fn decode_update(
     sync_committee_size: usize,
 ) -> Result<LightClientUpdate> {
     match fork {
-        Fork::Altair | Fork::Bellatrix => match sync_committee_size {
-            32 => decode_beacon_only_update::<U32>(bytes, fork),
-            512 => decode_beacon_only_update::<U512>(bytes, fork),
+        Fork::Altair => match sync_committee_size {
+            32 => decode_altair_update::<U32>(bytes),
+            512 => decode_altair_update::<U512>(bytes),
+            n => Err(bad_size(n)),
+        },
+        Fork::Bellatrix => match sync_committee_size {
+            32 => decode_bellatrix_update::<U32>(bytes),
+            512 => decode_bellatrix_update::<U512>(bytes),
             n => Err(bad_size(n)),
         },
         Fork::Capella => match sync_committee_size {

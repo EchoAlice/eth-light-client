@@ -17,12 +17,12 @@ pub enum LightClientHeader {
     Electra(ElectraLightClientHeader),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Decode, TreeHash)]
 pub struct AltairLightClientHeader {
     pub beacon: BeaconBlockHeader,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Decode, TreeHash)]
 pub struct BellatrixLightClientHeader {
     pub beacon: BeaconBlockHeader,
 }
