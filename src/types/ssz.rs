@@ -7,7 +7,8 @@ use crate::types::consensus::{
     SyncCommitteeUpdate,
 };
 use crate::types::primitives::Root;
-use ssz::Decode as _;
+use crate::LightClientHeader::{Altair, Bellatrix, Capella, Deneb, Electra};
+use ssz::Decode;
 use ssz_derive::Decode;
 use ssz_types::typenum::{Unsigned, U32, U5, U512, U6, U7, U96};
 use ssz_types::{BitVector, FixedVector};
@@ -27,28 +28,38 @@ impl LightClientBootstrap {
     ) -> Result<LightClientBootstrap> {
         match fork {
             Fork::Altair => match sync_committee_size {
-                32 => decode_altair_bootstrap::<U32>(bytes, genesis_validators_root),
-                512 => decode_altair_bootstrap::<U512>(bytes, genesis_validators_root),
+                32 => Ok(decode_as::<RawAltairLightClientBootstrap<U32>>(bytes)?
+                    .into_bootstrap(genesis_validators_root)),
+                512 => Ok(decode_as::<RawAltairLightClientBootstrap<U512>>(bytes)?
+                    .into_bootstrap(genesis_validators_root)),
                 n => Err(bad_size(n)),
             },
             Fork::Bellatrix => match sync_committee_size {
-                32 => decode_bellatrix_bootstrap::<U32>(bytes, genesis_validators_root),
-                512 => decode_bellatrix_bootstrap::<U512>(bytes, genesis_validators_root),
+                32 => Ok(decode_as::<RawBellatrixLightClientBootstrap<U32>>(bytes)?
+                    .into_bootstrap(genesis_validators_root)),
+                512 => Ok(decode_as::<RawBellatrixLightClientBootstrap<U512>>(bytes)?
+                    .into_bootstrap(genesis_validators_root)),
                 n => Err(bad_size(n)),
             },
             Fork::Capella => match sync_committee_size {
-                32 => decode_capella_bootstrap::<U32>(bytes, genesis_validators_root),
-                512 => decode_capella_bootstrap::<U512>(bytes, genesis_validators_root),
+                32 => Ok(decode_as::<RawCapellaLightClientBootstrap<U32>>(bytes)?
+                    .into_bootstrap(genesis_validators_root)),
+                512 => Ok(decode_as::<RawCapellaLightClientBootstrap<U512>>(bytes)?
+                    .into_bootstrap(genesis_validators_root)),
                 n => Err(bad_size(n)),
             },
             Fork::Deneb => match sync_committee_size {
-                32 => decode_deneb_bootstrap::<U32>(bytes, genesis_validators_root),
-                512 => decode_deneb_bootstrap::<U512>(bytes, genesis_validators_root),
+                32 => Ok(decode_as::<RawDenebLightClientBootstrap<U32>>(bytes)?
+                    .into_bootstrap(genesis_validators_root)),
+                512 => Ok(decode_as::<RawDenebLightClientBootstrap<U512>>(bytes)?
+                    .into_bootstrap(genesis_validators_root)),
                 n => Err(bad_size(n)),
             },
             Fork::Electra => match sync_committee_size {
-                32 => decode_electra_bootstrap::<U32>(bytes, genesis_validators_root),
-                512 => decode_electra_bootstrap::<U512>(bytes, genesis_validators_root),
+                32 => Ok(decode_as::<RawElectraLightClientBootstrap<U32>>(bytes)?
+                    .into_bootstrap(genesis_validators_root)),
+                512 => Ok(decode_as::<RawElectraLightClientBootstrap<U512>>(bytes)?
+                    .into_bootstrap(genesis_validators_root)),
                 n => Err(bad_size(n)),
             },
         }
@@ -95,9 +106,17 @@ impl LightClientUpdate {
     }
 }
 
-// TODO:
-//    1. bootstrap conversions become `into_bootstrap` methods
-//    2. delete the ten `decode_*` helpers, add `decode_as`
+fn decode_as<R: Decode>(bytes: &[u8]) -> Result<R> {
+    R::from_ssz_bytes(bytes).map_err(decode_err)
+}
+
+fn decode_err(e: ssz::DecodeError) -> Error {
+    Error::Serialization(format!("SSZ decode: {e:?}"))
+}
+
+fn bad_size(n: usize) -> Error {
+    Error::InvalidInput(format!("sync_committee_size must be 32 or 512, got {n}"))
+}
 
 // Bootstrap Wire Shells
 
@@ -108,36 +127,36 @@ struct RawAltairLightClientBootstrap<N: Unsigned> {
     current_sync_committee_branch: FixedVector<Root, U5>,
 }
 
-fn decode_altair_bootstrap<N: Unsigned>(
-    bytes: &[u8],
-    genesis_validators_root: Root,
-) -> Result<LightClientBootstrap> {
-    let raw = RawAltairLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
-    Ok(LightClientBootstrap {
-        header: LightClientHeader::Altair(raw.header),
-        current_sync_committee: raw.current_sync_committee.into_sync_committee(),
-        current_sync_committee_branch: raw.current_sync_committee_branch.to_vec(),
-        genesis_validators_root,
-    })
+impl<N: Unsigned> RawAltairLightClientBootstrap<N> {
+    fn into_bootstrap(self, genesis_validators_root: Root) -> LightClientBootstrap {
+        LightClientBootstrap {
+            header: Altair(self.header),
+            current_sync_committee: self.current_sync_committee.into_sync_committee(),
+            current_sync_committee_branch: self.current_sync_committee_branch.to_vec(),
+            genesis_validators_root,
+        }
+    }
 }
 
+// Bellatrix's wire shapes (bootstrap and update) are identical to Altair's:
+// the spec defines no Bellatrix light client containers and keeps using
+// Altair's. Separate shells here so each maps to exactly one fork variant.
 #[derive(Decode)]
 struct RawBellatrixLightClientBootstrap<N: Unsigned> {
     header: BellatrixLightClientHeader,
     current_sync_committee: RawSyncCommittee<N>,
     current_sync_committee_branch: FixedVector<Root, U5>,
 }
-fn decode_bellatrix_bootstrap<N: Unsigned>(
-    bytes: &[u8],
-    genesis_validators_root: Root,
-) -> Result<LightClientBootstrap> {
-    let raw = RawBellatrixLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
-    Ok(LightClientBootstrap {
-        header: LightClientHeader::Bellatrix(raw.header),
-        current_sync_committee: raw.current_sync_committee.into_sync_committee(),
-        current_sync_committee_branch: raw.current_sync_committee_branch.to_vec(),
-        genesis_validators_root,
-    })
+
+impl<N: Unsigned> RawBellatrixLightClientBootstrap<N> {
+    fn into_bootstrap(self, genesis_validators_root: Root) -> LightClientBootstrap {
+        LightClientBootstrap {
+            header: Bellatrix(self.header),
+            current_sync_committee: self.current_sync_committee.into_sync_committee(),
+            current_sync_committee_branch: self.current_sync_committee_branch.to_vec(),
+            genesis_validators_root,
+        }
+    }
 }
 
 #[derive(Decode)]
@@ -146,17 +165,15 @@ struct RawCapellaLightClientBootstrap<N: Unsigned> {
     current_sync_committee: RawSyncCommittee<N>,
     current_sync_committee_branch: FixedVector<Root, U5>,
 }
-fn decode_capella_bootstrap<N: Unsigned>(
-    bytes: &[u8],
-    genesis_validators_root: Root,
-) -> Result<LightClientBootstrap> {
-    let raw = RawCapellaLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
-    Ok(LightClientBootstrap {
-        header: LightClientHeader::Capella(raw.header),
-        current_sync_committee: raw.current_sync_committee.into_sync_committee(),
-        current_sync_committee_branch: raw.current_sync_committee_branch.to_vec(),
-        genesis_validators_root,
-    })
+impl<N: Unsigned> RawCapellaLightClientBootstrap<N> {
+    fn into_bootstrap(self, genesis_validators_root: Root) -> LightClientBootstrap {
+        LightClientBootstrap {
+            header: Capella(self.header),
+            current_sync_committee: self.current_sync_committee.into_sync_committee(),
+            current_sync_committee_branch: self.current_sync_committee_branch.to_vec(),
+            genesis_validators_root,
+        }
+    }
 }
 
 #[derive(Decode)]
@@ -165,36 +182,36 @@ struct RawDenebLightClientBootstrap<N: Unsigned> {
     current_sync_committee: RawSyncCommittee<N>,
     current_sync_committee_branch: FixedVector<Root, U5>,
 }
-fn decode_deneb_bootstrap<N: Unsigned>(
-    bytes: &[u8],
-    genesis_validators_root: Root,
-) -> Result<LightClientBootstrap> {
-    let raw = RawDenebLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
-    Ok(LightClientBootstrap {
-        header: LightClientHeader::Deneb(raw.header),
-        current_sync_committee: raw.current_sync_committee.into_sync_committee(),
-        current_sync_committee_branch: raw.current_sync_committee_branch.to_vec(),
-        genesis_validators_root,
-    })
+impl<N: Unsigned> RawDenebLightClientBootstrap<N> {
+    fn into_bootstrap(self, genesis_validators_root: Root) -> LightClientBootstrap {
+        LightClientBootstrap {
+            header: Deneb(self.header),
+            current_sync_committee: self.current_sync_committee.into_sync_committee(),
+            current_sync_committee_branch: self.current_sync_committee_branch.to_vec(),
+            genesis_validators_root,
+        }
+    }
 }
 
+// Electra: same header wire shape as Deneb, but the Electra BeaconState added
+// a tree level, so every branch into it is one node longer — current/next
+// sync committee branches grow U5 -> U6, and the doubly-nested finality
+// branch (update shell below) grows U6 -> U7.
 #[derive(Decode)]
 struct RawElectraLightClientBootstrap<N: Unsigned> {
     header: ElectraLightClientHeader,
     current_sync_committee: RawSyncCommittee<N>,
     current_sync_committee_branch: FixedVector<Root, U6>,
 }
-fn decode_electra_bootstrap<N: Unsigned>(
-    bytes: &[u8],
-    genesis_validators_root: Root,
-) -> Result<LightClientBootstrap> {
-    let raw = RawElectraLightClientBootstrap::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
-    Ok(LightClientBootstrap {
-        header: LightClientHeader::Electra(raw.header),
-        current_sync_committee: raw.current_sync_committee.into_sync_committee(),
-        current_sync_committee_branch: raw.current_sync_committee_branch.to_vec(),
-        genesis_validators_root,
-    })
+impl<N: Unsigned> RawElectraLightClientBootstrap<N> {
+    fn into_bootstrap(self, genesis_validators_root: Root) -> LightClientBootstrap {
+        LightClientBootstrap {
+            header: Electra(self.header),
+            current_sync_committee: self.current_sync_committee.into_sync_committee(),
+            current_sync_committee_branch: self.current_sync_committee_branch.to_vec(),
+            genesis_validators_root,
+        }
+    }
 }
 
 // Update Wire Shells
@@ -291,11 +308,11 @@ impl<N: Unsigned> RawCapellaLightClientUpdate<N> {
         )
     }
 }
+
 fn decode_capella_update<N: Unsigned>(bytes: &[u8]) -> Result<LightClientUpdate> {
     let raw = RawCapellaLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
     Ok(RawCapellaLightClientUpdate::<N>::into_update(raw))
 }
-
 #[derive(Decode)]
 struct RawDenebLightClientUpdate<N: Unsigned> {
     attested_header: DenebLightClientHeader,
@@ -322,11 +339,11 @@ impl<N: Unsigned> RawDenebLightClientUpdate<N> {
         )
     }
 }
+
 fn decode_deneb_update<N: Unsigned>(bytes: &[u8]) -> Result<LightClientUpdate> {
     let raw = RawDenebLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
     Ok(RawDenebLightClientUpdate::<N>::into_update(raw))
 }
-
 #[derive(Decode)]
 struct RawElectraLightClientUpdate<N: Unsigned> {
     attested_header: ElectraLightClientHeader,
@@ -353,11 +370,11 @@ impl<N: Unsigned> RawElectraLightClientUpdate<N> {
         )
     }
 }
+
 fn decode_electra_update<N: Unsigned>(bytes: &[u8]) -> Result<LightClientUpdate> {
     let raw = RawElectraLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
     Ok(RawElectraLightClientUpdate::<N>::into_update(raw))
 }
-
 // Sized Types
 
 #[derive(Decode, TreeHash)]
@@ -451,14 +468,6 @@ fn assemble_update(
         sync_aggregate,
         signature_slot,
     }
-}
-
-fn decode_err(e: ssz::DecodeError) -> Error {
-    Error::Serialization(format!("SSZ decode: {e:?}"))
-}
-
-fn bad_size(n: usize) -> Error {
-    Error::InvalidInput(format!("sync_committee_size must be 32 or 512, got {n}"))
 }
 
 #[cfg(test)]
