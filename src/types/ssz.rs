@@ -15,11 +15,10 @@ use ssz_types::{BitVector, FixedVector};
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
 
+// Sync committee size is 32 for minimal and 512 for mainnet.
+// Neither the fork nor the committee size are self-described by SSZ payload.
+
 impl LightClientBootstrap {
-    /// SSZ-decode a bootstrap for `fork` + `sync_committee_size` (32 minimal /
-    /// 512 mainnet). `bytes` is raw SSZ (not snappy-framed); neither the fork
-    /// nor the committee size is self-described by the payload — both are
-    /// known out-of-band.
     pub fn from_ssz(
         bytes: &[u8],
         fork: Fork,
@@ -67,10 +66,6 @@ impl LightClientBootstrap {
 }
 
 impl LightClientUpdate {
-    /// SSZ-decode an update for `fork` + `sync_committee_size` (32 minimal /
-    /// 512 mainnet). `bytes` is raw SSZ (not snappy-framed); neither the fork
-    /// nor the committee size is self-described by the payload — both are
-    /// known out-of-band.
     pub fn from_ssz(
         bytes: &[u8],
         fork: Fork,
@@ -78,28 +73,28 @@ impl LightClientUpdate {
     ) -> Result<LightClientUpdate> {
         match fork {
             Fork::Altair => match sync_committee_size {
-                32 => decode_altair_update::<U32>(bytes),
-                512 => decode_altair_update::<U512>(bytes),
+                32 => decode_as::<RawAltairLightClientUpdate<U32>>(bytes)?.into_update(),
+                512 => decode_as::<RawAltairLightClientUpdate<U512>>(bytes)?.into_update(),
                 n => Err(bad_size(n)),
             },
             Fork::Bellatrix => match sync_committee_size {
-                32 => decode_bellatrix_update::<U32>(bytes),
-                512 => decode_bellatrix_update::<U512>(bytes),
+                32 => decode_as::<RawBellatrixLightClientUpdate<U32>>(bytes)?.into_update(),
+                512 => decode_as::<RawBellatrixLightClientUpdate<U512>>(bytes)?.into_update(),
                 n => Err(bad_size(n)),
             },
             Fork::Capella => match sync_committee_size {
-                32 => decode_capella_update::<U32>(bytes),
-                512 => decode_capella_update::<U512>(bytes),
+                32 => decode_as::<RawCapellaLightClientUpdate<U32>>(bytes)?.into_update(),
+                512 => decode_as::<RawCapellaLightClientUpdate<U512>>(bytes)?.into_update(),
                 n => Err(bad_size(n)),
             },
             Fork::Deneb => match sync_committee_size {
-                32 => decode_deneb_update::<U32>(bytes),
-                512 => decode_deneb_update::<U512>(bytes),
+                32 => decode_as::<RawDenebLightClientUpdate<U32>>(bytes)?.into_update(),
+                512 => decode_as::<RawDenebLightClientUpdate<U512>>(bytes)?.into_update(),
                 n => Err(bad_size(n)),
             },
             Fork::Electra => match sync_committee_size {
-                32 => decode_electra_update::<U32>(bytes),
-                512 => decode_electra_update::<U512>(bytes),
+                32 => decode_as::<RawElectraLightClientUpdate<U32>>(bytes)?.into_update(),
+                512 => decode_as::<RawElectraLightClientUpdate<U512>>(bytes)?.into_update(),
                 n => Err(bad_size(n)),
             },
         }
@@ -118,7 +113,7 @@ fn bad_size(n: usize) -> Error {
     Error::InvalidInput(format!("sync_committee_size must be 32 or 512, got {n}"))
 }
 
-// Bootstrap Wire Shells
+// Wire Shells
 
 #[derive(Decode)]
 struct RawAltairLightClientBootstrap<N: Unsigned> {
@@ -138,9 +133,6 @@ impl<N: Unsigned> RawAltairLightClientBootstrap<N> {
     }
 }
 
-// Bellatrix's wire shapes (bootstrap and update) are identical to Altair's:
-// the spec defines no Bellatrix light client containers and keeps using
-// Altair's. Separate shells here so each maps to exactly one fork variant.
 #[derive(Decode)]
 struct RawBellatrixLightClientBootstrap<N: Unsigned> {
     header: BellatrixLightClientHeader,
@@ -193,10 +185,6 @@ impl<N: Unsigned> RawDenebLightClientBootstrap<N> {
     }
 }
 
-// Electra: same header wire shape as Deneb, but the Electra BeaconState added
-// a tree level, so every branch into it is one node longer — current/next
-// sync committee branches grow U5 -> U6, and the doubly-nested finality
-// branch (update shell below) grows U6 -> U7.
 #[derive(Decode)]
 struct RawElectraLightClientBootstrap<N: Unsigned> {
     header: ElectraLightClientHeader,
@@ -214,8 +202,6 @@ impl<N: Unsigned> RawElectraLightClientBootstrap<N> {
     }
 }
 
-// Update Wire Shells
-
 #[derive(Decode)]
 struct RawAltairLightClientUpdate<N: Unsigned> {
     attested_header: AltairLightClientHeader,
@@ -228,13 +214,10 @@ struct RawAltairLightClientUpdate<N: Unsigned> {
 }
 
 impl<N: Unsigned> RawAltairLightClientUpdate<N> {
-    fn into_update(self) -> LightClientUpdate {
-        let finalized_header = (self.finalized_header.beacon.slot != 0)
-            .then_some(LightClientHeader::Altair(self.finalized_header));
-
+    fn into_update(self) -> Result<LightClientUpdate> {
         assemble_update(
-            LightClientHeader::Altair(self.attested_header),
-            finalized_header,
+            Altair(self.attested_header),
+            Altair(self.finalized_header),
             self.finality_branch.to_vec(),
             self.next_sync_committee.into_sync_committee(),
             self.next_sync_committee_branch.to_vec(),
@@ -242,11 +225,6 @@ impl<N: Unsigned> RawAltairLightClientUpdate<N> {
             self.signature_slot,
         )
     }
-}
-
-fn decode_altair_update<N: Unsigned>(bytes: &[u8]) -> Result<LightClientUpdate> {
-    let raw = RawAltairLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
-    Ok(RawAltairLightClientUpdate::<N>::into_update(raw))
 }
 
 #[derive(Decode)]
@@ -261,13 +239,10 @@ struct RawBellatrixLightClientUpdate<N: Unsigned> {
 }
 
 impl<N: Unsigned> RawBellatrixLightClientUpdate<N> {
-    fn into_update(self) -> LightClientUpdate {
-        let finalized_header = (self.finalized_header.beacon.slot != 0)
-            .then_some(LightClientHeader::Bellatrix(self.finalized_header));
-
+    fn into_update(self) -> Result<LightClientUpdate> {
         assemble_update(
-            LightClientHeader::Bellatrix(self.attested_header),
-            finalized_header,
+            Bellatrix(self.attested_header),
+            Bellatrix(self.finalized_header),
             self.finality_branch.to_vec(),
             self.next_sync_committee.into_sync_committee(),
             self.next_sync_committee_branch.to_vec(),
@@ -275,11 +250,6 @@ impl<N: Unsigned> RawBellatrixLightClientUpdate<N> {
             self.signature_slot,
         )
     }
-}
-
-fn decode_bellatrix_update<N: Unsigned>(bytes: &[u8]) -> Result<LightClientUpdate> {
-    let raw = RawBellatrixLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
-    Ok(RawBellatrixLightClientUpdate::<N>::into_update(raw))
 }
 
 #[derive(Decode)]
@@ -293,13 +263,10 @@ struct RawCapellaLightClientUpdate<N: Unsigned> {
     signature_slot: u64,
 }
 impl<N: Unsigned> RawCapellaLightClientUpdate<N> {
-    fn into_update(self) -> LightClientUpdate {
-        let finalized_header = (self.finalized_header.beacon.slot != 0)
-            .then_some(LightClientHeader::Capella(self.finalized_header));
-
+    fn into_update(self) -> Result<LightClientUpdate> {
         assemble_update(
-            LightClientHeader::Capella(self.attested_header),
-            finalized_header,
+            Capella(self.attested_header),
+            Capella(self.finalized_header),
             self.finality_branch.to_vec(),
             self.next_sync_committee.into_sync_committee(),
             self.next_sync_committee_branch.to_vec(),
@@ -309,10 +276,6 @@ impl<N: Unsigned> RawCapellaLightClientUpdate<N> {
     }
 }
 
-fn decode_capella_update<N: Unsigned>(bytes: &[u8]) -> Result<LightClientUpdate> {
-    let raw = RawCapellaLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
-    Ok(RawCapellaLightClientUpdate::<N>::into_update(raw))
-}
 #[derive(Decode)]
 struct RawDenebLightClientUpdate<N: Unsigned> {
     attested_header: DenebLightClientHeader,
@@ -324,13 +287,10 @@ struct RawDenebLightClientUpdate<N: Unsigned> {
     signature_slot: u64,
 }
 impl<N: Unsigned> RawDenebLightClientUpdate<N> {
-    fn into_update(self) -> LightClientUpdate {
-        let finalized_header = (self.finalized_header.beacon.slot != 0)
-            .then_some(LightClientHeader::Deneb(self.finalized_header));
-
+    fn into_update(self) -> Result<LightClientUpdate> {
         assemble_update(
-            LightClientHeader::Deneb(self.attested_header),
-            finalized_header,
+            Deneb(self.attested_header),
+            Deneb(self.finalized_header),
             self.finality_branch.to_vec(),
             self.next_sync_committee.into_sync_committee(),
             self.next_sync_committee_branch.to_vec(),
@@ -340,10 +300,6 @@ impl<N: Unsigned> RawDenebLightClientUpdate<N> {
     }
 }
 
-fn decode_deneb_update<N: Unsigned>(bytes: &[u8]) -> Result<LightClientUpdate> {
-    let raw = RawDenebLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
-    Ok(RawDenebLightClientUpdate::<N>::into_update(raw))
-}
 #[derive(Decode)]
 struct RawElectraLightClientUpdate<N: Unsigned> {
     attested_header: ElectraLightClientHeader,
@@ -355,13 +311,10 @@ struct RawElectraLightClientUpdate<N: Unsigned> {
     signature_slot: u64,
 }
 impl<N: Unsigned> RawElectraLightClientUpdate<N> {
-    fn into_update(self) -> LightClientUpdate {
-        let finalized_header = (self.finalized_header.beacon.slot != 0)
-            .then_some(LightClientHeader::Electra(self.finalized_header));
-
+    fn into_update(self) -> Result<LightClientUpdate> {
         assemble_update(
-            LightClientHeader::Electra(self.attested_header),
-            finalized_header,
+            Electra(self.attested_header),
+            Electra(self.finalized_header),
             self.finality_branch.to_vec(),
             self.next_sync_committee.into_sync_committee(),
             self.next_sync_committee_branch.to_vec(),
@@ -371,10 +324,61 @@ impl<N: Unsigned> RawElectraLightClientUpdate<N> {
     }
 }
 
-fn decode_electra_update<N: Unsigned>(bytes: &[u8]) -> Result<LightClientUpdate> {
-    let raw = RawElectraLightClientUpdate::<N>::from_ssz_bytes(bytes).map_err(decode_err)?;
-    Ok(RawElectraLightClientUpdate::<N>::into_update(raw))
+/// The spec's validation-time consistency asserts can't live in their
+/// spec-mirrored home.  Collapsing to `Option` here destroys the evidence
+/// before the processor can check it, so consistancy checks exist here.
+fn assemble_update(
+    attested_header: LightClientHeader,
+    finalized_header: LightClientHeader,
+    finality_branch: Vec<Root>,
+    sync_committee: SyncCommittee,
+    next_sync_committee_branch: Vec<Root>,
+    sync_aggregate: SyncAggregate,
+    signature_slot: u64,
+) -> Result<LightClientUpdate> {
+    let has_finality_branch = finality_branch.iter().any(|r| r != &[0u8; 32]);
+    let has_finalized_header = finalized_header.slot() != 0;
+    let is_finality_update = has_finality_branch && has_finalized_header;
+    // Deviation: a finality branch traveling with a zeroed header (the spec's
+    // genesis-finality case — a proof that nothing is finalized yet) decodes to
+    // `finalized: None`, its branch is dropped unverified.
+    if !has_finality_branch && has_finalized_header {
+        return Err(Error::InvalidInput(
+            "finalized header present but finality branch is empty".to_string(),
+        ));
+    }
+
+    let is_sync_committee_update = next_sync_committee_branch.iter().any(|r| r != &[0u8; 32]);
+    if !is_sync_committee_update && !is_zeroed_committee(&sync_committee) {
+        return Err(Error::InvalidInput(
+            "next sync committee present but its branch is empty".to_string(),
+        ));
+    }
+
+    Ok(LightClientUpdate {
+        attested_header,
+        finalized: is_finality_update.then_some(FinalityUpdate {
+            header: finalized_header,
+            branch: finality_branch,
+        }),
+        next_sync_committee: is_sync_committee_update.then_some(SyncCommitteeUpdate {
+            committee: sync_committee,
+            branch: next_sync_committee_branch,
+        }),
+        sync_aggregate,
+        signature_slot,
+    })
 }
+
+fn is_zeroed_committee(committee: &SyncCommittee) -> bool {
+    let zero = [0u8; 48];
+    committee.aggregate_pubkey().as_ref() == zero.as_slice()
+        && committee
+            .pubkeys()
+            .iter()
+            .all(|pk| pk.as_ref() == zero.as_slice())
+}
+
 // Sized Types
 
 #[derive(Decode, TreeHash)]
@@ -435,41 +439,6 @@ impl<N: Unsigned> RawSyncAggregate<N> {
     }
 }
 
-// Helper functions
-
-/// Assemble a `LightClientUpdate` from converted parts, applying the spec's
-/// optional-field rules uniformly: a `None` finalized header means "no finality
-/// update" (empty finality branch), and an all-zero sync committee means "no
-/// committee update" (empty next-committee branch).
-fn assemble_update(
-    attested_header: LightClientHeader,
-    finalized_header: Option<LightClientHeader>,
-    finality_branch: Vec<Root>,
-    sync_committee: SyncCommittee,
-    next_sync_committee_branch: Vec<Root>,
-    sync_aggregate: SyncAggregate,
-    signature_slot: u64,
-) -> LightClientUpdate {
-    let has_sync_committee = !sync_committee
-        .pubkeys()
-        .iter()
-        .all(|pk| pk.iter().all(|&b| b == 0));
-
-    LightClientUpdate {
-        attested_header,
-        finalized: finalized_header.map(|header| FinalityUpdate {
-            header,
-            branch: finality_branch,
-        }),
-        next_sync_committee: has_sync_committee.then_some(SyncCommitteeUpdate {
-            committee: sync_committee,
-            branch: next_sync_committee_branch,
-        }),
-        sync_aggregate,
-        signature_slot,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -478,5 +447,62 @@ mod tests {
     fn rejects_bad_committee_size() {
         let err = LightClientBootstrap::from_ssz(&[], Fork::Altair, 64, [0u8; 32]);
         assert!(err.is_err());
+    }
+
+    // The guard Err paths below have no fixture coverage: the spec's
+    // generators only emit consistent encodings. The legal quadrants
+    // (both fields absent, both present, genesis branch-without-header)
+    // are all exercised by the sync replays.
+
+    fn header_at_slot(slot: u64) -> LightClientHeader {
+        Altair(AltairLightClientHeader {
+            beacon: crate::types::consensus::BeaconBlockHeader {
+                slot,
+                proposer_index: 0,
+                parent_root: [0u8; 32],
+                state_root: [0u8; 32],
+                body_root: [0u8; 32],
+            },
+        })
+    }
+
+    fn committee_of(pubkey_byte: u8) -> SyncCommittee {
+        let pubkey = PubkeyBytes::new(vec![pubkey_byte; 48]).unwrap();
+        SyncCommittee::from_parts(vec![pubkey.clone(); 32], pubkey).unwrap()
+    }
+
+    fn zeroed_aggregate() -> SyncAggregate {
+        SyncAggregate {
+            sync_committee_bits: vec![false; 32],
+            sync_committee_signature: [0u8; 96],
+        }
+    }
+
+    #[test]
+    fn rejects_finalized_header_with_zeroed_finality_branch() {
+        let result = assemble_update(
+            header_at_slot(1),
+            header_at_slot(1),
+            vec![[0u8; 32]; 6],
+            committee_of(0),
+            vec![[0u8; 32]; 5],
+            zeroed_aggregate(),
+            0,
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn rejects_next_committee_with_zeroed_committee_branch() {
+        let result = assemble_update(
+            header_at_slot(1),
+            header_at_slot(0),
+            vec![[0u8; 32]; 6],
+            committee_of(1),
+            vec![[0u8; 32]; 5],
+            zeroed_aggregate(),
+            0,
+        );
+        assert!(result.is_err());
     }
 }
