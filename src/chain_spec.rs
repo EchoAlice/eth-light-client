@@ -1,39 +1,6 @@
 use crate::error::{Error, Result};
 use crate::types::primitives::Slot;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[non_exhaustive]
-pub enum Fork {
-    Altair,
-    Bellatrix,
-    Capella,
-    Deneb,
-    Electra,
-}
-
-impl Fork {
-    pub(crate) const fn current_sync_committee_gindex(&self) -> u64 {
-        match self {
-            Fork::Electra => 86,
-            _ => 54,
-        }
-    }
-
-    pub(crate) const fn next_sync_committee_gindex(&self) -> u64 {
-        match self {
-            Fork::Electra => 87,
-            _ => 55,
-        }
-    }
-
-    pub(crate) const fn finalized_root_gindex(&self) -> u64 {
-        match self {
-            Fork::Electra => 169,
-            _ => 105,
-        }
-    }
-}
-
 /// Defines network-specific constants.
 #[derive(Debug, Clone)]
 pub struct ChainSpec {
@@ -92,16 +59,17 @@ impl ChainSpec {
         }
     }
 
-    pub const fn slots_per_epoch(&self) -> u64 {
-        self.slots_per_epoch
+    pub(crate) const fn fork_at_slot(&self, slot: Slot) -> Fork {
+        self.fork_schedule
+            .fork_at_epoch(slot / self.slots_per_epoch)
+    }
+
+    pub(crate) const fn fork_version_at_epoch(&self, epoch: u64) -> [u8; 4] {
+        self.fork_schedule.version_at_epoch(epoch)
     }
 
     pub const fn sync_committee_size(&self) -> usize {
         self.sync_committee_size
-    }
-
-    pub const fn slots_per_sync_committee_period(&self) -> u64 {
-        self.slots_per_epoch * self.epochs_per_sync_committee_period
     }
 
     pub(crate) const fn slot_to_epoch(&self, slot: u64) -> u64 {
@@ -121,59 +89,6 @@ impl ChainSpec {
             0
         }
     }
-
-    const fn fork_at_epoch(&self, epoch: u64) -> Fork {
-        self.fork_schedule.fork_at_epoch(epoch)
-    }
-
-    pub(crate) const fn fork_at_slot(&self, slot: Slot) -> Fork {
-        self.fork_at_epoch(slot / self.slots_per_epoch)
-    }
-
-    pub(crate) const fn fork_version_at_epoch(&self, epoch: u64) -> [u8; 4] {
-        self.fork_schedule.version_at_epoch(epoch)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct ForkSchedule {
-    altair: ForkParams,
-    bellatrix: ForkParams,
-    capella: ForkParams,
-    deneb: ForkParams,
-    electra: ForkParams,
-}
-
-impl ForkSchedule {
-    pub(crate) const fn fork_at_epoch(&self, epoch: u64) -> Fork {
-        if epoch >= self.electra.epoch {
-            Fork::Electra
-        } else if epoch >= self.deneb.epoch {
-            Fork::Deneb
-        } else if epoch >= self.capella.epoch {
-            Fork::Capella
-        } else if epoch >= self.bellatrix.epoch {
-            Fork::Bellatrix
-        } else {
-            Fork::Altair
-        }
-    }
-
-    pub(crate) const fn version_at_epoch(&self, epoch: u64) -> [u8; 4] {
-        match self.fork_at_epoch(epoch) {
-            Fork::Altair => self.altair.version,
-            Fork::Bellatrix => self.bellatrix.version,
-            Fork::Capella => self.capella.version,
-            Fork::Deneb => self.deneb.version,
-            Fork::Electra => self.electra.version,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct ForkParams {
-    version: [u8; 4],
-    epoch: u64,
 }
 
 /// Configurations for creating a [`ChainSpec`].
@@ -198,7 +113,7 @@ pub(crate) struct ForkParams {
 /// };
 ///
 /// let spec = ChainSpec::try_from_config(config).unwrap();
-/// assert_eq!(spec.slots_per_epoch(), 8); // minimal-preset value carried through
+/// assert_eq!(spec.sync_committee_size(), 32); // minimal-preset value carried through
 /// ```
 
 #[derive(Debug, Clone, Copy)]
@@ -310,6 +225,57 @@ impl ChainSpecConfig {
         }
 
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
+pub enum Fork {
+    Altair,
+    Bellatrix,
+    Capella,
+    Deneb,
+    Electra,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct ForkSchedule {
+    altair: ForkParams,
+    bellatrix: ForkParams,
+    capella: ForkParams,
+    deneb: ForkParams,
+    electra: ForkParams,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct ForkParams {
+    version: [u8; 4],
+    epoch: u64,
+}
+
+impl ForkSchedule {
+    pub(crate) const fn fork_at_epoch(&self, epoch: u64) -> Fork {
+        if epoch >= self.electra.epoch {
+            Fork::Electra
+        } else if epoch >= self.deneb.epoch {
+            Fork::Deneb
+        } else if epoch >= self.capella.epoch {
+            Fork::Capella
+        } else if epoch >= self.bellatrix.epoch {
+            Fork::Bellatrix
+        } else {
+            Fork::Altair
+        }
+    }
+
+    pub(crate) const fn version_at_epoch(&self, epoch: u64) -> [u8; 4] {
+        match self.fork_at_epoch(epoch) {
+            Fork::Altair => self.altair.version,
+            Fork::Bellatrix => self.bellatrix.version,
+            Fork::Capella => self.capella.version,
+            Fork::Deneb => self.deneb.version,
+            Fork::Electra => self.electra.version,
+        }
     }
 }
 
