@@ -1,8 +1,33 @@
+use crate::chain_spec::Fork;
 use crate::error::{Error, Result};
 use crate::types::consensus::LightClientHeader;
 use crate::types::primitives::Root;
 
 const EXECUTION_PAYLOAD_GINDEX: u64 = 25;
+
+// The SSZ schema defines the index.  The fork defines the schema
+impl Fork {
+    pub(crate) const fn current_sync_committee_gindex(&self) -> u64 {
+        match self {
+            Fork::Electra => 86,
+            _ => 54,
+        }
+    }
+
+    pub(crate) const fn next_sync_committee_gindex(&self) -> u64 {
+        match self {
+            Fork::Electra => 87,
+            _ => 55,
+        }
+    }
+
+    pub(crate) const fn finalized_root_gindex(&self) -> u64 {
+        match self {
+            Fork::Electra => 169,
+            _ => 105,
+        }
+    }
+}
 
 /// Spec: `is_valid_light_client_header`, fused with its caller-side `assert`
 /// (returns `Err` instead of a bool).  Proves header-internal consistency.
