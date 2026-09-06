@@ -1,5 +1,8 @@
 use eth_light_client::{ChainSpec, Fork, LightClient, LightClientBootstrap, Root};
-use std::env::args;
+use std::{
+    env::args,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 1. Define necessary variables. *Note*: this example is pinned to mainnet
@@ -44,14 +47,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         genesis_validators_root,
     )?;
 
-    // 3. Create light client
-    let _client = LightClient::new(chain_spec, trusted_block_root, bootstrap)?;
+    // 3. Create light client and clock
+    let client = LightClient::new(chain_spec, trusted_block_root, bootstrap)?;
+    let mut store_sync_period = client.current_sync_committee_period();
+    let timestamp_secs = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+    let current_slot = client.chain_spec().timestamp_to_slot(timestamp_secs);
+    let current_sync_period = client
+        .chain_spec()
+        .slot_to_sync_committee_period(current_slot);
 
-    todo!()
-    // 4. Bounded loop - checkpoint's sync period -> current sync period
+    // 4. Bounded loop: checkpoint's sync period -> current sync period
+    while current_sync_period > store_sync_period {
+        // Fetch next_sync_committee update
 
-    // 5. Unbounded - live following
-    // loop {}
+        store_sync_period += 1;
+    }
+
+    // 5. Unbounded: live following
+    loop {
+        todo!()
+    }
 }
 
 fn fork_from_version(fork: &str) -> Result<Fork, String> {
