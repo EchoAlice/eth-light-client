@@ -1,4 +1,4 @@
-use crate::types::primitives::{Domain, ForkVersion, Root};
+use crate::types::primitives::{Domain, ForkDigest, ForkVersion, Root};
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
 
@@ -31,6 +31,18 @@ pub(crate) fn compute_domain(
     domain[4..32].copy_from_slice(&fork_data_root[0..28]);
 
     domain
+}
+
+pub(crate) fn compute_fork_digest(
+    fork_version: ForkVersion,
+    genesis_validators_root: Root,
+) -> ForkDigest {
+    let fork_data_root = compute_fork_data_root(fork_version, genesis_validators_root);
+
+    let mut digest = [0u8; 4];
+    digest.copy_from_slice(&fork_data_root[0..4]);
+
+    digest
 }
 
 #[derive(TreeHash)]

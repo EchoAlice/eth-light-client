@@ -1,5 +1,6 @@
+use crate::consensus::signing::compute_fork_digest;
 use crate::error::{Error, Result};
-use crate::types::primitives::Slot;
+use crate::types::primitives::{ForkDigest, Root, Slot};
 
 /// Defines network-specific constants.
 #[derive(Debug, Clone)]
@@ -59,21 +60,29 @@ impl ChainSpec {
         }
     }
 
-    pub(crate) const fn fork_at_slot(&self, slot: Slot) -> Fork {
-        self.fork_schedule
-            .fork_at_epoch(slot / self.slots_per_epoch)
-    }
-
-    pub(crate) const fn fork_version_at_epoch(&self, epoch: u64) -> [u8; 4] {
-        self.fork_schedule.version_at_epoch(epoch)
+    /// Inverse of the spec's `compute_fork_digest`
+    pub fn fork_from_digest(
+        &self,
+        digest: ForkDigest,
+        genesis_validators_root: Root,
+    ) -> Option<Fork> {
+        let candidates = [
+            (Fork::Altair, self.fork_schedule.altair.version),
+            (Fork::Bellatrix, self.fork_schedule.bellatrix.version),
+            (Fork::Capella, self.fork_schedule.capella.version),
+            (Fork::Deneb, self.fork_schedule.deneb.version),
+            (Fork::Electra, self.fork_schedule.electra.version),
+        ];
+        for (fork, version) in candidates {
+            if compute_fork_digest(version, genesis_validators_root) == digest {
+                return Some(fork);
+            }
+        }
+        None
     }
 
     pub const fn sync_committee_size(&self) -> usize {
         self.sync_committee_size
-    }
-
-    pub(crate) const fn slot_to_epoch(&self, slot: u64) -> u64 {
-        slot / self.slots_per_epoch
     }
 
     /// Mirrors Spec's `compute_sync_committee_period_at_slot` functionality
@@ -88,6 +97,19 @@ impl ChainSpec {
         } else {
             0
         }
+    }
+
+    pub(crate) const fn slot_to_epoch(&self, slot: u64) -> u64 {
+        slot / self.slots_per_epoch
+    }
+
+    pub(crate) const fn fork_version_at_epoch(&self, epoch: u64) -> [u8; 4] {
+        self.fork_schedule.version_at_epoch(epoch)
+    }
+
+    pub(crate) const fn fork_at_slot(&self, slot: Slot) -> Fork {
+        self.fork_schedule
+            .fork_at_epoch(slot / self.slots_per_epoch)
     }
 }
 
