@@ -17,31 +17,31 @@ pub enum LightClientHeader {
     Electra(ElectraLightClientHeader),
 }
 
-#[derive(Debug, Clone, PartialEq, Decode, TreeHash)]
+#[derive(Debug, Clone, PartialEq, Decode)]
 pub struct AltairLightClientHeader {
     pub beacon: BeaconBlockHeader,
 }
 
-#[derive(Debug, Clone, PartialEq, Decode, TreeHash)]
+#[derive(Debug, Clone, PartialEq, Decode)]
 pub struct BellatrixLightClientHeader {
     pub beacon: BeaconBlockHeader,
 }
 
-#[derive(Debug, Clone, PartialEq, Decode, TreeHash)]
+#[derive(Debug, Clone, PartialEq, Decode)]
 pub struct CapellaLightClientHeader {
     pub beacon: BeaconBlockHeader,
     pub execution: CapellaExecutionPayloadHeader,
     pub execution_branch: FixedVector<Root, U4>,
 }
 
-#[derive(Debug, Clone, PartialEq, Decode, TreeHash)]
+#[derive(Debug, Clone, PartialEq, Decode)]
 pub struct DenebLightClientHeader {
     pub beacon: BeaconBlockHeader,
     pub execution: DenebExecutionPayloadHeader,
     pub execution_branch: FixedVector<Root, U4>,
 }
 
-#[derive(Debug, Clone, PartialEq, Decode, TreeHash)]
+#[derive(Debug, Clone, PartialEq, Decode)]
 pub struct ElectraLightClientHeader {
     pub beacon: BeaconBlockHeader,
     pub execution: DenebExecutionPayloadHeader,
