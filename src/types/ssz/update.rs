@@ -4,8 +4,8 @@ use crate::error::{Error, Result};
 use crate::types::consensus::LightClientHeader::{Altair, Bellatrix, Capella, Deneb, Electra};
 use crate::types::consensus::{
     AltairLightClientHeader, BellatrixLightClientHeader, CapellaLightClientHeader,
-    DenebLightClientHeader, ElectraLightClientHeader, FinalityUpdate, LightClientHeader,
-    LightClientUpdate, SyncAggregate, SyncCommittee, SyncCommitteeUpdate,
+    DenebLightClientHeader, ElectraLightClientHeader, FinalityProof, LightClientHeader,
+    LightClientUpdate, SyncAggregate, SyncCommittee, SyncCommitteeProof,
 };
 use crate::types::primitives::Root;
 use ssz_derive::Decode;
@@ -203,11 +203,11 @@ fn assemble_update(
 
     Ok(LightClientUpdate {
         attested_header,
-        finalized: is_finality_update.then_some(FinalityUpdate {
+        finalized: is_finality_update.then_some(FinalityProof {
             header: finalized_header,
             branch: finality_branch,
         }),
-        next_sync_committee: is_sync_committee_update.then_some(SyncCommitteeUpdate {
+        next_sync_committee: is_sync_committee_update.then_some(SyncCommitteeProof {
             committee: sync_committee,
             branch: next_sync_committee_branch,
         }),

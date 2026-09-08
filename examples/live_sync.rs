@@ -90,6 +90,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
+/// Walks the `/updates` response with a shrinking cursor
 fn process_sync_update_batch(
     client: &mut LightClient,
     mut bytes: &[u8],
