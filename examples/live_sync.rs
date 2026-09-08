@@ -1,4 +1,7 @@
-use eth_light_client::{ChainSpec, Fork, LightClient, LightClientBootstrap, Root};
+use eth_light_client::{
+    types::primitives::ForkDigest, ChainSpec, Fork, LightClient, LightClientBootstrap,
+    LightClientUpdate, Root,
+};
 use std::{
     env::args,
     time::{SystemTime, UNIX_EPOCH},
@@ -87,16 +90,49 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-/// Walks a `/updates` response body: each chunk is
-/// `length (LE u64) | fork_digest (4 bytes) | SSZ LightClientUpdate`,
-/// decoded and fed to the client one chunk at a time.
 fn process_sync_update_batch(
-    _client: &mut LightClient,
-    _bytes: &[u8],
-    _genesis_validators_root: Root,
+    client: &mut LightClient,
+    mut bytes: &[u8],
+    genesis_validators_root: Root,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // TODO: shrinking-slice walk; digest -> fork mapping; decode + process per chunk
-    todo!()
+    while !bytes.is_empty() {
+        // Index guards
+        if bytes.len() < 8 {
+            return Err(format!("truncated chunk header: {} bytes remaining", bytes.len()).into());
+        }
+        let obj_len = u64::from_le_bytes(bytes[0..8].try_into()?) as usize;
+        let chunk_len = 8 + obj_len;
+        if obj_len < 4 || bytes.len() < chunk_len {
+            return Err(format!(
+                "invalid update chunk framing: declared {obj_len} bytes, {} remaining",
+                bytes.len() - 8
+            )
+            .into());
+        }
+
+        let digest: ForkDigest = bytes[8..12].try_into()?;
+        let fork = client
+            .chain_spec()
+            .fork_from_digest(digest, genesis_validators_root)
+            .ok_or_else(|| {
+                format!(
+                    "ssz payload contains unsupported fork digest 0x{}",
+                    hex::encode(digest)
+                )
+            })?;
+        let ssz_obj_bytes = &bytes[12..chunk_len];
+        let update = LightClientUpdate::from_ssz(
+            ssz_obj_bytes,
+            fork,
+            client.chain_spec().sync_committee_size(),
+        )?;
+        let current_slot = current_slot_from_clock(client.chain_spec())?;
+        client.process_light_client_update(update, current_slot)?;
+
+        bytes = &bytes[chunk_len..];
+    }
+
+    Ok(())
 }
 
 fn current_slot_from_clock(chain_spec: &ChainSpec) -> Result<u64, Box<dyn std::error::Error>> {
@@ -104,7 +140,6 @@ fn current_slot_from_clock(chain_spec: &ChainSpec) -> Result<u64, Box<dyn std::e
     Ok(chain_spec.timestamp_to_slot(timestamp))
 }
 
-// TODO: Match against fork *digests*, not `Fork`
 fn fork_from_version(fork: &str) -> Result<Fork, String> {
     match fork {
         "altair" => Ok(Fork::Altair),
