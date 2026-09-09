@@ -101,7 +101,7 @@ fn process_sync_update_batch(
         if bytes.len() < 8 {
             return Err(format!("truncated chunk header: {} bytes remaining", bytes.len()).into());
         }
-        let obj_len = u64::from_le_bytes(bytes[0..8].try_into()?) as usize;
+        let obj_len = usize::try_from(u64::from_le_bytes(bytes[0..8].try_into()?))?;
         let chunk_len = 8 + obj_len;
         if obj_len < 4 || bytes.len() < chunk_len {
             return Err(format!(

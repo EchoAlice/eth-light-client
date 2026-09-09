@@ -15,7 +15,7 @@ pub struct LightClientUpdate {
     pub finalized: Option<FinalityProof>,
     pub next_sync_committee: Option<SyncCommitteeProof>,
     pub sync_aggregate: SyncAggregate,
-    pub signature_slot: Slot, // Must be > attested_header.slot
+    pub signature_slot: Slot, // Slot of the block that carries the sync aggregate onchain
 }
 
 impl From<LightClientOptimisticUpdate> for LightClientUpdate {
@@ -30,9 +30,22 @@ impl From<LightClientOptimisticUpdate> for LightClientUpdate {
     }
 }
 
+impl From<LightClientFinalityUpdate> for LightClientUpdate {
+    fn from(_finality: LightClientFinalityUpdate) -> Self {
+        todo!()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct LightClientOptimisticUpdate {
     pub attested_header: LightClientHeader,
+    pub sync_aggregate: SyncAggregate,
+    pub signature_slot: Slot,
+}
+
+pub struct LightClientFinalityUpdate {
+    pub attested_header: LightClientHeader,
+    pub finalized: FinalityProof,
     pub sync_aggregate: SyncAggregate,
     pub signature_slot: Slot,
 }

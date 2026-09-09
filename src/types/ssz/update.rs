@@ -1,11 +1,11 @@
-use super::{bad_size, decode_as, RawSyncAggregate, RawSyncCommittee};
+use super::{assemble_finality_proof, bad_size, decode_as, RawSyncAggregate, RawSyncCommittee};
 use crate::chain_spec::Fork;
 use crate::error::{Error, Result};
 use crate::types::consensus::LightClientHeader::{Altair, Bellatrix, Capella, Deneb, Electra};
 use crate::types::consensus::{
     AltairLightClientHeader, BellatrixLightClientHeader, CapellaLightClientHeader,
-    DenebLightClientHeader, ElectraLightClientHeader, FinalityProof, LightClientHeader,
-    LightClientUpdate, SyncAggregate, SyncCommittee, SyncCommitteeProof,
+    DenebLightClientHeader, ElectraLightClientHeader, LightClientHeader, LightClientUpdate,
+    SyncAggregate, SyncCommittee, SyncCommitteeProof,
 };
 use crate::types::primitives::Root;
 use ssz_derive::Decode;
@@ -108,6 +108,7 @@ struct RawCapellaLightClientUpdate<N: Unsigned> {
     sync_aggregate: RawSyncAggregate<N>,
     signature_slot: u64,
 }
+
 impl<N: Unsigned> RawCapellaLightClientUpdate<N> {
     fn into_update(self) -> Result<LightClientUpdate> {
         assemble_update(
@@ -132,6 +133,7 @@ struct RawDenebLightClientUpdate<N: Unsigned> {
     sync_aggregate: RawSyncAggregate<N>,
     signature_slot: u64,
 }
+
 impl<N: Unsigned> RawDenebLightClientUpdate<N> {
     fn into_update(self) -> Result<LightClientUpdate> {
         assemble_update(
@@ -156,6 +158,7 @@ struct RawElectraLightClientUpdate<N: Unsigned> {
     sync_aggregate: RawSyncAggregate<N>,
     signature_slot: u64,
 }
+
 impl<N: Unsigned> RawElectraLightClientUpdate<N> {
     fn into_update(self) -> Result<LightClientUpdate> {
         assemble_update(
@@ -179,25 +182,15 @@ fn assemble_update(
     attested_header: LightClientHeader,
     finalized_header: LightClientHeader,
     finality_branch: Vec<Root>,
-    sync_committee: SyncCommittee,
+    next_sync_committee: SyncCommittee,
     next_sync_committee_branch: Vec<Root>,
     sync_aggregate: SyncAggregate,
     signature_slot: u64,
 ) -> Result<LightClientUpdate> {
-    let has_finality_branch = finality_branch.iter().any(|r| r != &[0u8; 32]);
-    let has_finalized_header = finalized_header.slot() != 0;
-    // Deviation: a finality branch traveling with a zeroed header (the spec's
-    // genesis-finality case — a proof that nothing is finalized yet) decodes to
-    // `finalized: None`, its branch is dropped unverified.
-    let is_finality_update = has_finality_branch && has_finalized_header;
-    if !has_finality_branch && has_finalized_header {
-        return Err(Error::InvalidInput(
-            "finalized header present but finality branch is empty".to_string(),
-        ));
-    }
+    let finalized = assemble_finality_proof(finalized_header, finality_branch)?;
 
     let is_sync_committee_update = next_sync_committee_branch.iter().any(|r| r != &[0u8; 32]);
-    if !is_sync_committee_update && !is_zeroed_committee(&sync_committee) {
+    if !is_sync_committee_update && !is_zeroed_committee(&next_sync_committee) {
         return Err(Error::InvalidInput(
             "next sync committee present but its branch is empty".to_string(),
         ));
@@ -205,12 +198,9 @@ fn assemble_update(
 
     Ok(LightClientUpdate {
         attested_header,
-        finalized: is_finality_update.then_some(FinalityProof {
-            header: finalized_header,
-            branch: finality_branch,
-        }),
+        finalized,
         next_sync_committee: is_sync_committee_update.then_some(SyncCommitteeProof {
-            committee: sync_committee,
+            committee: next_sync_committee,
             branch: next_sync_committee_branch,
         }),
         sync_aggregate,

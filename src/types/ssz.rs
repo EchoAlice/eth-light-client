@@ -1,9 +1,12 @@
 mod bootstrap;
+mod finality_update;
 mod optimistic_update;
 mod update;
 
 use crate::error::{Error, Result};
-use crate::types::consensus::{PubkeyBytes, SyncAggregate, SyncCommittee};
+use crate::types::consensus::{
+    FinalityProof, LightClientHeader, PubkeyBytes, SyncAggregate, SyncCommittee,
+};
 use crate::types::primitives::Root;
 use ssz::Decode;
 use ssz_derive::Decode;
@@ -76,6 +79,26 @@ impl<N: Unsigned> RawSyncAggregate<N> {
 }
 
 // Helper fns
+
+fn assemble_finality_proof(
+    header: LightClientHeader,
+    branch: Vec<Root>,
+) -> Result<Option<FinalityProof>> {
+    let has_finalized_header = header.slot() != 0;
+    let has_finality_branch = branch.iter().any(|r| r != &[0u8; 32]);
+
+    match (has_finalized_header, has_finality_branch) {
+        (true, true) => Ok(Some(FinalityProof { header, branch })),
+        (true, false) => Err(Error::InvalidInput(
+            "finalized header present but finality branch is empty".to_string(),
+        )),
+        // Deviation from spec: a finality branch traveling with a zeroed header
+        // is dropped unverified. The spec's genesis-finality case decodes to
+        // `finalized: None`.  This deviation is fail-closed.
+        (false, true) => Ok(None),
+        (false, false) => Ok(None),
+    }
+}
 
 fn decode_as<R: Decode>(bytes: &[u8]) -> Result<R> {
     R::from_ssz_bytes(bytes).map_err(decode_err)
