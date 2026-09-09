@@ -170,9 +170,11 @@ impl<N: Unsigned> RawElectraLightClientUpdate<N> {
     }
 }
 
-/// The spec's validation-time consistency asserts can't live in their
-/// spec-mirrored home.  Collapsing to `Option` here destroys the evidence
-/// before the processor can check it, so consistancy checks exist here.
+/// The spec asserts that a missing proof travels with zeroed fields inside
+/// `validate_light_client_update` (spec objects always carry the full fields).
+/// Our library types collapse zeroed fields into `Option` at the decode
+/// boundary, erasing the very distinction those asserts inspect.  Those
+/// checks must run here, before the collapse.
 fn assemble_update(
     attested_header: LightClientHeader,
     finalized_header: LightClientHeader,
@@ -184,10 +186,10 @@ fn assemble_update(
 ) -> Result<LightClientUpdate> {
     let has_finality_branch = finality_branch.iter().any(|r| r != &[0u8; 32]);
     let has_finalized_header = finalized_header.slot() != 0;
-    let is_finality_update = has_finality_branch && has_finalized_header;
     // Deviation: a finality branch traveling with a zeroed header (the spec's
     // genesis-finality case — a proof that nothing is finalized yet) decodes to
     // `finalized: None`, its branch is dropped unverified.
+    let is_finality_update = has_finality_branch && has_finalized_header;
     if !has_finality_branch && has_finalized_header {
         return Err(Error::InvalidInput(
             "finalized header present but finality branch is empty".to_string(),
