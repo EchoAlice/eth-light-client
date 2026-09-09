@@ -12,20 +12,39 @@ pub struct LightClientBootstrap {
 #[derive(Debug, Clone, PartialEq)]
 pub struct LightClientUpdate {
     pub attested_header: LightClientHeader,
-    pub finalized: Option<FinalityUpdate>,
-    pub next_sync_committee: Option<SyncCommitteeUpdate>,
+    pub finalized: Option<FinalityProof>,
+    pub next_sync_committee: Option<SyncCommitteeProof>,
     pub sync_aggregate: SyncAggregate,
     pub signature_slot: Slot, // Must be > attested_header.slot
 }
 
+impl From<LightClientOptimisticUpdate> for LightClientUpdate {
+    fn from(optimistic: LightClientOptimisticUpdate) -> Self {
+        LightClientUpdate {
+            attested_header: optimistic.attested_header,
+            finalized: None,
+            next_sync_committee: None,
+            sync_aggregate: optimistic.sync_aggregate,
+            signature_slot: optimistic.signature_slot,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
-pub struct FinalityUpdate {
+pub struct LightClientOptimisticUpdate {
+    pub attested_header: LightClientHeader,
+    pub sync_aggregate: SyncAggregate,
+    pub signature_slot: Slot,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FinalityProof {
     pub header: LightClientHeader,
     pub branch: Vec<Root>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct SyncCommitteeUpdate {
+pub struct SyncCommitteeProof {
     pub committee: SyncCommittee,
     pub branch: Vec<Root>,
 }

@@ -1,4 +1,5 @@
 mod bootstrap;
+mod optimistic_update;
 mod update;
 
 use crate::error::{Error, Result};

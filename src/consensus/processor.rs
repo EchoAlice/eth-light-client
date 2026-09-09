@@ -285,7 +285,7 @@ mod tests {
     use super::*;
     use crate::test_utils::{SyncTestCase, TestStep};
     use crate::types::consensus::{
-        AltairLightClientHeader, BeaconBlockHeader, FinalityUpdate, LightClientHeader, PubkeyBytes,
+        AltairLightClientHeader, BeaconBlockHeader, FinalityProof, LightClientHeader, PubkeyBytes,
         SyncAggregate, SyncCommittee,
     };
     use crate::Fork;
@@ -386,7 +386,7 @@ mod tests {
 
         // Case 4: Slot Chain.  Finalized slot is ahead of attested slot (a state cannot finalize a block from its own future).
         let mut bad_finality = update(vec![true; 32], 3);
-        bad_finality.finalized = Some(FinalityUpdate {
+        bad_finality.finalized = Some(FinalityProof {
             header: LightClientHeader::Altair(AltairLightClientHeader {
                 beacon: test_beacon_header(5),
             }),
