@@ -1,4 +1,4 @@
-#![doc = include_str!("README.md")]
+#![doc = include_str!("consensus/README.md")]
 
 pub mod bls;
 pub mod merkle;

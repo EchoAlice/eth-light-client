@@ -1,4 +1,4 @@
-#![doc = include_str!("README.md")]
+#![doc = include_str!("test_utils/README.md")]
 
 mod fork;
 mod loader;
