@@ -129,3 +129,15 @@ impl<N: Unsigned> RawElectraOptimisticUpdate<N> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::chain_spec::Fork;
+    use crate::types::consensus::LightClientOptimisticUpdate;
+
+    #[test]
+    fn rejects_bad_committee_size() {
+        let err = LightClientOptimisticUpdate::from_ssz(&[], Fork::Altair, 64);
+        assert!(err.is_err());
+    }
+}

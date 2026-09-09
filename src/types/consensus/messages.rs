@@ -18,6 +18,18 @@ pub struct LightClientUpdate {
     pub signature_slot: Slot, // Must be > attested_header.slot
 }
 
+impl From<LightClientOptimisticUpdate> for LightClientUpdate {
+    fn from(optimistic: LightClientOptimisticUpdate) -> Self {
+        LightClientUpdate {
+            attested_header: optimistic.attested_header,
+            finalized: None,
+            next_sync_committee: None,
+            sync_aggregate: optimistic.sync_aggregate,
+            signature_slot: optimistic.signature_slot,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct LightClientOptimisticUpdate {
     pub attested_header: LightClientHeader,
