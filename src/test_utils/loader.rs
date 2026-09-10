@@ -1,11 +1,12 @@
+use std::fs;
+use std::path::{Path, PathBuf};
+
 use super::fork::{case_path, fork_dir, single_fork_config, transition_config};
 use super::steps::{TestMeta, TestStep};
 use super::TestUtilsResult;
 use crate::chain_spec::{ChainSpec, ChainSpecConfig, Fork};
 use crate::types::consensus::{LightClientBootstrap, LightClientUpdate};
 use crate::types::primitives::Root;
-use std::fs;
-use std::path::{Path, PathBuf};
 
 pub struct SyncTestCase {
     case_dir: PathBuf,

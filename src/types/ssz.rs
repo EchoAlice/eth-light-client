@@ -3,17 +3,18 @@ mod finality_update;
 mod optimistic_update;
 mod update;
 
-use crate::error::{Error, Result};
-use crate::types::consensus::{
-    FinalityProof, LightClientHeader, PubkeyBytes, SyncAggregate, SyncCommittee,
-};
-use crate::types::primitives::Root;
 use ssz::Decode;
 use ssz_derive::Decode;
 use ssz_types::typenum::{Unsigned, U32, U512, U96};
 use ssz_types::{BitVector, FixedVector};
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
+
+use crate::error::{Error, Result};
+use crate::types::consensus::{
+    FinalityProof, LightClientHeader, PubkeyBytes, SyncAggregate, SyncCommittee,
+};
+use crate::types::primitives::Root;
 
 // Sized Types:
 // The sync committee size consists of 32 members for minimal and 512

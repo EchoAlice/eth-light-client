@@ -1,10 +1,11 @@
-use crate::types::primitives::{Root, Slot, ValidatorIndex};
 use alloy_primitives::{Address, U256};
 use ssz_derive::Decode;
 use ssz_types::typenum::{U256 as BloomLen, U32, U4};
 use ssz_types::{FixedVector, VariableList};
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
+
+use crate::types::primitives::{Root, Slot, ValidatorIndex};
 
 /// Verification logic accesses the inner `BeaconBlockHeader` through [`beacon()`](Self::beacon), keeping the pipeline fork-agnostic.
 #[derive(Debug, Clone, PartialEq)]

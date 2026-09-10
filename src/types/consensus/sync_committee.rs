@@ -1,7 +1,8 @@
-use crate::error::{Error, Result};
-use crate::types::primitives::{BLSPublicKey, BLSSignature};
 use ssz_types::typenum::U48;
 use ssz_types::FixedVector;
+
+use crate::error::{Error, Result};
+use crate::types::primitives::{BLSPublicKey, BLSSignature};
 
 // TODO: Should this move to primitives.rs?
 pub type PubkeyBytes = FixedVector<u8, U48>;

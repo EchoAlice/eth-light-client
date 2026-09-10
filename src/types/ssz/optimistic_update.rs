@@ -1,3 +1,6 @@
+use ssz_derive::Decode;
+use ssz_types::typenum::{Unsigned, U32, U512};
+
 use super::{bad_size, decode_as, RawSyncAggregate};
 use crate::chain_spec::Fork;
 use crate::error::Result;
@@ -6,8 +9,6 @@ use crate::types::consensus::{
     AltairLightClientHeader, BellatrixLightClientHeader, CapellaLightClientHeader,
     DenebLightClientHeader, ElectraLightClientHeader, LightClientOptimisticUpdate,
 };
-use ssz_derive::Decode;
-use ssz_types::typenum::{Unsigned, U32, U512};
 
 impl LightClientOptimisticUpdate {
     pub fn from_ssz(
