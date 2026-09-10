@@ -25,7 +25,7 @@ pub mod prelude {
     pub use crate::light_client::LightClient;
     pub use crate::types::{
         consensus::{
-            BeaconBlockHeader, LightClientBootstrap, LightClientHeader,
+            BeaconBlockHeader, LightClientBootstrap, LightClientFinalityUpdate, LightClientHeader,
             LightClientOptimisticUpdate, LightClientUpdate, SyncCommittee,
         },
         primitives::{Root, Slot},
