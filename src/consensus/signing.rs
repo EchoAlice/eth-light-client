@@ -1,6 +1,7 @@
-use crate::types::primitives::{Domain, ForkDigest, ForkVersion, Root};
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
+
+use crate::types::primitives::{Domain, ForkDigest, ForkVersion, Root};
 
 pub(crate) const DOMAIN_SYNC_COMMITTEE: [u8; 4] = [7, 0, 0, 0];
 

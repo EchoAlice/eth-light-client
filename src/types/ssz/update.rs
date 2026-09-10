@@ -1,3 +1,7 @@
+use ssz_derive::Decode;
+use ssz_types::typenum::{Unsigned, U32, U5, U512, U6, U7};
+use ssz_types::FixedVector;
+
 use super::{assemble_finality_proof, bad_size, decode_as, RawSyncAggregate, RawSyncCommittee};
 use crate::chain_spec::Fork;
 use crate::error::{Error, Result};
@@ -8,9 +12,6 @@ use crate::types::consensus::{
     SyncAggregate, SyncCommittee, SyncCommitteeProof,
 };
 use crate::types::primitives::Root;
-use ssz_derive::Decode;
-use ssz_types::typenum::{Unsigned, U32, U5, U512, U6, U7};
-use ssz_types::FixedVector;
 
 impl LightClientUpdate {
     pub fn from_ssz(

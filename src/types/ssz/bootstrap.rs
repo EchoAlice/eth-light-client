@@ -1,3 +1,7 @@
+use ssz_derive::Decode;
+use ssz_types::typenum::{Unsigned, U32, U5, U512, U6};
+use ssz_types::FixedVector;
+
 use super::{bad_size, decode_as, RawSyncCommittee};
 use crate::chain_spec::Fork;
 use crate::error::Result;
@@ -7,9 +11,6 @@ use crate::types::consensus::{
     DenebLightClientHeader, ElectraLightClientHeader, LightClientBootstrap,
 };
 use crate::types::primitives::Root;
-use ssz_derive::Decode;
-use ssz_types::typenum::{Unsigned, U32, U5, U512, U6};
-use ssz_types::FixedVector;
 
 impl LightClientBootstrap {
     pub fn from_ssz(

@@ -1,10 +1,11 @@
-use eth_light_client::{
-    types::primitives::ForkDigest, ChainSpec, Fork, LightClient, LightClientBootstrap,
-    LightClientUpdate, Root,
-};
 use std::{
     env::args,
     time::{SystemTime, UNIX_EPOCH},
+};
+
+use eth_light_client::{
+    types::primitives::ForkDigest, ChainSpec, Fork, LightClient, LightClientBootstrap,
+    LightClientUpdate, Root,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

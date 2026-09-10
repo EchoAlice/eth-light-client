@@ -1,5 +1,6 @@
-use crate::chain_spec::{ChainSpecConfig, Fork};
 use std::path::{Path, PathBuf};
+
+use crate::chain_spec::{ChainSpecConfig, Fork};
 
 pub(crate) fn fork_dir(fork: Fork) -> &'static str {
     match fork {

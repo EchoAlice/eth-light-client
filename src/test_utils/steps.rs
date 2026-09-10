@@ -1,7 +1,8 @@
+use serde::Deserialize;
+
 use super::TestUtilsResult;
 use crate::types::consensus::BeaconBlockHeader;
 use crate::types::primitives::{Root, Slot};
-use serde::Deserialize;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "snake_case")]
