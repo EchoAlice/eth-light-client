@@ -53,13 +53,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 3. Create light client and time-related variables
     let mut client = LightClient::new(chain_spec, trusted_block_root, bootstrap)?;
+
+    loop {
+        // 4. Bounded: trusted root's sync period -> current sync period
+        catch_up(&mut client, &provider_url, genesis_validators_root)?;
+
+        // TODO: 5. Fetch optimistic and finality updates.
+    }
+}
+
+fn catch_up(
+    client: &mut LightClient,
+    provider_url: &str,
+    genesis_validators_root: Root,
+) -> Result<(), Box<dyn std::error::Error>> {
     let current_slot = current_slot_from_clock(client.chain_spec())?;
     let mut store_sync_period = client.current_sync_committee_period();
     let mut current_sync_period = client
         .chain_spec()
         .slot_to_sync_committee_period(current_slot);
 
-    // 4. Bounded loop: trusted root's sync period -> current sync period
     while store_sync_period < current_sync_period {
         // Servers send, at max, 128 committee updates per response.
         let gap = (current_sync_period - store_sync_period).min(128);
@@ -71,7 +84,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .body_mut()
             .read_to_vec()?;
 
-        process_sync_update_batch(&mut client, &batch_bytes, genesis_validators_root)?;
+        process_sync_update_batch(client, &batch_bytes, genesis_validators_root)?;
 
         let new_period = client.current_sync_committee_period();
         if new_period == store_sync_period {
@@ -85,10 +98,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .slot_to_sync_committee_period(current_slot);
     }
 
-    // 5. Unbounded: live following
-    loop {
-        todo!()
-    }
+    Ok(())
 }
 
 /// Walks the `/updates` response with a shrinking cursor
@@ -129,7 +139,8 @@ fn process_sync_update_batch(
             client.chain_spec().sync_committee_size(),
         )?;
         let current_slot = current_slot_from_clock(client.chain_spec())?;
-        client.process_light_client_update(update, current_slot)?;
+        let update_changes = client.process_light_client_update(update, current_slot)?;
+        println!("Updates to store: {:?}", update_changes);
 
         bytes = &bytes[chunk_len..];
     }
