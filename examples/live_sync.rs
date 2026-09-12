@@ -1,11 +1,12 @@
 use std::{
     env::args,
-    time::{SystemTime, UNIX_EPOCH},
+    thread,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use eth_light_client::{
     types::primitives::ForkDigest, ChainSpec, Fork, LightClient, LightClientBootstrap,
-    LightClientUpdate, Root,
+    LightClientFinalityUpdate, LightClientOptimisticUpdate, LightClientUpdate, Root,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -33,17 +34,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "{provider_url}/eth/v1/beacon/light_client/bootstrap/0x{}",
         hex::encode(trusted_block_root)
     );
-    let mut resp = ureq::get(&url)
-        .header("Accept", "application/octet-stream")
-        .call()?;
-    let bootstrap_bytes = resp.body_mut().read_to_vec()?;
-    let fork = fork_from_version(
-        resp.headers()
-            .get("eth-consensus-version")
-            .ok_or("missing Eth-Consensus-Version header")?
-            .to_str()?,
-    )?;
-
+    let (bootstrap_bytes, fork) = fetch_versioned_ssz(&url)?;
     let bootstrap = LightClientBootstrap::from_ssz(
         &bootstrap_bytes,
         fork,
@@ -51,21 +42,78 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         genesis_validators_root,
     )?;
 
-    // 3. Create light client and time-related variables
+    // 3. Create light client
     let mut client = LightClient::new(chain_spec, trusted_block_root, bootstrap)?;
 
     loop {
         // 4. Bounded: trusted root's sync period -> current sync period
-        catch_up(&mut client, &provider_url, genesis_validators_root)?;
+        catch_up(&mut client, &provider_url)?;
 
-        // TODO: 5. Fetch optimistic and finality updates.
+        // 5. Fetch and process finality update
+        let url = format!("{provider_url}/eth/v1/beacon/light_client/finality_update");
+        let (bytes, fork) = fetch_versioned_ssz(&url)?;
+        let finality_update = LightClientFinalityUpdate::from_ssz(
+            &bytes,
+            fork,
+            client.chain_spec().sync_committee_size(),
+        )?;
+        let current_slot = current_slot_from_clock(client.chain_spec())?;
+        let finality_changes =
+            client.process_light_client_update(finality_update.into(), current_slot)?;
+        println!("finality update changes to store: {:?}", finality_changes);
+
+        // 6. Fetch and process optimistic update
+        let url = format!("{provider_url}/eth/v1/beacon/light_client/optimistic_update");
+        let (bytes, fork) = fetch_versioned_ssz(&url)?;
+        let optimistic_update = LightClientOptimisticUpdate::from_ssz(
+            &bytes,
+            fork,
+            client.chain_spec().sync_committee_size(),
+        )?;
+        let current_slot = current_slot_from_clock(client.chain_spec())?;
+        let optimistic_changes =
+            client.process_light_client_update(optimistic_update.into(), current_slot)?;
+        println!(
+            "optimistic update changes to store: {:?}",
+            optimistic_changes
+        );
+
+        thread::sleep(Duration::from_secs(12));
     }
 }
 
+fn fetch_versioned_ssz(url: &str) -> Result<(Vec<u8>, Fork), Box<dyn std::error::Error>> {
+    let mut resp = ureq::get(url)
+        .header("Accept", "application/octet-stream")
+        .call()?;
+    let bytes = resp.body_mut().read_to_vec()?;
+    let fork = fork_from_version(
+        resp.headers()
+            .get("eth-consensus-version")
+            .ok_or("missing Eth-Consensus-Version header")?
+            .to_str()?,
+    )?;
+
+    Ok((bytes, fork))
+}
+
+fn fork_from_version(fork: &str) -> Result<Fork, String> {
+    match fork {
+        "altair" => Ok(Fork::Altair),
+        "bellatrix" => Ok(Fork::Bellatrix),
+        "capella" => Ok(Fork::Capella),
+        "deneb" => Ok(Fork::Deneb),
+        "electra" => Ok(Fork::Electra),
+        _ => Err(format!("unsupported fork: {}", fork)),
+    }
+}
+
+/// Walks the store up to the current sync period via `/updates` batches.
+/// Re-entered every tick: no-op when current; recovery after a period
+/// rollover, machine suspend, or provider outage.
 fn catch_up(
     client: &mut LightClient,
     provider_url: &str,
-    genesis_validators_root: Root,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let current_slot = current_slot_from_clock(client.chain_spec())?;
     let mut store_sync_period = client.current_sync_committee_period();
@@ -77,14 +125,12 @@ fn catch_up(
         // Servers send, at max, 128 committee updates per response.
         let gap = (current_sync_period - store_sync_period).min(128);
         let url = format!("{provider_url}/eth/v1/beacon/light_client/updates?start_period={store_sync_period}&count={gap}");
-
-        let batch_bytes = ureq::get(&url)
+        let bytes = ureq::get(&url)
             .header("Accept", "application/octet-stream")
             .call()?
             .body_mut()
             .read_to_vec()?;
-
-        process_sync_update_batch(client, &batch_bytes, genesis_validators_root)?;
+        process_sync_update_batch(client, &bytes)?;
 
         let new_period = client.current_sync_committee_period();
         if new_period == store_sync_period {
@@ -105,7 +151,6 @@ fn catch_up(
 fn process_sync_update_batch(
     client: &mut LightClient,
     mut bytes: &[u8],
-    genesis_validators_root: Root,
 ) -> Result<(), Box<dyn std::error::Error>> {
     while !bytes.is_empty() {
         // Index guards
@@ -125,22 +170,22 @@ fn process_sync_update_batch(
         let digest: ForkDigest = bytes[8..12].try_into()?;
         let fork = client
             .chain_spec()
-            .fork_from_digest(digest, genesis_validators_root)
+            .fork_from_digest(digest, client.genesis_validators_root())
             .ok_or_else(|| {
                 format!(
                     "ssz payload contains unsupported fork digest 0x{}",
                     hex::encode(digest)
                 )
             })?;
-        let ssz_obj_bytes = &bytes[12..chunk_len];
+        let payload_bytes = &bytes[12..chunk_len];
         let update = LightClientUpdate::from_ssz(
-            ssz_obj_bytes,
+            payload_bytes,
             fork,
             client.chain_spec().sync_committee_size(),
         )?;
         let current_slot = current_slot_from_clock(client.chain_spec())?;
-        let update_changes = client.process_light_client_update(update, current_slot)?;
-        println!("Updates to store: {:?}", update_changes);
+        let changes = client.process_light_client_update(update, current_slot)?;
+        println!("sync update changes to store: {:?}", changes);
 
         bytes = &bytes[chunk_len..];
     }
@@ -151,15 +196,4 @@ fn process_sync_update_batch(
 fn current_slot_from_clock(chain_spec: &ChainSpec) -> Result<u64, Box<dyn std::error::Error>> {
     let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
     Ok(chain_spec.timestamp_to_slot(timestamp))
-}
-
-fn fork_from_version(fork: &str) -> Result<Fork, String> {
-    match fork {
-        "altair" => Ok(Fork::Altair),
-        "bellatrix" => Ok(Fork::Bellatrix),
-        "capella" => Ok(Fork::Capella),
-        "deneb" => Ok(Fork::Deneb),
-        "electra" => Ok(Fork::Electra),
-        _ => Err(format!("unsupported fork: {}", fork)),
-    }
 }

@@ -41,7 +41,6 @@ impl LightClient {
         &self.inner.store().current_sync_committee
     }
 
-    /// The next period's sync committee, if it has been learned yet.
     pub fn next_sync_committee(&self) -> Option<&SyncCommittee> {
         self.inner.store().next_sync_committee.as_ref()
     }
@@ -54,6 +53,10 @@ impl LightClient {
 
     pub fn chain_spec(&self) -> &ChainSpec {
         self.inner.chain_spec()
+    }
+
+    pub fn genesis_validators_root(&self) -> Root {
+        self.inner.store().genesis_validators_root
     }
 }
 
