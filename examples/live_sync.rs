@@ -1,6 +1,7 @@
 use std::{
     env::args,
-    time::{SystemTime, UNIX_EPOCH},
+    thread,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use eth_light_client::{
@@ -33,17 +34,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "{provider_url}/eth/v1/beacon/light_client/bootstrap/0x{}",
         hex::encode(trusted_block_root)
     );
-    let mut resp = ureq::get(&url)
-        .header("Accept", "application/octet-stream")
-        .call()?;
-    let bootstrap_bytes = resp.body_mut().read_to_vec()?;
-    let fork = fork_from_version(
-        resp.headers()
-            .get("eth-consensus-version")
-            .ok_or("missing Eth-Consensus-Version header")?
-            .to_str()?,
-    )?;
-
+    let (bootstrap_bytes, fork) = fetch_versioned_ssz(&url)?;
     let bootstrap = LightClientBootstrap::from_ssz(
         &bootstrap_bytes,
         fork,
@@ -56,16 +47,45 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     loop {
         // 4. Bounded: trusted root's sync period -> current sync period
-        catch_up(&mut client, &provider_url, genesis_validators_root)?;
+        catch_up(&mut client, &provider_url)?;
 
-        // TODO: 5. Fetch optimistic and finality updates.
+        // TODO: 5. Fetch finality and optimistic updates.
+        // {provider_url}/eth/v1/beacon/light_client/finality_update
+        // {provider_url}/eth/v1/beacon/light_client/optimistic_update
+
+        thread::sleep(Duration::from_secs(12))
+    }
+}
+
+fn fetch_versioned_ssz(url: &str) -> Result<(Vec<u8>, Fork), Box<dyn std::error::Error>> {
+    let mut resp = ureq::get(url)
+        .header("Accept", "application/octet-stream")
+        .call()?;
+    let bytes = resp.body_mut().read_to_vec()?;
+    let fork = fork_from_version(
+        resp.headers()
+            .get("eth-consensus-version")
+            .ok_or("missing Eth-Consensus-Version header")?
+            .to_str()?,
+    )?;
+
+    Ok((bytes, fork))
+}
+
+fn fork_from_version(fork: &str) -> Result<Fork, String> {
+    match fork {
+        "altair" => Ok(Fork::Altair),
+        "bellatrix" => Ok(Fork::Bellatrix),
+        "capella" => Ok(Fork::Capella),
+        "deneb" => Ok(Fork::Deneb),
+        "electra" => Ok(Fork::Electra),
+        _ => Err(format!("unsupported fork: {}", fork)),
     }
 }
 
 fn catch_up(
     client: &mut LightClient,
     provider_url: &str,
-    genesis_validators_root: Root,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let current_slot = current_slot_from_clock(client.chain_spec())?;
     let mut store_sync_period = client.current_sync_committee_period();
@@ -84,7 +104,7 @@ fn catch_up(
             .body_mut()
             .read_to_vec()?;
 
-        process_sync_update_batch(client, &batch_bytes, genesis_validators_root)?;
+        process_sync_update_batch(client, &batch_bytes)?;
 
         let new_period = client.current_sync_committee_period();
         if new_period == store_sync_period {
@@ -105,7 +125,6 @@ fn catch_up(
 fn process_sync_update_batch(
     client: &mut LightClient,
     mut bytes: &[u8],
-    genesis_validators_root: Root,
 ) -> Result<(), Box<dyn std::error::Error>> {
     while !bytes.is_empty() {
         // Index guards
@@ -125,7 +144,7 @@ fn process_sync_update_batch(
         let digest: ForkDigest = bytes[8..12].try_into()?;
         let fork = client
             .chain_spec()
-            .fork_from_digest(digest, genesis_validators_root)
+            .fork_from_digest(digest, client.genesis_validators_root())
             .ok_or_else(|| {
                 format!(
                     "ssz payload contains unsupported fork digest 0x{}",
@@ -151,15 +170,4 @@ fn process_sync_update_batch(
 fn current_slot_from_clock(chain_spec: &ChainSpec) -> Result<u64, Box<dyn std::error::Error>> {
     let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
     Ok(chain_spec.timestamp_to_slot(timestamp))
-}
-
-fn fork_from_version(fork: &str) -> Result<Fork, String> {
-    match fork {
-        "altair" => Ok(Fork::Altair),
-        "bellatrix" => Ok(Fork::Bellatrix),
-        "capella" => Ok(Fork::Capella),
-        "deneb" => Ok(Fork::Deneb),
-        "electra" => Ok(Fork::Electra),
-        _ => Err(format!("unsupported fork: {}", fork)),
-    }
 }
