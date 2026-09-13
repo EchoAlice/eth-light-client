@@ -82,32 +82,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-fn fetch_versioned_ssz(url: &str) -> Result<(Vec<u8>, Fork), Box<dyn std::error::Error>> {
-    let mut resp = ureq::get(url)
-        .header("Accept", "application/octet-stream")
-        .call()?;
-    let bytes = resp.body_mut().read_to_vec()?;
-    let fork = fork_from_version(
-        resp.headers()
-            .get("eth-consensus-version")
-            .ok_or("missing Eth-Consensus-Version header")?
-            .to_str()?,
-    )?;
-
-    Ok((bytes, fork))
-}
-
-fn fork_from_version(fork: &str) -> Result<Fork, String> {
-    match fork {
-        "altair" => Ok(Fork::Altair),
-        "bellatrix" => Ok(Fork::Bellatrix),
-        "capella" => Ok(Fork::Capella),
-        "deneb" => Ok(Fork::Deneb),
-        "electra" => Ok(Fork::Electra),
-        _ => Err(format!("unsupported fork: {}", fork)),
-    }
-}
-
 /// Walks the store up to the current sync period via `/updates` batches.
 /// Re-entered every tick: no-op when current; recovery after a period
 /// rollover, machine suspend, or provider outage.
@@ -191,6 +165,32 @@ fn process_sync_update_batch(
     }
 
     Ok(())
+}
+
+fn fetch_versioned_ssz(url: &str) -> Result<(Vec<u8>, Fork), Box<dyn std::error::Error>> {
+    let mut resp = ureq::get(url)
+        .header("Accept", "application/octet-stream")
+        .call()?;
+    let bytes = resp.body_mut().read_to_vec()?;
+    let fork = fork_from_version(
+        resp.headers()
+            .get("eth-consensus-version")
+            .ok_or("missing Eth-Consensus-Version header")?
+            .to_str()?,
+    )?;
+
+    Ok((bytes, fork))
+}
+
+fn fork_from_version(fork: &str) -> Result<Fork, String> {
+    match fork {
+        "altair" => Ok(Fork::Altair),
+        "bellatrix" => Ok(Fork::Bellatrix),
+        "capella" => Ok(Fork::Capella),
+        "deneb" => Ok(Fork::Deneb),
+        "electra" => Ok(Fork::Electra),
+        _ => Err(format!("unsupported fork: {}", fork)),
+    }
 }
 
 fn current_slot_from_clock(chain_spec: &ChainSpec) -> Result<u64, Box<dyn std::error::Error>> {

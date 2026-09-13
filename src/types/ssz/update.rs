@@ -177,8 +177,8 @@ impl<N: Unsigned> RawElectraLightClientUpdate<N> {
 /// The spec asserts that a missing proof travels with zeroed fields inside
 /// `validate_light_client_update` (spec objects always carry the full fields).
 /// Our library types collapse zeroed fields into `Option` at the decode
-/// boundary, erasing the very distinction those asserts inspect.  Those
-/// checks must run here, before the collapse.
+/// boundary, erasing the distinction those asserts inspect.  Those checks
+/// must run here, before the collapse.
 fn assemble_update(
     attested_header: LightClientHeader,
     finalized_header: LightClientHeader,
