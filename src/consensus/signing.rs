@@ -34,6 +34,7 @@ pub(crate) fn compute_domain(
     domain
 }
 
+// Note: Fulu modifies this function.  Look at the specs
 pub(crate) fn compute_fork_digest(
     fork_version: ForkVersion,
     genesis_validators_root: Root,

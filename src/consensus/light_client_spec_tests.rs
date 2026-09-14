@@ -225,10 +225,11 @@ fn assert_execution_root(
     // headers, `Root()` (zero) for pre-Capella headers — which is what the
     // fixtures assert for pre-boundary headers after an upgrade_store step.
     let actual = match header {
+        LightClientHeader::Altair(_) | LightClientHeader::Bellatrix(_) => [0u8; 32],
         LightClientHeader::Capella(h) => h.execution.hash_tree_root(),
         LightClientHeader::Deneb(h) => h.execution.hash_tree_root(),
         LightClientHeader::Electra(h) => h.execution.hash_tree_root(),
-        LightClientHeader::Altair(_) | LightClientHeader::Bellatrix(_) => [0u8; 32],
+        LightClientHeader::Fulu(h) => h.execution.hash_tree_root(),
     };
     assert!(
         actual == *expected,

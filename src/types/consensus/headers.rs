@@ -16,6 +16,7 @@ pub enum LightClientHeader {
     Capella(CapellaLightClientHeader),
     Deneb(DenebLightClientHeader),
     Electra(ElectraLightClientHeader),
+    Fulu(FuluLightClientHeader),
 }
 
 #[derive(Debug, Clone, PartialEq, Decode)]
@@ -45,7 +46,14 @@ pub struct DenebLightClientHeader {
 #[derive(Debug, Clone, PartialEq, Decode)]
 pub struct ElectraLightClientHeader {
     pub beacon: BeaconBlockHeader,
-    pub execution: DenebExecutionPayloadHeader,
+    pub execution: ElectraExecutionPayloadHeader,
+    pub execution_branch: FixedVector<Root, U4>,
+}
+
+#[derive(Debug, Clone, PartialEq, Decode)]
+pub struct FuluLightClientHeader {
+    pub beacon: BeaconBlockHeader,
+    pub execution: FuluExecutionPayloadHeader,
     pub execution_branch: FixedVector<Root, U4>,
 }
 
@@ -57,6 +65,7 @@ impl LightClientHeader {
             Self::Capella(h) => &h.beacon,
             Self::Deneb(h) => &h.beacon,
             Self::Electra(h) => &h.beacon,
+            Self::Fulu(h) => &h.beacon,
         }
     }
 
@@ -137,4 +146,6 @@ impl DenebExecutionPayloadHeader {
     }
 }
 
-// TODO: Create an alias for ElectraExecutionPayloadHeader
+pub type ElectraExecutionPayloadHeader = DenebExecutionPayloadHeader;
+
+pub type FuluExecutionPayloadHeader = DenebExecutionPayloadHeader;

@@ -5,26 +5,26 @@ use crate::types::primitives::Root;
 
 const EXECUTION_PAYLOAD_GINDEX: u64 = 25;
 
-// The SSZ schema defines the index.  The fork defines the schema
+// The fork defines the SSZ schema. The SSZ schema defines the index.
 impl Fork {
     pub(crate) const fn current_sync_committee_gindex(&self) -> u64 {
         match self {
+            Fork::Altair | Fork::Bellatrix | Fork::Capella | Fork::Deneb => 54,
             Fork::Electra => 86,
-            _ => 54,
         }
     }
 
     pub(crate) const fn next_sync_committee_gindex(&self) -> u64 {
         match self {
+            Fork::Altair | Fork::Bellatrix | Fork::Capella | Fork::Deneb => 55,
             Fork::Electra => 87,
-            _ => 55,
         }
     }
 
     pub(crate) const fn finalized_root_gindex(&self) -> u64 {
         match self {
+            Fork::Altair | Fork::Bellatrix | Fork::Capella | Fork::Deneb => 105,
             Fork::Electra => 169,
-            _ => 105,
         }
     }
 }
@@ -48,6 +48,12 @@ pub(crate) fn verify_light_client_header(header: &LightClientHeader) -> Result<(
             &h.beacon.body_root,
         ),
         LightClientHeader::Electra(h) => verify_merkle_proof(
+            &h.execution.hash_tree_root(),
+            &h.execution_branch,
+            EXECUTION_PAYLOAD_GINDEX,
+            &h.beacon.body_root,
+        ),
+        LightClientHeader::Fulu(h) => verify_merkle_proof(
             &h.execution.hash_tree_root(),
             &h.execution_branch,
             EXECUTION_PAYLOAD_GINDEX,
