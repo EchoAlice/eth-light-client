@@ -42,6 +42,8 @@ impl LightClientOptimisticUpdate {
                 512 => Ok(decode_as::<RawElectraOptimisticUpdate<U512>>(bytes)?.into_update()),
                 n => Err(bad_size(n)),
             },
+            // TODO(#37): RawFulu* structs + real arms (commit 2)
+            Fork::Fulu => todo!(),
         }
     }
 }

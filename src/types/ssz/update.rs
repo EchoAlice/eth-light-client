@@ -45,6 +45,8 @@ impl LightClientUpdate {
                 512 => decode_as::<RawElectraLightClientUpdate<U512>>(bytes)?.into_update(),
                 n => Err(bad_size(n)),
             },
+            // TODO(#37): RawFulu* structs + real arms (commit 2)
+            Fork::Fulu => todo!(),
         }
     }
 }
