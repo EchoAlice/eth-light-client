@@ -56,6 +56,10 @@ impl ChainSpec {
                     version: config.electra_fork_version,
                     epoch: config.electra_fork_epoch,
                 },
+                fulu: ForkParams {
+                    version: config.fulu_fork_version,
+                    epoch: config.fulu_fork_epoch,
+                },
             },
         }
     }
@@ -72,6 +76,7 @@ impl ChainSpec {
             (Fork::Capella, self.fork_schedule.capella.version),
             (Fork::Deneb, self.fork_schedule.deneb.version),
             (Fork::Electra, self.fork_schedule.electra.version),
+            (Fork::Fulu, self.fork_schedule.fulu.version),
         ];
         for (fork, version) in candidates {
             if compute_fork_digest(version, genesis_validators_root) == digest {
@@ -151,12 +156,14 @@ pub struct ChainSpecConfig {
     pub capella_fork_version: [u8; 4],
     pub deneb_fork_version: [u8; 4],
     pub electra_fork_version: [u8; 4],
+    pub fulu_fork_version: [u8; 4],
 
     pub altair_fork_epoch: u64,
     pub bellatrix_fork_epoch: u64,
     pub capella_fork_epoch: u64,
     pub deneb_fork_epoch: u64,
     pub electra_fork_epoch: u64,
+    pub fulu_fork_epoch: u64,
 }
 
 impl ChainSpecConfig {
@@ -172,11 +179,13 @@ impl ChainSpecConfig {
             capella_fork_version: [0x03, 0x00, 0x00, 0x00],
             deneb_fork_version: [0x04, 0x00, 0x00, 0x00],
             electra_fork_version: [0x05, 0x00, 0x00, 0x00],
+            fulu_fork_version: [0x06, 0x00, 0x00, 0x00],
             altair_fork_epoch: 74240,
             bellatrix_fork_epoch: 144896,
             capella_fork_epoch: 194048,
             deneb_fork_epoch: 269568,
             electra_fork_epoch: 364544,
+            fulu_fork_epoch: 411392,
         }
     }
 
@@ -192,11 +201,13 @@ impl ChainSpecConfig {
             capella_fork_version: [0x03, 0x00, 0x00, 0x01],
             deneb_fork_version: [0x04, 0x00, 0x00, 0x01],
             electra_fork_version: [0x05, 0x00, 0x00, 0x01],
+            fulu_fork_version: [0x06, 0x00, 0x00, 0x01],
             altair_fork_epoch: 0,
             bellatrix_fork_epoch: u64::MAX,
             capella_fork_epoch: u64::MAX,
             deneb_fork_epoch: u64::MAX,
             electra_fork_epoch: u64::MAX,
+            fulu_fork_epoch: u64::MAX,
         }
     }
 
@@ -245,19 +256,24 @@ impl ChainSpecConfig {
                 "electra_fork_epoch must be >= deneb_fork_epoch".to_string(),
             ));
         }
+        if self.fulu_fork_epoch < self.electra_fork_epoch {
+            return Err(Error::InvalidInput(
+                "fulu_fork_epoch must be >= electra_fork_epoch".to_string(),
+            ));
+        }
 
         Ok(())
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[non_exhaustive]
 pub enum Fork {
     Altair,
     Bellatrix,
     Capella,
     Deneb,
     Electra,
+    Fulu,
 }
 
 #[derive(Debug, Clone)]
@@ -267,6 +283,7 @@ pub(crate) struct ForkSchedule {
     capella: ForkParams,
     deneb: ForkParams,
     electra: ForkParams,
+    fulu: ForkParams,
 }
 
 #[derive(Debug, Clone)]
@@ -276,8 +293,12 @@ pub(crate) struct ForkParams {
 }
 
 impl ForkSchedule {
+    // TODO: Should i make this a match statement instead? or make this code
+    // "safer" in some other way?
     pub(crate) const fn fork_at_epoch(&self, epoch: u64) -> Fork {
-        if epoch >= self.electra.epoch {
+        if epoch >= self.fulu.epoch {
+            Fork::Fulu
+        } else if epoch >= self.electra.epoch {
             Fork::Electra
         } else if epoch >= self.deneb.epoch {
             Fork::Deneb
@@ -297,6 +318,7 @@ impl ForkSchedule {
             Fork::Capella => self.capella.version,
             Fork::Deneb => self.deneb.version,
             Fork::Electra => self.electra.version,
+            Fork::Fulu => self.fulu.version,
         }
     }
 }

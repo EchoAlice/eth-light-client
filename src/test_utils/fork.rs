@@ -9,6 +9,7 @@ pub(crate) fn fork_dir(fork: Fork) -> &'static str {
         Fork::Capella => "capella",
         Fork::Deneb => "deneb",
         Fork::Electra => "electra",
+        Fork::Fulu => "fulu",
     }
 }
 
@@ -42,6 +43,7 @@ pub(crate) fn transition_config(from: Fork, to: Fork) -> ChainSpecConfig {
         Fork::Capella => config.capella_fork_epoch = epoch,
         Fork::Deneb => config.deneb_fork_epoch = epoch,
         Fork::Electra => config.electra_fork_epoch = epoch,
+        Fork::Fulu => config.fulu_fork_epoch = epoch,
     }
 
     config

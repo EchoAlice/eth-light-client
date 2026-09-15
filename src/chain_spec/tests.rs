@@ -12,11 +12,13 @@ fn valid_config() -> ChainSpecConfig {
         capella_fork_version: [0x03, 0x00, 0x00, 0x00],
         deneb_fork_version: [0x04, 0x00, 0x00, 0x00],
         electra_fork_version: [0x05, 0x00, 0x00, 0x00],
+        fulu_fork_version: [0x06, 0x00, 0x00, 0x00],
         altair_fork_epoch: 0,
         bellatrix_fork_epoch: 0,
         capella_fork_epoch: 0,
         deneb_fork_epoch: 0,
         electra_fork_epoch: 10,
+        fulu_fork_epoch: 1000,
     }
 }
 
