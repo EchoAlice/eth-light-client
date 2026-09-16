@@ -5,11 +5,13 @@ use ssz_types::FixedVector;
 use super::{assemble_finality_proof, bad_size, decode_as, RawSyncAggregate, RawSyncCommittee};
 use crate::chain_spec::Fork;
 use crate::error::{Error, Result};
-use crate::types::consensus::LightClientHeader::{Altair, Bellatrix, Capella, Deneb, Electra};
+use crate::types::consensus::LightClientHeader::{
+    Altair, Bellatrix, Capella, Deneb, Electra, Fulu,
+};
 use crate::types::consensus::{
     AltairLightClientHeader, BellatrixLightClientHeader, CapellaLightClientHeader,
-    DenebLightClientHeader, ElectraLightClientHeader, LightClientHeader, LightClientUpdate,
-    SyncAggregate, SyncCommittee, SyncCommitteeProof,
+    DenebLightClientHeader, ElectraLightClientHeader, FuluLightClientHeader, LightClientHeader,
+    LightClientUpdate, SyncAggregate, SyncCommittee, SyncCommitteeProof,
 };
 use crate::types::primitives::Root;
 
@@ -43,6 +45,11 @@ impl LightClientUpdate {
             Fork::Electra => match sync_committee_size {
                 32 => decode_as::<RawElectraLightClientUpdate<U32>>(bytes)?.into_update(),
                 512 => decode_as::<RawElectraLightClientUpdate<U512>>(bytes)?.into_update(),
+                n => Err(bad_size(n)),
+            },
+            Fork::Fulu => match sync_committee_size {
+                32 => decode_as::<RawFuluLightClientUpdate<U32>>(bytes)?.into_update(),
+                512 => decode_as::<RawFuluLightClientUpdate<U512>>(bytes)?.into_update(),
                 n => Err(bad_size(n)),
             },
         }
@@ -165,6 +172,31 @@ impl<N: Unsigned> RawElectraLightClientUpdate<N> {
         assemble_update(
             Electra(self.attested_header),
             Electra(self.finalized_header),
+            self.finality_branch.to_vec(),
+            self.next_sync_committee.into_sync_committee(),
+            self.next_sync_committee_branch.to_vec(),
+            self.sync_aggregate.into_sync_aggregate(),
+            self.signature_slot,
+        )
+    }
+}
+
+#[derive(Decode)]
+struct RawFuluLightClientUpdate<N: Unsigned> {
+    attested_header: FuluLightClientHeader,
+    next_sync_committee: RawSyncCommittee<N>,
+    next_sync_committee_branch: FixedVector<Root, U6>,
+    finalized_header: FuluLightClientHeader,
+    finality_branch: FixedVector<Root, U7>,
+    sync_aggregate: RawSyncAggregate<N>,
+    signature_slot: u64,
+}
+
+impl<N: Unsigned> RawFuluLightClientUpdate<N> {
+    fn into_update(self) -> Result<LightClientUpdate> {
+        assemble_update(
+            Fulu(self.attested_header),
+            Fulu(self.finalized_header),
             self.finality_branch.to_vec(),
             self.next_sync_committee.into_sync_committee(),
             self.next_sync_committee_branch.to_vec(),

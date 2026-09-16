@@ -4,10 +4,13 @@ use ssz_types::typenum::{Unsigned, U32, U512};
 use super::{bad_size, decode_as, RawSyncAggregate};
 use crate::chain_spec::Fork;
 use crate::error::Result;
-use crate::types::consensus::LightClientHeader::{Altair, Bellatrix, Capella, Deneb, Electra};
+use crate::types::consensus::LightClientHeader::{
+    Altair, Bellatrix, Capella, Deneb, Electra, Fulu,
+};
 use crate::types::consensus::{
     AltairLightClientHeader, BellatrixLightClientHeader, CapellaLightClientHeader,
-    DenebLightClientHeader, ElectraLightClientHeader, LightClientOptimisticUpdate,
+    DenebLightClientHeader, ElectraLightClientHeader, FuluLightClientHeader,
+    LightClientOptimisticUpdate,
 };
 
 impl LightClientOptimisticUpdate {
@@ -40,6 +43,11 @@ impl LightClientOptimisticUpdate {
             Fork::Electra => match sync_committee_size {
                 32 => Ok(decode_as::<RawElectraOptimisticUpdate<U32>>(bytes)?.into_update()),
                 512 => Ok(decode_as::<RawElectraOptimisticUpdate<U512>>(bytes)?.into_update()),
+                n => Err(bad_size(n)),
+            },
+            Fork::Fulu => match sync_committee_size {
+                32 => Ok(decode_as::<RawFuluOptimisticUpdate<U32>>(bytes)?.into_update()),
+                512 => Ok(decode_as::<RawFuluOptimisticUpdate<U512>>(bytes)?.into_update()),
                 n => Err(bad_size(n)),
             },
         }
@@ -125,6 +133,23 @@ impl<N: Unsigned> RawElectraOptimisticUpdate<N> {
     fn into_update(self) -> LightClientOptimisticUpdate {
         LightClientOptimisticUpdate {
             attested_header: Electra(self.attested_header),
+            sync_aggregate: self.sync_aggregate.into_sync_aggregate(),
+            signature_slot: self.signature_slot,
+        }
+    }
+}
+
+#[derive(Decode)]
+struct RawFuluOptimisticUpdate<N: Unsigned> {
+    attested_header: FuluLightClientHeader,
+    sync_aggregate: RawSyncAggregate<N>,
+    signature_slot: u64,
+}
+
+impl<N: Unsigned> RawFuluOptimisticUpdate<N> {
+    fn into_update(self) -> LightClientOptimisticUpdate {
+        LightClientOptimisticUpdate {
+            attested_header: Fulu(self.attested_header),
             sync_aggregate: self.sync_aggregate.into_sync_aggregate(),
             signature_slot: self.signature_slot,
         }

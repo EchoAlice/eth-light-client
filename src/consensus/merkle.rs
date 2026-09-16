@@ -10,21 +10,21 @@ impl Fork {
     pub(crate) const fn current_sync_committee_gindex(&self) -> u64 {
         match self {
             Fork::Altair | Fork::Bellatrix | Fork::Capella | Fork::Deneb => 54,
-            Fork::Electra => 86,
+            Fork::Electra | Fork::Fulu => 86,
         }
     }
 
     pub(crate) const fn next_sync_committee_gindex(&self) -> u64 {
         match self {
             Fork::Altair | Fork::Bellatrix | Fork::Capella | Fork::Deneb => 55,
-            Fork::Electra => 87,
+            Fork::Electra | Fork::Fulu => 87,
         }
     }
 
     pub(crate) const fn finalized_root_gindex(&self) -> u64 {
         match self {
             Fork::Altair | Fork::Bellatrix | Fork::Capella | Fork::Deneb => 105,
-            Fork::Electra => 169,
+            Fork::Electra | Fork::Fulu => 169,
         }
     }
 }

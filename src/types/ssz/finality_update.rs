@@ -5,10 +5,13 @@ use ssz_types::FixedVector;
 use super::{assemble_finality_proof, bad_size, decode_as, RawSyncAggregate};
 use crate::chain_spec::Fork;
 use crate::error::Result;
-use crate::types::consensus::LightClientHeader::{Altair, Bellatrix, Capella, Deneb, Electra};
+use crate::types::consensus::LightClientHeader::{
+    Altair, Bellatrix, Capella, Deneb, Electra, Fulu,
+};
 use crate::types::consensus::{
     AltairLightClientHeader, BellatrixLightClientHeader, CapellaLightClientHeader,
-    DenebLightClientHeader, ElectraLightClientHeader, LightClientFinalityUpdate,
+    DenebLightClientHeader, ElectraLightClientHeader, FuluLightClientHeader,
+    LightClientFinalityUpdate,
 };
 use crate::types::primitives::Root;
 
@@ -42,6 +45,11 @@ impl LightClientFinalityUpdate {
             Fork::Electra => match sync_committee_size {
                 32 => decode_as::<RawElectraFinalityUpdate<U32>>(bytes)?.into_update(),
                 512 => decode_as::<RawElectraFinalityUpdate<U512>>(bytes)?.into_update(),
+                n => Err(bad_size(n)),
+            },
+            Fork::Fulu => match sync_committee_size {
+                32 => decode_as::<RawFuluFinalityUpdate<U32>>(bytes)?.into_update(),
+                512 => decode_as::<RawFuluFinalityUpdate<U512>>(bytes)?.into_update(),
                 n => Err(bad_size(n)),
             },
         }
@@ -162,6 +170,29 @@ impl<N: Unsigned> RawElectraFinalityUpdate<N> {
 
         Ok(LightClientFinalityUpdate {
             attested_header: Electra(self.attested_header),
+            finalized,
+            sync_aggregate: self.sync_aggregate.into_sync_aggregate(),
+            signature_slot: self.signature_slot,
+        })
+    }
+}
+
+#[derive(Decode)]
+struct RawFuluFinalityUpdate<N: Unsigned> {
+    attested_header: FuluLightClientHeader,
+    finalized_header: FuluLightClientHeader,
+    finality_branch: FixedVector<Root, U7>,
+    sync_aggregate: RawSyncAggregate<N>,
+    signature_slot: u64,
+}
+
+impl<N: Unsigned> RawFuluFinalityUpdate<N> {
+    fn into_update(self) -> Result<LightClientFinalityUpdate> {
+        let finalized =
+            assemble_finality_proof(Fulu(self.finalized_header), self.finality_branch.to_vec())?;
+
+        Ok(LightClientFinalityUpdate {
+            attested_header: Fulu(self.attested_header),
             finalized,
             sync_aggregate: self.sync_aggregate.into_sync_aggregate(),
             signature_slot: self.signature_slot,
