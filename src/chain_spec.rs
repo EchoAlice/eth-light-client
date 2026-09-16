@@ -236,19 +236,9 @@ impl ChainSpecConfig {
         }
 
         // Fork epochs are monotonically non-decreasing, anchored at Altair.
-        if self.bellatrix_fork_epoch < self.altair_fork_epoch {
+        if self.fulu_fork_epoch < self.electra_fork_epoch {
             return Err(Error::InvalidInput(
-                "bellatrix_fork_epoch must be >= altair_fork_epoch".to_string(),
-            ));
-        }
-        if self.capella_fork_epoch < self.bellatrix_fork_epoch {
-            return Err(Error::InvalidInput(
-                "capella_fork_epoch must be >= bellatrix_fork_epoch".to_string(),
-            ));
-        }
-        if self.deneb_fork_epoch < self.capella_fork_epoch {
-            return Err(Error::InvalidInput(
-                "deneb_fork_epoch must be >= capella_fork_epoch".to_string(),
+                "fulu_fork_epoch must be >= electra_fork_epoch".to_string(),
             ));
         }
         if self.electra_fork_epoch < self.deneb_fork_epoch {
@@ -256,9 +246,19 @@ impl ChainSpecConfig {
                 "electra_fork_epoch must be >= deneb_fork_epoch".to_string(),
             ));
         }
-        if self.fulu_fork_epoch < self.electra_fork_epoch {
+        if self.deneb_fork_epoch < self.capella_fork_epoch {
             return Err(Error::InvalidInput(
-                "fulu_fork_epoch must be >= electra_fork_epoch".to_string(),
+                "deneb_fork_epoch must be >= capella_fork_epoch".to_string(),
+            ));
+        }
+        if self.capella_fork_epoch < self.bellatrix_fork_epoch {
+            return Err(Error::InvalidInput(
+                "capella_fork_epoch must be >= bellatrix_fork_epoch".to_string(),
+            ));
+        }
+        if self.bellatrix_fork_epoch < self.altair_fork_epoch {
+            return Err(Error::InvalidInput(
+                "bellatrix_fork_epoch must be >= altair_fork_epoch".to_string(),
             ));
         }
 
@@ -293,8 +293,17 @@ pub(crate) struct ForkParams {
 }
 
 impl ForkSchedule {
-    // TODO: Should i make this a match statement instead? or make this code
-    // "safer" in some other way?
+    pub(crate) const fn version_at_epoch(&self, epoch: u64) -> [u8; 4] {
+        match self.fork_at_epoch(epoch) {
+            Fork::Altair => self.altair.version,
+            Fork::Bellatrix => self.bellatrix.version,
+            Fork::Capella => self.capella.version,
+            Fork::Deneb => self.deneb.version,
+            Fork::Electra => self.electra.version,
+            Fork::Fulu => self.fulu.version,
+        }
+    }
+
     pub(crate) const fn fork_at_epoch(&self, epoch: u64) -> Fork {
         if epoch >= self.fulu.epoch {
             Fork::Fulu
@@ -308,17 +317,6 @@ impl ForkSchedule {
             Fork::Bellatrix
         } else {
             Fork::Altair
-        }
-    }
-
-    pub(crate) const fn version_at_epoch(&self, epoch: u64) -> [u8; 4] {
-        match self.fork_at_epoch(epoch) {
-            Fork::Altair => self.altair.version,
-            Fork::Bellatrix => self.bellatrix.version,
-            Fork::Capella => self.capella.version,
-            Fork::Deneb => self.deneb.version,
-            Fork::Electra => self.electra.version,
-            Fork::Fulu => self.fulu.version,
         }
     }
 }

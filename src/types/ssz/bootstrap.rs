@@ -5,10 +5,12 @@ use ssz_types::FixedVector;
 use super::{bad_size, decode_as, RawSyncCommittee};
 use crate::chain_spec::Fork;
 use crate::error::Result;
-use crate::types::consensus::LightClientHeader::{Altair, Bellatrix, Capella, Deneb, Electra};
+use crate::types::consensus::LightClientHeader::{
+    Altair, Bellatrix, Capella, Deneb, Electra, Fulu,
+};
 use crate::types::consensus::{
     AltairLightClientHeader, BellatrixLightClientHeader, CapellaLightClientHeader,
-    DenebLightClientHeader, ElectraLightClientHeader, LightClientBootstrap,
+    DenebLightClientHeader, ElectraLightClientHeader, FuluLightClientHeader, LightClientBootstrap,
 };
 use crate::types::primitives::Root;
 
@@ -55,8 +57,13 @@ impl LightClientBootstrap {
                     .into_bootstrap(genesis_validators_root)),
                 n => Err(bad_size(n)),
             },
-            // TODO(#37): RawFulu* structs + real arms (commit 2)
-            Fork::Fulu => todo!(),
+            Fork::Fulu => match sync_committee_size {
+                32 => Ok(decode_as::<RawFuluLightClientBootstrap<U32>>(bytes)?
+                    .into_bootstrap(genesis_validators_root)),
+                512 => Ok(decode_as::<RawFuluLightClientBootstrap<U512>>(bytes)?
+                    .into_bootstrap(genesis_validators_root)),
+                n => Err(bad_size(n)),
+            },
         }
     }
 }
@@ -103,6 +110,7 @@ struct RawCapellaLightClientBootstrap<N: Unsigned> {
     current_sync_committee: RawSyncCommittee<N>,
     current_sync_committee_branch: FixedVector<Root, U5>,
 }
+
 impl<N: Unsigned> RawCapellaLightClientBootstrap<N> {
     fn into_bootstrap(self, genesis_validators_root: Root) -> LightClientBootstrap {
         LightClientBootstrap {
@@ -120,6 +128,7 @@ struct RawDenebLightClientBootstrap<N: Unsigned> {
     current_sync_committee: RawSyncCommittee<N>,
     current_sync_committee_branch: FixedVector<Root, U5>,
 }
+
 impl<N: Unsigned> RawDenebLightClientBootstrap<N> {
     fn into_bootstrap(self, genesis_validators_root: Root) -> LightClientBootstrap {
         LightClientBootstrap {
@@ -137,10 +146,29 @@ struct RawElectraLightClientBootstrap<N: Unsigned> {
     current_sync_committee: RawSyncCommittee<N>,
     current_sync_committee_branch: FixedVector<Root, U6>,
 }
+
 impl<N: Unsigned> RawElectraLightClientBootstrap<N> {
     fn into_bootstrap(self, genesis_validators_root: Root) -> LightClientBootstrap {
         LightClientBootstrap {
             header: Electra(self.header),
+            current_sync_committee: self.current_sync_committee.into_sync_committee(),
+            current_sync_committee_branch: self.current_sync_committee_branch.to_vec(),
+            genesis_validators_root,
+        }
+    }
+}
+
+#[derive(Decode)]
+struct RawFuluLightClientBootstrap<N: Unsigned> {
+    header: FuluLightClientHeader,
+    current_sync_committee: RawSyncCommittee<N>,
+    current_sync_committee_branch: FixedVector<Root, U6>,
+}
+
+impl<N: Unsigned> RawFuluLightClientBootstrap<N> {
+    fn into_bootstrap(self, genesis_validators_root: Root) -> LightClientBootstrap {
+        LightClientBootstrap {
+            header: Fulu(self.header),
             current_sync_committee: self.current_sync_committee.into_sync_committee(),
             current_sync_committee_branch: self.current_sync_committee_branch.to_vec(),
             genesis_validators_root,
