@@ -1,3 +1,4 @@
+use ethereum_hashing::hash32_concat;
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
 
@@ -34,7 +35,6 @@ pub(crate) fn compute_domain(
     domain
 }
 
-// Note: Fulu modifies this function.  Look at the specs
 pub(crate) fn compute_fork_digest(
     fork_version: ForkVersion,
     genesis_validators_root: Root,
@@ -44,6 +44,27 @@ pub(crate) fn compute_fork_digest(
     let mut digest = [0u8; 4];
     digest.copy_from_slice(&fork_data_root[0..4]);
 
+    digest
+}
+
+// TODO(#37): caller lands with ChainSpec's blob-schedule walk; drop the allow then.
+#[allow(dead_code)]
+pub(crate) fn compute_bpo_fork_digest(
+    fork_version: ForkVersion,
+    genesis_validators_root: Root,
+    bpo_epoch: u64,
+    max_blobs_per_block: u64,
+) -> ForkDigest {
+    let base_digest = compute_fork_digest(fork_version, genesis_validators_root);
+    let mask = hash32_concat(&bpo_epoch.to_le_bytes(), &max_blobs_per_block.to_le_bytes());
+
+    // Spec xors the full 32-byte fork data root with the mask, then truncates.
+    // XOR is bytewise, so it commutes with truncation — mixing on the already-
+    // truncated digest is bit-identical and lets us reuse compute_fork_digest.
+    let mut digest = base_digest;
+    for i in 0..4 {
+        digest[i] ^= mask[i];
+    }
     digest
 }
 
