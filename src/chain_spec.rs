@@ -64,6 +64,8 @@ impl ChainSpec {
         }
     }
 
+    // TODO: Integrate compute_bpo_fork_digest for Fulu+
+    //
     /// Inverse of the spec's `compute_fork_digest`
     pub fn fork_from_digest(
         &self,
