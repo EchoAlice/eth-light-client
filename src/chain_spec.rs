@@ -206,9 +206,7 @@ impl ChainSpecConfig {
             deneb_fork_epoch: 269568,
             electra_fork_epoch: 364032,
             fulu_fork_epoch: 411392,
-            // consensus-specs v1.6.1 BLOB_SCHEDULE; first row folds in the spec's
-            // pre-BPO fallback (ELECTRA_FORK_EPOCH, MAX_BLOBS_PER_BLOCK_ELECTRA) as
-            // an explicit entry -- behavior-identical, no fallback code path.
+            // consensus-specs v1.6.1 BLOB_SCHEDULE
             blob_schedule: &[
                 BlobParameters {
                     epoch: 364032,
