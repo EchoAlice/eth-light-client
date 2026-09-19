@@ -10,7 +10,7 @@ use eth_light_client::{
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // *Note*: this example is pinned to mainnet
+    // Note: This example is pinned to mainnet
     let chain_spec = ChainSpec::mainnet();
     let genesis_validators_root: Root =
         hex::decode("4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95")?
@@ -189,6 +189,7 @@ fn fork_from_version(fork: &str) -> Result<Fork, String> {
         "capella" => Ok(Fork::Capella),
         "deneb" => Ok(Fork::Deneb),
         "electra" => Ok(Fork::Electra),
+        "fulu" => Ok(Fork::Fulu),
         _ => Err(format!("unsupported fork: {}", fork)),
     }
 }

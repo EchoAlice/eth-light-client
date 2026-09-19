@@ -110,3 +110,31 @@ fn rejects_unordered_fork_epochs() {
     config.electra_fork_epoch = 50;
     assert!(config.validate().is_err());
 }
+
+#[test]
+fn mainnet_digests_match_wire_observations() {
+    // Digests observed in /updates chunks from lodestar-mainnet.chainsafe.io,
+    // 2026-09-19; period → era noted per entry.
+    let spec = ChainSpec::mainnet();
+    let gvr: Root = hex::decode("4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95")
+        .expect("valid hex")
+        .try_into()
+        .expect("32 bytes");
+    assert_eq!(
+        spec.fork_from_digest([0x4a, 0x26, 0xc5, 0x8b], gvr),
+        Some(Fork::Bellatrix)
+    ); // period 700
+    assert_eq!(
+        spec.fork_from_digest([0xcc, 0x2c, 0x5c, 0xdb], gvr),
+        Some(Fork::Fulu)
+    ); // period 1608, era 1 (fallback params)
+    assert_eq!(
+        spec.fork_from_digest([0xcb, 0x0d, 0x1a, 0xcc], gvr),
+        Some(Fork::Fulu)
+    ); // period 1615, era 2 (BPO-1)
+    assert_eq!(
+        spec.fork_from_digest([0x8c, 0x9f, 0x62, 0xfe], gvr),
+        Some(Fork::Fulu)
+    ); // period 1638, era 3 (BPO-2)
+    assert_eq!(spec.fork_from_digest([0xde, 0xad, 0xbe, 0xef], gvr), None);
+}
