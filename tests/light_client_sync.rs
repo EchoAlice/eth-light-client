@@ -3,6 +3,8 @@
 use eth_light_client::test_utils::{ProcessUpdateStep, StateChecks, SyncTestCase, TestStep};
 use eth_light_client::{Fork, LightClient, UpdateChanges};
 
+// TODO: Vendor Fulu `light_client` test vectors with the #106 fixture tail.
+
 #[test]
 fn altair_sync_via_public_api() {
     run_public_api_sync(SyncTestCase::light_client_sync(Fork::Altair));
