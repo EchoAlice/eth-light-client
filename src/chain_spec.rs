@@ -186,7 +186,7 @@ impl ChainSpecConfig {
             bellatrix_fork_epoch: 144896,
             capella_fork_epoch: 194048,
             deneb_fork_epoch: 269568,
-            electra_fork_epoch: 364544,
+            electra_fork_epoch: 364032,
             fulu_fork_epoch: 411392,
         }
     }
