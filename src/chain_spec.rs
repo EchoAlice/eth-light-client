@@ -1,6 +1,6 @@
-use crate::consensus::signing::compute_fork_digest;
+use crate::consensus::signing::{compute_bpo_fork_digest, compute_fork_digest};
 use crate::error::{Error, Result};
-use crate::types::primitives::{ForkDigest, Root, Slot};
+use crate::types::primitives::{Epoch, ForkDigest, Root, Slot};
 
 /// Defines network-specific constants.
 #[derive(Debug, Clone)]
@@ -11,6 +11,7 @@ pub struct ChainSpec {
     epochs_per_sync_committee_period: u64,
     sync_committee_size: usize,
     fork_schedule: ForkSchedule,
+    blob_schedule: &'static [BlobParameters],
 }
 
 impl ChainSpec {
@@ -36,36 +37,35 @@ impl ChainSpec {
             epochs_per_sync_committee_period: config.epochs_per_sync_committee_period,
             sync_committee_size: config.sync_committee_size,
             fork_schedule: ForkSchedule {
-                altair: ForkParams {
+                altair: ForkParameters {
                     version: config.altair_fork_version,
                     epoch: config.altair_fork_epoch,
                 },
-                bellatrix: ForkParams {
+                bellatrix: ForkParameters {
                     version: config.bellatrix_fork_version,
                     epoch: config.bellatrix_fork_epoch,
                 },
-                capella: ForkParams {
+                capella: ForkParameters {
                     version: config.capella_fork_version,
                     epoch: config.capella_fork_epoch,
                 },
-                deneb: ForkParams {
+                deneb: ForkParameters {
                     version: config.deneb_fork_version,
                     epoch: config.deneb_fork_epoch,
                 },
-                electra: ForkParams {
+                electra: ForkParameters {
                     version: config.electra_fork_version,
                     epoch: config.electra_fork_epoch,
                 },
-                fulu: ForkParams {
+                fulu: ForkParameters {
                     version: config.fulu_fork_version,
                     epoch: config.fulu_fork_epoch,
                 },
             },
+            blob_schedule: config.blob_schedule,
         }
     }
 
-    // TODO: Integrate compute_bpo_fork_digest for Fulu+
-    //
     /// Inverse of the spec's `compute_fork_digest`
     pub fn fork_from_digest(
         &self,
@@ -78,13 +78,29 @@ impl ChainSpec {
             (Fork::Capella, self.fork_schedule.capella.version),
             (Fork::Deneb, self.fork_schedule.deneb.version),
             (Fork::Electra, self.fork_schedule.electra.version),
-            (Fork::Fulu, self.fork_schedule.fulu.version),
         ];
+
+        // Pre-Fulu candidates: the version alone determines the digest.
         for (fork, version) in candidates {
             if compute_fork_digest(version, genesis_validators_root) == digest {
                 return Some(fork);
             }
         }
+
+        // Fulu-era candidates: digests mix blob-schedule parameters (EIP-7892),
+        // one candidate per era -- the schedule doubles as the candidate list.
+        for entry in self.blob_schedule {
+            if compute_bpo_fork_digest(
+                self.fork_schedule.fulu.version,
+                genesis_validators_root,
+                entry.epoch,
+                entry.max_blobs_per_block,
+            ) == digest
+            {
+                return Some(Fork::Fulu);
+            }
+        }
+
         None
     }
 
@@ -166,6 +182,8 @@ pub struct ChainSpecConfig {
     pub deneb_fork_epoch: u64,
     pub electra_fork_epoch: u64,
     pub fulu_fork_epoch: u64,
+
+    pub blob_schedule: &'static [BlobParameters],
 }
 
 impl ChainSpecConfig {
@@ -188,6 +206,23 @@ impl ChainSpecConfig {
             deneb_fork_epoch: 269568,
             electra_fork_epoch: 364032,
             fulu_fork_epoch: 411392,
+            // consensus-specs v1.6.1 BLOB_SCHEDULE; first row folds in the spec's
+            // pre-BPO fallback (ELECTRA_FORK_EPOCH, MAX_BLOBS_PER_BLOCK_ELECTRA) as
+            // an explicit entry -- behavior-identical, no fallback code path.
+            blob_schedule: &[
+                BlobParameters {
+                    epoch: 364032,
+                    max_blobs_per_block: 9,
+                },
+                BlobParameters {
+                    epoch: 412672,
+                    max_blobs_per_block: 15,
+                },
+                BlobParameters {
+                    epoch: 419072,
+                    max_blobs_per_block: 21,
+                },
+            ],
         }
     }
 
@@ -210,6 +245,7 @@ impl ChainSpecConfig {
             deneb_fork_epoch: u64::MAX,
             electra_fork_epoch: u64::MAX,
             fulu_fork_epoch: u64::MAX,
+            blob_schedule: &[],
         }
     }
 
@@ -280,18 +316,18 @@ pub enum Fork {
 
 #[derive(Debug, Clone)]
 pub(crate) struct ForkSchedule {
-    altair: ForkParams,
-    bellatrix: ForkParams,
-    capella: ForkParams,
-    deneb: ForkParams,
-    electra: ForkParams,
-    fulu: ForkParams,
+    altair: ForkParameters,
+    bellatrix: ForkParameters,
+    capella: ForkParameters,
+    deneb: ForkParameters,
+    electra: ForkParameters,
+    fulu: ForkParameters,
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ForkParams {
+pub(crate) struct ForkParameters {
     version: [u8; 4],
-    epoch: u64,
+    epoch: Epoch,
 }
 
 impl ForkSchedule {
@@ -321,6 +357,12 @@ impl ForkSchedule {
             Fork::Altair
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BlobParameters {
+    pub epoch: Epoch,
+    pub max_blobs_per_block: u64,
 }
 
 #[cfg(test)]

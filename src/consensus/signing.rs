@@ -2,7 +2,7 @@ use ethereum_hashing::hash32_concat;
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
 
-use crate::types::primitives::{Domain, ForkDigest, ForkVersion, Root};
+use crate::types::primitives::{Domain, Epoch, ForkDigest, ForkVersion, Root};
 
 pub(crate) const DOMAIN_SYNC_COMMITTEE: [u8; 4] = [7, 0, 0, 0];
 
@@ -47,12 +47,10 @@ pub(crate) fn compute_fork_digest(
     digest
 }
 
-// TODO(#37): caller lands with ChainSpec's blob-schedule walk; drop the allow then.
-#[allow(dead_code)]
 pub(crate) fn compute_bpo_fork_digest(
     fork_version: ForkVersion,
     genesis_validators_root: Root,
-    bpo_epoch: u64,
+    bpo_epoch: Epoch,
     max_blobs_per_block: u64,
 ) -> ForkDigest {
     let base_digest = compute_fork_digest(fork_version, genesis_validators_root);

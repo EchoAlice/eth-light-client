@@ -19,6 +19,7 @@ fn valid_config() -> ChainSpecConfig {
         deneb_fork_epoch: 0,
         electra_fork_epoch: 10,
         fulu_fork_epoch: 1000,
+        blob_schedule: &[],
     }
 }
 
