@@ -34,9 +34,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "{provider_url}/eth/v1/beacon/light_client/bootstrap/0x{}",
         hex::encode(trusted_block_root)
     );
-    let (bootstrap_bytes, fork) = fetch_versioned_ssz(&url)?;
+    let (bytes, fork) = fetch_versioned_ssz(&url)?;
     let bootstrap = LightClientBootstrap::from_ssz(
-        &bootstrap_bytes,
+        &bytes,
         fork,
         chain_spec.sync_committee_size(),
         genesis_validators_root,
@@ -82,23 +82,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-/// Walks the store up to the current sync period via `/updates` batches.
-/// Re-entered every tick: no-op when current; recovery after a period
-/// rollover, machine suspend, or provider outage.
+/// Walks the store's verifiable frontier up to the current sync period
+/// via `/updates` batches. Re-entered every tick: no-op when current;
+/// recovery after a period rollover, machine suspend, or provider outage.
 fn catch_up(
     client: &mut LightClient,
     provider_url: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let mut servable_period = max_servable_period(client);
     let current_slot = current_slot_from_clock(client.chain_spec())?;
-    let mut store_sync_period = client.current_sync_committee_period();
     let mut current_sync_period = client
         .chain_spec()
         .slot_to_sync_committee_period(current_slot);
 
-    while store_sync_period < current_sync_period {
+    while servable_period < current_sync_period {
         // Servers send, at max, 128 committee updates per response.
-        let gap = (current_sync_period - store_sync_period).min(128);
-        let url = format!("{provider_url}/eth/v1/beacon/light_client/updates?start_period={store_sync_period}&count={gap}");
+        let gap = (current_sync_period - servable_period).min(128);
+        let url = format!("{provider_url}/eth/v1/beacon/light_client/updates?start_period={servable_period}&count={gap}");
         let bytes = ureq::get(&url)
             .header("Accept", "application/octet-stream")
             .call()?
@@ -106,11 +106,11 @@ fn catch_up(
             .read_to_vec()?;
         process_sync_update_batch(client, &bytes)?;
 
-        let new_period = client.current_sync_committee_period();
-        if new_period == store_sync_period {
-            return Err(format!("no progress from server at period {store_sync_period}").into());
+        let updated_servable_period = max_servable_period(client);
+        if updated_servable_period == servable_period {
+            return Err(format!("no progress from server at period {servable_period}").into());
         }
-        store_sync_period = new_period;
+        servable_period = updated_servable_period;
 
         let current_slot = current_slot_from_clock(client.chain_spec())?;
         current_sync_period = client
@@ -197,4 +197,10 @@ fn fork_from_version(fork: &str) -> Result<Fork, String> {
 fn current_slot_from_clock(chain_spec: &ChainSpec) -> Result<u64, Box<dyn std::error::Error>> {
     let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
     Ok(chain_spec.timestamp_to_slot(timestamp))
+}
+
+/// Store contains sync committee at period P, and optionally the next
+/// committee at P + 1
+fn max_servable_period(client: &LightClient) -> u64 {
+    client.current_sync_committee_period() + u64::from(client.next_sync_committee().is_some())
 }
