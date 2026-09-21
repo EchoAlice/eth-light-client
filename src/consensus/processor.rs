@@ -101,7 +101,8 @@ impl LightClientProcessor {
         Ok(changes)
     }
 
-    /// Verifies update's (i) relevance, (ii) internal construction, and (iii) sync committee signature is sound
+    /// Verifies update's (i) relevance, (ii) internal construction, and that
+    /// (iii) the sync committee signature is sound
     fn validate_light_client_update(
         &self,
         update: &LightClientUpdate,

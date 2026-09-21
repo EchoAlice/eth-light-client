@@ -45,6 +45,7 @@ impl LightClient {
         self.inner.store().next_sync_committee.as_ref()
     }
 
+    // TODO: Rename to `finalized_sync_committee_period`. See issue #201
     pub fn current_sync_committee_period(&self) -> u64 {
         self.inner
             .store()
