@@ -33,8 +33,16 @@ impl LightClient {
         self.inner.store().finalized_header.beacon()
     }
 
+    pub fn finalized_execution_state_root(&self) -> Option<Root> {
+        self.inner.store().finalized_header.execution_state_root()
+    }
+
     pub fn optimistic_beacon_block_header(&self) -> &BeaconBlockHeader {
         self.inner.store().optimistic_header.beacon()
+    }
+
+    pub fn optimistic_execution_state_root(&self) -> Option<Root> {
+        self.inner.store().optimistic_header.execution_state_root()
     }
 
     pub fn current_sync_committee(&self) -> &SyncCommittee {

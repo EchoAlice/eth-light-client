@@ -69,6 +69,16 @@ impl LightClientHeader {
         }
     }
 
+    pub fn execution_state_root(&self) -> Option<Root> {
+        match self {
+            Self::Altair(_) | Self::Bellatrix(_) => None,
+            Self::Capella(h) => Some(h.execution.state_root),
+            Self::Deneb(h) => Some(h.execution.state_root),
+            Self::Electra(h) => Some(h.execution.state_root),
+            Self::Fulu(h) => Some(h.execution.state_root),
+        }
+    }
+
     /// Returns the slot the beacon block was proposed in, not the signature slot.
     pub fn slot(&self) -> Slot {
         self.beacon().slot
