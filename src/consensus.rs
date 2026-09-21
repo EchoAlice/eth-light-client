@@ -1,9 +1,9 @@
 #![doc = include_str!("consensus/README.md")]
 
-pub mod bls;
-pub mod merkle;
-pub mod processor;
-pub mod signing;
+pub(crate) mod bls;
+pub(crate) mod merkle;
+pub(crate) mod processor;
+pub(crate) mod signing;
 pub(crate) mod store;
 
 #[cfg(test)]

@@ -61,6 +61,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let finality_changes =
             client.process_light_client_update(finality_update.into(), current_slot)?;
         println!("finality update changes to store: {:?}", finality_changes);
+        println!(
+            "finalized execution state root: {:?}",
+            client.finalized_execution_state_root()
+        );
 
         // 6. Fetch and process optimistic update
         let url = format!("{provider_url}/eth/v1/beacon/light_client/optimistic_update");
