@@ -12,10 +12,8 @@ use eth_light_client::{
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Note: This example is pinned to mainnet
     let chain_spec = ChainSpec::mainnet();
-    let genesis_validators_root: Root =
-        hex::decode("4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95")?
-            .try_into()
-            .map_err(|_| "trusted block root must be 32 bytes")?;
+    let gvr_hex = "4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95";
+    let genesis_validators_root = root_from_hex(gvr_hex)?;
 
     // 1. Client chooses a trusted block root and a data provider.
     let mut args = args().skip(1);
@@ -25,9 +23,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let root_hex = args
         .next()
         .ok_or("usage: live_sync <provider-url> <trusted-block-root>")?;
-    let trusted_block_root: Root = hex::decode(root_hex.strip_prefix("0x").unwrap_or(&root_hex))?
-        .try_into()
-        .map_err(|_| "trusted block root must be 32 bytes")?;
+    let trusted_block_root = root_from_hex(&root_hex)?;
 
     // 2. Fetch the bootstrap anchored to the trusted root
     let url = format!(
@@ -47,7 +43,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     loop {
         // 4. Bounded: trusted root's sync period -> current sync period
-        catch_up(&mut client, &provider_url)?;
+        advance_committee_frontier(&mut client, &provider_url)?;
 
         // 5. Fetch and process finality update
         let url = format!("{provider_url}/eth/v1/beacon/light_client/finality_update");
@@ -60,11 +56,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let current_slot = current_slot_from_clock(client.chain_spec())?;
         let finality_changes =
             client.process_light_client_update(finality_update.into(), current_slot)?;
-        println!("finality update changes to store: {:?}", finality_changes);
-        println!(
-            "finalized execution state root: {:?}",
-            client.finalized_execution_state_root()
-        );
+
+        if finality_changes.finalized_updated {
+            println!();
+            println!("*** Finality ***: {:?}", finality_changes);
+
+            match client.finalized_execution_state_root() {
+                Some(root) => println!("finalized execution state root: 0x{}", hex::encode(root)),
+                None => println!("finalized execution state root: none (pre-Capella header)"),
+            }
+        }
 
         // 6. Fetch and process optimistic update
         let url = format!("{provider_url}/eth/v1/beacon/light_client/optimistic_update");
@@ -75,12 +76,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             client.chain_spec().sync_committee_size(),
         )?;
         let current_slot = current_slot_from_clock(client.chain_spec())?;
+
         let optimistic_changes =
             client.process_light_client_update(optimistic_update.into(), current_slot)?;
-        println!(
-            "optimistic update changes to store: {:?}",
-            optimistic_changes
-        );
+        println!("*** Optimistic ***: {:?}", optimistic_changes);
 
         thread::sleep(Duration::from_secs(12));
     }
@@ -89,7 +88,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// Walks the store's verifiable frontier up to the current sync period
 /// via `/updates` batches. Re-entered every tick: no-op when current;
 /// recovery after a period rollover, machine suspend, or provider outage.
-fn catch_up(
+fn advance_committee_frontier(
     client: &mut LightClient,
     provider_url: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -163,12 +162,21 @@ fn process_sync_update_batch(
         )?;
         let current_slot = current_slot_from_clock(client.chain_spec())?;
         let changes = client.process_light_client_update(update, current_slot)?;
-        println!("sync update changes to store: {:?}", changes);
+        println!("*** Sync Committee ***: {:?}", changes);
 
         bytes = &bytes[chunk_len..];
     }
 
     Ok(())
+}
+
+fn root_from_hex(hex_str: &str) -> Result<Root, Box<dyn std::error::Error>> {
+    let bytes = hex::decode(hex_str.strip_prefix("0x").unwrap_or(hex_str))?;
+    let root = bytes
+        .try_into()
+        .map_err(|v: Vec<u8>| format!("root must be 32 bytes, got {}", v.len()))?;
+
+    Ok(root)
 }
 
 fn fetch_versioned_ssz(url: &str) -> Result<(Vec<u8>, Fork), Box<dyn std::error::Error>> {
