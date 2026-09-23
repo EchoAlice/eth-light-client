@@ -75,22 +75,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // explorer). This is the client's root of trust.
     let trusted_block_root = /* choose */;
 
+    // The genesis validators root identifies the chain instance; like the
+    // trusted root it is a fact about the network, not part of any message
+    // (GET /eth/v1/beacon/genesis, or a known constant).
+    let genesis_validators_root = /* fetch */;
+
     // Fetch the bootstrap as SSZ bytes (any beacon node — it is verified
-    // against the trusted root), plus the genesis validators root
-    // (GET /eth/v1/beacon/genesis):
+    // against the trusted root):
     // GET /eth/v1/beacon/light_client/bootstrap/{trusted_block_root}
     let bootstrap_bytes: Vec<u8> = /* fetch */;
-    let genesis_validators_root = /* fetch */;
     // `sync_committee_size` is the network preset's committee width (512 mainnet).
     let bootstrap = LightClientBootstrap::from_ssz(
         &bootstrap_bytes,
         Fork::Capella,
         spec.sync_committee_size(),
-        genesis_validators_root,
     )?;
 
     // Create light client — rejects a bootstrap that doesn't match the root
-    let mut client = LightClient::new(spec, trusted_block_root, bootstrap)?;
+    let mut client = LightClient::new(
+        spec,
+        genesis_validators_root,
+        trusted_block_root,
+        bootstrap,
+    )?;
 
     // Then fetch updates from any source and verify them. The fork comes from
     // the response context (Eth-Consensus-Version header / fork-version prefix):

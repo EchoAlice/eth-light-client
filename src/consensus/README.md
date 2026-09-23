@@ -14,14 +14,15 @@ public API, see the root [`README.md`](../../README.md).
 
 ### Bootstrap
 ```text
-User supplies a trusted block root (chosen out-of-band) and a
-LightClientBootstrap (which may come from an untrusted server)
+User supplies the chain's genesis validators root and a trusted block
+root (both chosen out-of-band) and a LightClientBootstrap (which may
+come from an untrusted server)
         │
         ▼
-LightClient::new(spec, trusted_block_root, bootstrap)
+LightClient::new(spec, genesis_validators_root, trusted_block_root, bootstrap)
         │
         ▼
-LightClientProcessor::new(spec, trusted_block_root, bootstrap)
+LightClientProcessor::new(spec, genesis_validators_root, trusted_block_root, bootstrap)
         │
         ├─► merkle::verify_light_client_header
         │       bootstrap header internal consistency (Capella+: execution

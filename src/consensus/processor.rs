@@ -17,6 +17,7 @@ pub struct UpdateChanges {
 
 pub(crate) struct LightClientProcessor {
     chain_spec: ChainSpec,
+    genesis_validators_root: Root,
     store: LightClientStore,
 }
 
@@ -24,6 +25,7 @@ impl LightClientProcessor {
     /// Spec: `initialize_light_client_store()`
     pub(crate) fn new(
         chain_spec: ChainSpec,
+        genesis_validators_root: Root,
         trusted_block_root: Root,
         bootstrap: LightClientBootstrap,
     ) -> Result<Self> {
@@ -44,13 +46,13 @@ impl LightClientProcessor {
             bootstrap.header.state_root(),
         )?;
 
-        let store = LightClientStore::new(
-            bootstrap.header,
-            bootstrap.current_sync_committee,
-            bootstrap.genesis_validators_root,
-        );
+        let store = LightClientStore::new(bootstrap.header, bootstrap.current_sync_committee);
 
-        Ok(Self { chain_spec, store })
+        Ok(Self {
+            chain_spec,
+            genesis_validators_root,
+            store,
+        })
     }
 
     pub(crate) fn process_light_client_update(
@@ -206,7 +208,7 @@ impl LightClientProcessor {
         let domain = compute_domain(
             DOMAIN_SYNC_COMMITTEE,
             fork_version,
-            self.store.genesis_validators_root,
+            self.genesis_validators_root,
         );
         let attested_header_root = update.attested_header.beacon().hash_tree_root();
         let signing_root = compute_signing_root(attested_header_root, domain);
@@ -275,6 +277,10 @@ impl LightClientProcessor {
         &self.chain_spec
     }
 
+    pub(crate) fn genesis_validators_root(&self) -> Root {
+        self.genesis_validators_root
+    }
+
     pub(crate) fn store(&self) -> &LightClientStore {
         &self.store
     }
@@ -314,10 +320,10 @@ mod tests {
             }),
             current_sync_committee: test_committee(),
             current_sync_committee_branch: vec![],
-            genesis_validators_root: [0u8; 32],
         };
         let err = LightClientProcessor::new(
             crate::chain_spec::ChainSpec::minimal(),
+            [0u8; 32],
             [9u8; 32],
             bootstrap,
         )
@@ -334,12 +340,12 @@ mod tests {
     fn rejects_updates_failing_basic_validation() {
         let mut processor = LightClientProcessor {
             chain_spec: crate::chain_spec::ChainSpec::minimal(),
+            genesis_validators_root: [0u8; 32],
             store: LightClientStore::new(
                 LightClientHeader::Altair(AltairLightClientHeader {
                     beacon: test_beacon_header(1),
                 }),
                 test_committee(),
-                [0u8; 32],
             ),
         };
         let update = |sync_committee_bits, signature_slot| LightClientUpdate {
@@ -421,6 +427,7 @@ mod tests {
         let bootstrap = sync_test_case.load_bootstrap().unwrap();
         let mut processor = LightClientProcessor::new(
             sync_test_case.chain_spec().clone(),
+            sync_test_case.genesis_validators_root(),
             sync_test_case.trusted_block_root(),
             bootstrap,
         )
