@@ -214,5 +214,5 @@ fn current_slot_from_clock(chain_spec: &ChainSpec) -> Result<u64, Box<dyn std::e
 /// Store contains sync committee at period P, and optionally the next
 /// committee at P + 1
 fn max_servable_period(client: &LightClient) -> u64 {
-    client.current_sync_committee_period() + u64::from(client.next_sync_committee().is_some())
+    client.finalized_sync_committee_period() + u64::from(client.next_sync_committee().is_some())
 }

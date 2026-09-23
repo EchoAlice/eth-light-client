@@ -53,8 +53,7 @@ impl LightClient {
         self.inner.store().next_sync_committee.as_ref()
     }
 
-    // TODO: Rename to `finalized_sync_committee_period`. See issue #201
-    pub fn current_sync_committee_period(&self) -> u64 {
+    pub fn finalized_sync_committee_period(&self) -> u64 {
         self.inner
             .store()
             .finalized_sync_committee_period(self.inner.chain_spec())
@@ -77,7 +76,7 @@ impl std::fmt::Debug for LightClient {
                 "optimistic_slot",
                 &self.optimistic_beacon_block_header().slot,
             )
-            .field("current_period", &self.current_sync_committee_period())
+            .field("finalized_period", &self.finalized_sync_committee_period())
             .field("has_next_committee", &self.next_sync_committee().is_some())
             .finish()
     }

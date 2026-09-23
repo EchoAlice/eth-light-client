@@ -116,7 +116,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 - Time is always the caller's: `process_light_client_update(update, current_slot)` takes the current slot explicitly and never reads the system clock. `ChainSpec::timestamp_to_slot(unix_secs)` does the conversion; a clock that runs slow rejects more, never accepts more.
 - Getters: `finalized_beacon_block_header()`, `optimistic_beacon_block_header()`,
   `current_sync_committee()`, `next_sync_committee()`,
-  `current_sync_committee_period()`, `chain_spec()`
+  `finalized_sync_committee_period()`, `chain_spec()`
 
 **Custom/Devnet Configuration:**
 For local testnets or devnets, use `ChainSpecConfig` with `ChainSpec::try_from_config()`. See the rustdoc on `ChainSpecConfig` for usage examples.
