@@ -79,7 +79,6 @@ impl SyncTestCase {
             &bytes,
             fork,
             self.spec.sync_committee_size(),
-            self.meta.genesis_validators_root,
         )?)
     }
 
@@ -114,6 +113,10 @@ impl SyncTestCase {
 
     pub fn chain_spec(&self) -> &ChainSpec {
         &self.spec
+    }
+
+    pub fn genesis_validators_root(&self) -> Root {
+        self.meta.genesis_validators_root
     }
 
     pub fn trusted_block_root(&self) -> Root {

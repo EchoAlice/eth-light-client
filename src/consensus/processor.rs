@@ -320,7 +320,6 @@ mod tests {
             }),
             current_sync_committee: test_committee(),
             current_sync_committee_branch: vec![],
-            genesis_validators_root: [0u8; 32], // TODO: Remove
         };
         let err = LightClientProcessor::new(
             crate::chain_spec::ChainSpec::minimal(),
@@ -428,7 +427,7 @@ mod tests {
         let bootstrap = sync_test_case.load_bootstrap().unwrap();
         let mut processor = LightClientProcessor::new(
             sync_test_case.chain_spec().clone(),
-            bootstrap.genesis_validators_root,
+            sync_test_case.genesis_validators_root(),
             sync_test_case.trusted_block_root(),
             bootstrap,
         )

@@ -31,12 +31,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         hex::encode(trusted_block_root)
     );
     let (bytes, fork) = fetch_versioned_ssz(&url)?;
-    let bootstrap = LightClientBootstrap::from_ssz(
-        &bytes,
-        fork,
-        chain_spec.sync_committee_size(),
-        genesis_validators_root, // TODO: Remove
-    )?;
+    let bootstrap = LightClientBootstrap::from_ssz(&bytes, fork, chain_spec.sync_committee_size())?;
 
     // 3. Create light client
     let mut client = LightClient::new(

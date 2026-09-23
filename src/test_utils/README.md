@@ -86,7 +86,9 @@ use eth_light_client::{Fork, LightClient};
 let sync_test = SyncTestCase::single_fork(Fork::Altair);
 
 let mut client = LightClient::new(
-    sync_test.chain_spec(),
+    sync_test.chain_spec().clone(),
+    sync_test.genesis_validators_root(),
+    sync_test.trusted_block_root(),
     sync_test.load_bootstrap()?,
 )?;
 

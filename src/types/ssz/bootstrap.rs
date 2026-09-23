@@ -19,49 +19,46 @@ impl LightClientBootstrap {
         bytes: &[u8],
         fork: Fork,
         sync_committee_size: usize,
-        genesis_validators_root: Root,
     ) -> Result<LightClientBootstrap> {
         match fork {
             Fork::Altair => match sync_committee_size {
-                32 => Ok(decode_as::<RawAltairLightClientBootstrap<U32>>(bytes)?
-                    .into_bootstrap(genesis_validators_root)),
-                512 => Ok(decode_as::<RawAltairLightClientBootstrap<U512>>(bytes)?
-                    .into_bootstrap(genesis_validators_root)),
+                32 => Ok(decode_as::<RawAltairLightClientBootstrap<U32>>(bytes)?.into_bootstrap()),
+                512 => {
+                    Ok(decode_as::<RawAltairLightClientBootstrap<U512>>(bytes)?.into_bootstrap())
+                }
                 n => Err(bad_size(n)),
             },
             Fork::Bellatrix => match sync_committee_size {
-                32 => Ok(decode_as::<RawBellatrixLightClientBootstrap<U32>>(bytes)?
-                    .into_bootstrap(genesis_validators_root)),
-                512 => Ok(decode_as::<RawBellatrixLightClientBootstrap<U512>>(bytes)?
-                    .into_bootstrap(genesis_validators_root)),
+                32 => {
+                    Ok(decode_as::<RawBellatrixLightClientBootstrap<U32>>(bytes)?.into_bootstrap())
+                }
+                512 => Ok(
+                    decode_as::<RawBellatrixLightClientBootstrap<U512>>(bytes)?.into_bootstrap()
+                ),
                 n => Err(bad_size(n)),
             },
             Fork::Capella => match sync_committee_size {
-                32 => Ok(decode_as::<RawCapellaLightClientBootstrap<U32>>(bytes)?
-                    .into_bootstrap(genesis_validators_root)),
-                512 => Ok(decode_as::<RawCapellaLightClientBootstrap<U512>>(bytes)?
-                    .into_bootstrap(genesis_validators_root)),
+                32 => Ok(decode_as::<RawCapellaLightClientBootstrap<U32>>(bytes)?.into_bootstrap()),
+                512 => {
+                    Ok(decode_as::<RawCapellaLightClientBootstrap<U512>>(bytes)?.into_bootstrap())
+                }
                 n => Err(bad_size(n)),
             },
             Fork::Deneb => match sync_committee_size {
-                32 => Ok(decode_as::<RawDenebLightClientBootstrap<U32>>(bytes)?
-                    .into_bootstrap(genesis_validators_root)),
-                512 => Ok(decode_as::<RawDenebLightClientBootstrap<U512>>(bytes)?
-                    .into_bootstrap(genesis_validators_root)),
+                32 => Ok(decode_as::<RawDenebLightClientBootstrap<U32>>(bytes)?.into_bootstrap()),
+                512 => Ok(decode_as::<RawDenebLightClientBootstrap<U512>>(bytes)?.into_bootstrap()),
                 n => Err(bad_size(n)),
             },
             Fork::Electra => match sync_committee_size {
-                32 => Ok(decode_as::<RawElectraLightClientBootstrap<U32>>(bytes)?
-                    .into_bootstrap(genesis_validators_root)),
-                512 => Ok(decode_as::<RawElectraLightClientBootstrap<U512>>(bytes)?
-                    .into_bootstrap(genesis_validators_root)),
+                32 => Ok(decode_as::<RawElectraLightClientBootstrap<U32>>(bytes)?.into_bootstrap()),
+                512 => {
+                    Ok(decode_as::<RawElectraLightClientBootstrap<U512>>(bytes)?.into_bootstrap())
+                }
                 n => Err(bad_size(n)),
             },
             Fork::Fulu => match sync_committee_size {
-                32 => Ok(decode_as::<RawFuluLightClientBootstrap<U32>>(bytes)?
-                    .into_bootstrap(genesis_validators_root)),
-                512 => Ok(decode_as::<RawFuluLightClientBootstrap<U512>>(bytes)?
-                    .into_bootstrap(genesis_validators_root)),
+                32 => Ok(decode_as::<RawFuluLightClientBootstrap<U32>>(bytes)?.into_bootstrap()),
+                512 => Ok(decode_as::<RawFuluLightClientBootstrap<U512>>(bytes)?.into_bootstrap()),
                 n => Err(bad_size(n)),
             },
         }
@@ -76,12 +73,11 @@ struct RawAltairLightClientBootstrap<N: Unsigned> {
 }
 
 impl<N: Unsigned> RawAltairLightClientBootstrap<N> {
-    fn into_bootstrap(self, genesis_validators_root: Root) -> LightClientBootstrap {
+    fn into_bootstrap(self) -> LightClientBootstrap {
         LightClientBootstrap {
             header: Altair(self.header),
             current_sync_committee: self.current_sync_committee.into_sync_committee(),
             current_sync_committee_branch: self.current_sync_committee_branch.to_vec(),
-            genesis_validators_root,
         }
     }
 }
@@ -94,12 +90,11 @@ struct RawBellatrixLightClientBootstrap<N: Unsigned> {
 }
 
 impl<N: Unsigned> RawBellatrixLightClientBootstrap<N> {
-    fn into_bootstrap(self, genesis_validators_root: Root) -> LightClientBootstrap {
+    fn into_bootstrap(self) -> LightClientBootstrap {
         LightClientBootstrap {
             header: Bellatrix(self.header),
             current_sync_committee: self.current_sync_committee.into_sync_committee(),
             current_sync_committee_branch: self.current_sync_committee_branch.to_vec(),
-            genesis_validators_root,
         }
     }
 }
@@ -112,12 +107,11 @@ struct RawCapellaLightClientBootstrap<N: Unsigned> {
 }
 
 impl<N: Unsigned> RawCapellaLightClientBootstrap<N> {
-    fn into_bootstrap(self, genesis_validators_root: Root) -> LightClientBootstrap {
+    fn into_bootstrap(self) -> LightClientBootstrap {
         LightClientBootstrap {
             header: Capella(self.header),
             current_sync_committee: self.current_sync_committee.into_sync_committee(),
             current_sync_committee_branch: self.current_sync_committee_branch.to_vec(),
-            genesis_validators_root,
         }
     }
 }
@@ -130,12 +124,11 @@ struct RawDenebLightClientBootstrap<N: Unsigned> {
 }
 
 impl<N: Unsigned> RawDenebLightClientBootstrap<N> {
-    fn into_bootstrap(self, genesis_validators_root: Root) -> LightClientBootstrap {
+    fn into_bootstrap(self) -> LightClientBootstrap {
         LightClientBootstrap {
             header: Deneb(self.header),
             current_sync_committee: self.current_sync_committee.into_sync_committee(),
             current_sync_committee_branch: self.current_sync_committee_branch.to_vec(),
-            genesis_validators_root,
         }
     }
 }
@@ -148,12 +141,11 @@ struct RawElectraLightClientBootstrap<N: Unsigned> {
 }
 
 impl<N: Unsigned> RawElectraLightClientBootstrap<N> {
-    fn into_bootstrap(self, genesis_validators_root: Root) -> LightClientBootstrap {
+    fn into_bootstrap(self) -> LightClientBootstrap {
         LightClientBootstrap {
             header: Electra(self.header),
             current_sync_committee: self.current_sync_committee.into_sync_committee(),
             current_sync_committee_branch: self.current_sync_committee_branch.to_vec(),
-            genesis_validators_root,
         }
     }
 }
@@ -166,12 +158,11 @@ struct RawFuluLightClientBootstrap<N: Unsigned> {
 }
 
 impl<N: Unsigned> RawFuluLightClientBootstrap<N> {
-    fn into_bootstrap(self, genesis_validators_root: Root) -> LightClientBootstrap {
+    fn into_bootstrap(self) -> LightClientBootstrap {
         LightClientBootstrap {
             header: Fulu(self.header),
             current_sync_committee: self.current_sync_committee.into_sync_committee(),
             current_sync_committee_branch: self.current_sync_committee_branch.to_vec(),
-            genesis_validators_root,
         }
     }
 }
@@ -182,7 +173,7 @@ mod tests {
 
     #[test]
     fn rejects_bad_committee_size() {
-        let err = LightClientBootstrap::from_ssz(&[], Fork::Altair, 64, [0u8; 32]);
+        let err = LightClientBootstrap::from_ssz(&[], Fork::Altair, 64);
         assert!(err.is_err());
     }
 }

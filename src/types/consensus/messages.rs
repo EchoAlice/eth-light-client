@@ -6,7 +6,6 @@ pub struct LightClientBootstrap {
     pub header: LightClientHeader,
     pub current_sync_committee: SyncCommittee,
     pub current_sync_committee_branch: Vec<Root>,
-    pub genesis_validators_root: Root, // TODO: Remove
 }
 
 #[derive(Debug, Clone, PartialEq)]
