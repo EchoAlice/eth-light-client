@@ -126,6 +126,7 @@ fn run_public_api_sync(sync_test: SyncTestCase) {
 
     let mut client = LightClient::new(
         sync_test.chain_spec().clone(),
+        bootstrap.genesis_validators_root,
         sync_test.trusted_block_root(),
         bootstrap,
     )

@@ -149,6 +149,7 @@ fn initialize_processor_from(sync_test: &SyncTestCase) -> LightClientProcessor {
         .expect("Failed to load bootstrap");
     LightClientProcessor::new(
         sync_test.chain_spec().clone(),
+        bootstrap.genesis_validators_root,
         sync_test.trusted_block_root(),
         bootstrap,
     )

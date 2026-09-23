@@ -35,11 +35,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &bytes,
         fork,
         chain_spec.sync_committee_size(),
-        genesis_validators_root,
+        genesis_validators_root, // TODO: Remove
     )?;
 
     // 3. Create light client
-    let mut client = LightClient::new(chain_spec, trusted_block_root, bootstrap)?;
+    let mut client = LightClient::new(
+        chain_spec,
+        genesis_validators_root,
+        trusted_block_root,
+        bootstrap,
+    )?;
 
     loop {
         // 4. Bounded: trusted root's sync period -> current sync period

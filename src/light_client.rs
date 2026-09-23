@@ -13,10 +13,16 @@ pub struct LightClient {
 impl LightClient {
     pub fn new(
         chain_spec: ChainSpec,
+        genesis_validators_root: Root,
         trusted_block_root: Root,
         bootstrap: LightClientBootstrap,
     ) -> Result<Self> {
-        let inner = LightClientProcessor::new(chain_spec, trusted_block_root, bootstrap)?;
+        let inner = LightClientProcessor::new(
+            chain_spec,
+            genesis_validators_root,
+            trusted_block_root,
+            bootstrap,
+        )?;
 
         Ok(Self { inner })
     }
@@ -64,7 +70,7 @@ impl LightClient {
     }
 
     pub fn genesis_validators_root(&self) -> Root {
-        self.inner.store().genesis_validators_root
+        self.inner.genesis_validators_root()
     }
 }
 
