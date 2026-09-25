@@ -1,122 +1,61 @@
 # Ethereum Light Client
 
-### Security Disclaimer
-Experimental.  Do not use for security-critical decisions
+This library implements the verification and store-update logic of Ethereum’s consensus-layer [light client sync protocol](https://ethereum.github.io/consensus-specs/specs/altair/light-client/sync-protocol/).  
 
+**Security Disclaimer:** Experimental.  Do not use for security-critical decisions.
 
 # Summary 
+Light clients give users a highly secure way to access information within Ethereum's blockchain without having to run a full node.  Where a full node *re-derives* the chain's validity from scratch, a light client just *verifies a commitment* to the current state of the chain.  The commitment is produced by a randomly-shuffled, rotating subset of validators called the sync committee.
 
-**This library implements the verification and store-update logic of Ethereum’s consensus-layer [light client sync protocol](https://ethereum.github.io/consensus-specs/specs/altair/light-client/sync-protocol/)**.  
+This library exposes functionality to track and independently verify sync committee commitments to the latest (i) finalized and (ii) optimistic beacon block headers.
 
-Light clients give users a highly secure way to access Ethereum's blockchain without having to run a full node.  This library exposes functionality to independently verify and track sync committee attestations to the latest (i) finalized and (ii) optimistic beacon block headers.  
-
-Users are responsible for obtaining the initial bootstrap and each subsequent block update from an external data provider (a beacon node, relay, etc.).
+For protocol background, see `docs/consensus-primer.md` (work in progress).
 
 ### Resource Requirements
-Differences stem from one thing: a full node *re-derives* the chain's validity from scratch, while a light client *verifies a commitment* the sync committee already signed.
-
 | | Full node | Light client |
 |---|---|---|
-| **Storage** | Chain state + history on SSD (~TB+), **grows with the chain** | Verified store only (KB–MB), **constant** |
-| **Compute** | **Re-executes every transaction**.  Scales with throughput | One aggregate-sig check + a few Merkle proofs per update |
+| **Bandwidth** | ~65 GB/day. Gossip peer, continuous | ~7 MB/day. A ~1KB update per slot|
+| **Compute** | Executes every transaction and checks ~64-128 aggregate attestation signatures per block.  Scales with throughput | One aggregate signature check + a few Merkle proofs per block. And one 1,000-hash committee root per sync period (~27 hrs).  **constant** |
+| **Storage** | Chain state + history: ~1-1.5TB, **grows with the chain** ~14GB/week | Only the verified store: ~50KB (2 sets of sync committee keys + 2 `LightClientHeader`s), **constant** |
 
-### Who Can Benefit From Light Clients?
+### Use Cases 
 - Wallets: “Is this transaction actually finalized?”
-- Bridges / relays: “Has this event that happened on Ethereum finalized?” (safety-critical)
+- Bridges / relays: “Has this event that happened on Ethereum been finalized?” (safety-critical)
 - Browsers/extensions: “Show accurate chain status without trusting an RPC.”
 - Embedded / constrained devices: verify minimal facts with minimal resources.
 
-For a module-by-module map of the crate, see [`src/README.md`](src/README.md).  For an in-depth explainer on the light client sync protocol, see [`docs/consensus-primer.md`](docs/consensus-primer.md); for the verification data flow and correctness invariants, see [`src/consensus/README.md`](src/consensus/README.md).
+## Trust Model
+- Users provide a recent **trusted block root**, which is finalized and chosen out-of-band (a checkpoint provider, a block explorer, a friend's node).  This is the client's entire root of trust.  The bootstrap and all future updates can be provided by any untrusted source (beacon node API, relay, etc), and ultimately must stem from this root. 
+- After providing a trusted block root, users fetch the `LightClientBootstrap`.  Its `BeaconBlockHeader`'s root has to match the trusted block root and provide a valid proof that the sync committee it claims is rooted within the header.  This gives the light client its first sync committee. 
+- Users then fetch subsequent updates and verify each is signed by the sync committee associated with the block's sync period (which rotates every ~27 hrs).  Updates regularly advance a light client's optimistic/finalized view of the chain, and provide the light client with the next sync committee once per sync period.  
+
+Every update reduces to one question: *"Did at least 2/3 of the sync committee the client already trusts sign this beacon block header?"*.  If committee signatures pass this threshold and the light client's update source is responsive, the client sees the update as valid and remains **live**.  If more than 1/3 of the sync committee is honest, the light client won't accept a malicious update and remains **safe**.
 
 ## Status
-The library currently supports fork-aware light client verification through **Electra**.
+The library currently supports fork-aware light client verification through **Fulu**.
 
-| Fork      | Type support | Verification logic | Fixture-driven tests | Status    |
-|-----------|--------------|--------------------|----------------------|-----------|
-| Altair    | Yes          | Yes                | Yes                  | Supported |
-| Bellatrix | Yes          | Yes                | Yes                  | Supported |
-| Capella   | Yes          | Yes                | Yes                  | Supported |
-| Deneb     | Yes          | Yes                | Yes                  | Supported |
-| Electra   | Yes          | Yes                | Yes                  | Supported |
-| Fulu      | No           | No                 | No                   | Planned   |
+| Fork | Light client-relevant change | Official spec vectors |
+|---|---|---|
+| Altair | Sync committees and the light client protocol introduced | ✅ |
+| Bellatrix | The Merge; no light client-specific changes | ✅ |
+| Capella | `LightClientHeader` gains the execution payload header and its inclusion branch | ✅ |
+| Deneb | Blobs; payload header adds `blob_gas_used` / `excess_blob_gas` | ✅ |
+| Electra | `BeaconState` restructured — generalized indices shift, committee and finality branches deepen | ✅ |
+| Fulu | PeerDAS; blob-parameter-only forks change the fork digest | pending ([#106](https://github.com/EchoAlice/eth-light-client/issues/106)) |
 
-From Capella onward, supported light client headers also include authenticated execution payload header data committed by the verified beacon block.  This exposes trusted execution-layer commitments (such as state, transaction, and receipt roots), which can serve as anchors for proving execution-layer facts.
-
-However, validating information against those roots is the user's responsibility.
-
-## Trust Model
-- Users must provide a **trusted block root**, chosen out-of-band (a checkpoint provider, a block explorer, a friend's node).  This is the client's entire root of trust.  The `LightClientBootstrap` data itself may come from an untrusted source — the client verifies it against the trusted root and rejects a mismatch.  This anchors the light client to a trusted finalized beacon block; all future updates are independently verified, stemming from that anchor. 
-- Users then fetch `LightClientUpdate`s from any source (beacon node API, relay, etc).  The light client locally verifies each update was signed by the appropriate sync committee before advancing its finalized and/or optimistic view of the chain.
-
-The finalized header is the client’s safest verified view of the chain. The optimistic header is the client’s freshest verified view, but may advance before finality. 
-
-See [`src/consensus/README.md`](src/consensus/README.md) for the verification data flow and correctness invariants.
+Capella+ light client headers include authenticated execution payload header data rooted within the verified beacon block.  This exposes trusted execution-layer commitments (like state, transaction, and receipt roots), which can serve as anchors for proving arbitrary execution-layer facts.
 
 <br/>
 
 # Usage
-
 **Installation**
-Add this to your `Cargo.toml`:
-
 ```toml
 [dependencies]
 eth-light-client = "0.1"
 ```
 
-**Example**
-```rust,ignore
-use eth_light_client::{ChainSpec, Fork, LightClient, LightClientBootstrap, LightClientUpdate};
+Check out `examples/live_sync.rs` for an example of how to use the library.  Run example binary with ```cargo run --example live_sync -- <provider-url> <trusted-block-root>```
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let spec = ChainSpec::mainnet();
-
-    // Choose a trusted block root out-of-band (checkpoint provider, block
-    // explorer). This is the client's root of trust.
-    let trusted_block_root = /* choose */;
-
-    // The genesis validators root identifies the chain instance; like the
-    // trusted root it is a fact about the network, not part of any message
-    // (GET /eth/v1/beacon/genesis, or a known constant).
-    let genesis_validators_root = /* fetch */;
-
-    // Fetch the bootstrap as SSZ bytes (any beacon node — it is verified
-    // against the trusted root):
-    // GET /eth/v1/beacon/light_client/bootstrap/{trusted_block_root}
-    let bootstrap_bytes: Vec<u8> = /* fetch */;
-    // `sync_committee_size` is the network preset's committee width (512 mainnet).
-    let bootstrap = LightClientBootstrap::from_ssz(
-        &bootstrap_bytes,
-        Fork::Capella,
-        spec.sync_committee_size(),
-    )?;
-
-    // Create light client — rejects a bootstrap that doesn't match the root
-    let mut client = LightClient::new(
-        spec,
-        genesis_validators_root,
-        trusted_block_root,
-        bootstrap,
-    )?;
-
-    // Then fetch updates from any source and verify them. The fork comes from
-    // the response context (Eth-Consensus-Version header / fork-version prefix):
-    // GET /eth/v1/beacon/light_client/updates?start_period=X&count=1
-    let update_bytes: Vec<u8> = /* fetch */;
-    let update = LightClientUpdate::from_ssz(&update_bytes, Fork::Capella, spec.sync_committee_size())?;
-
-    // The caller supplies the clock: convert wall time (Unix seconds) to the
-    // chain's current slot. Updates signed after `current_slot` are rejected.
-    let now_secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)?
-        .as_secs();
-    let current_slot = client.chain_spec().timestamp_to_slot(now_secs);
-    client.process_light_client_update(update, current_slot)?;
-
-    println!("Finalized slot: {}", client.finalized_beacon_block_header().slot);
-    Ok(())
-}
-```
 **Note:** This library begins at the SSZ-decode and verification boundary.
 
 **API Notes:**
