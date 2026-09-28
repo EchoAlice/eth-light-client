@@ -9,13 +9,13 @@ Light clients give users a highly secure way to access information within Ethere
 
 This library exposes functionality to track and independently verify sync committee commitments to the latest (i) finalized and (ii) optimistic beacon block headers.
 
-For protocol background, see `docs/consensus-primer.md` (work in progress).
+For protocol background, see [`docs/consensus-primer.md`](docs/consensus-primer.md) (work in progress).
 
 ### Resource Requirements
 | | Full node | Light client |
 |---|---|---|
 | **Bandwidth** | ~65 GB/day. Gossip peer, continuous | ~7 MB/day. A ~1KB update per slot|
-| **Compute** | Executes every transaction and checks ~64-128 aggregate attestation signatures per block.  Scales with throughput | One aggregate signature check + a few Merkle proofs per block. And one 1,000-hash committee root per sync period (~27 hrs).  **constant** |
+| **Compute** | Executes every transaction and checks ~64-128 aggregate attestation signatures per block.  **Scales with throughput** | One aggregate signature check + a few Merkle proofs per block. And one 1,000-hash committee root per sync period (~27 hrs).  **constant** |
 | **Storage** | Chain state + history: ~1-1.5TB, **grows with the chain** ~14GB/week | Only the verified store: ~50KB (2 sets of sync committee keys + 2 `LightClientHeader`s), **constant** |
 
 ### Use Cases 
@@ -54,62 +54,48 @@ Capella+ light client headers include authenticated execution payload header dat
 eth-light-client = "0.1"
 ```
 
-Check out `examples/live_sync.rs` for an example of how to use the library.  Run example binary with ```cargo run --example live_sync -- <provider-url> <trusted-block-root>```
+Check out [`examples/live_sync.rs`](examples/live_sync.rs) for an example of how to use the library.  Run example binary with ```cargo run --example live_sync -- <provider-url> <trusted-block-root>```
 
-**Note:** This library begins at the SSZ-decode and verification boundary.
+### Scope
+This library begins at the SSZ-decode and verification boundary, and is built on Sigma Prime's SSZ stack (`ethereum_ssz`, `ssz_types`, `tree_hash`).  Users are responsible for obtaining the trusted block root, initial bootstrap, and each subsequent block update from an external data provider.  
 
-**API Notes:**
+`ExecutionPayloadHeader`s are exposed by the library too. But gathering and validating information against the roots within the payload is also the user's responsibility.
+
+### API Notes
 - Time is always the caller's: `process_light_client_update(update, current_slot)` takes the current slot explicitly and never reads the system clock. `ChainSpec::timestamp_to_slot(unix_secs)` does the conversion; a clock that runs slow rejects more, never accepts more.
-- Getters: `finalized_beacon_block_header()`, `optimistic_beacon_block_header()`,
-  `current_sync_committee()`, `next_sync_committee()`,
-  `finalized_sync_committee_period()`, `chain_spec()`
+- For local testnets or devnets, use `ChainSpecConfig` with `ChainSpec::try_from_config()`; the presets (`ChainSpec::mainnet()`, `ChainSpec::minimal()`) are the reference.
 
-**Custom/Devnet Configuration:**
-For local testnets or devnets, use `ChainSpecConfig` with `ChainSpec::try_from_config()`. See the rustdoc on `ChainSpecConfig` for usage examples.
+<br/>
 
-### Current Scope and Constraints:
-- `sync_committee_size` currently supports only the standard Ethereum consensus preset values:
-  - `512` for mainnet
-  - `32` for the minimal preset
-- SSZ tree layouts and generalized indices are not fully generic inputs; proof paths are implemented explicitly for each supported fork
+# Testing
+The library replays the official Ethereum consensus `light_client/sync` spec test vectors through the public `LightClient` API facade for end-to-end verification.  
 
-## SSZ 
-The crate uses a single SSZ implementation — the Sigma Prime / Lighthouse stack: **`ethereum_ssz`** (encode/decode) + **`ssz_types`** (length-bounded collections: `FixedVector`, `VariableList`, `BitVector`) + **`tree_hash`** (`hash_tree_root`). Public types carry their SSZ traits by deriving them (`#[derive(Encode, Decode, TreeHash)]`), so there is no hand-written merkleization.
+Vectors exist for each supported fork and each fork-transition boundary that changes light client behavior (Bellatrix→Capella, Capella→Deneb, Deneb→Electra).  **Note:** Electra→Fulu is pending ([#106](https://github.com/EchoAlice/eth-light-client/issues/106)).  Test vectors use minimal preset values.
 
-The one piece of custom SSZ code is the wire-decode adapter in `src/types/ssz.rs`: it decodes fork-specific wire layouts and adapts them to the library's public types (fork-enum headers, `Option` fields, the spec-sized sync committee).  The wire adapter leverages `ethereum_ssz` where it can.
+The underlying BLS math is `blst`'s; official `fast_aggregate_verify` vectors pin our adapter around it.  This includes the domain separation tag, infinity-pubkey handling, byte marshaling, and includes the negative cases the sync replays never reach ([tests/BLS_TESTING.md](tests/BLS_TESTING.md)).  Unit tests cover the rejection paths — wrong roots, malformed branches, minority participation — that valid-only fixtures cannot produce.
 
-## Testing
-This library is end-to-end tested against official Ethereum Consensus minimal-preset light client spec tests for every supported fork (Altair through Electra), plus every fork-transition boundary (Bellatrix→Capella, Capella→Deneb, Deneb→Electra).  Tests exercise the full verification flow through the public API:
-`LightClient::new` (bootstrap verification) and `process_light_client_update` (update verification).  For the full case inventory (vendored vs. upstream), see the spec-case coverage table in [`src/consensus/README.md`](src/consensus/README.md).  End-to-end coverage against mainnet parameters (512-member committees) is still pending.
+Which official cases are vendored, and which remain, is being tracked within issue [#131](https://github.com/EchoAlice/eth-light-client/issues/131).  Mainnet-preset replays (512-member committees) are pending ([#122](https://github.com/EchoAlice/eth-light-client/issues/122)); the vectors' `force_update` steps are deferred with the feature ([#205](https://github.com/EchoAlice/eth-light-client/issues/205)).
 
 ```bash
-# Unit + integration tests
-cargo test
+# Lints (includes examples and tests)
+cargo clippy --features test-utils --all-targets -- -D warnings
 
-# Lints
-cargo clippy -- -D warnings
-
-# Enables optional test utilities used by spec-test fixture loading (not stable API)
+# Unit + integration tests; `test-utils` gates the spec-fixture loader (not stable API)
 cargo test --features test-utils
-
-# The second half of Altair vectors (steps 6–10) are present but marked ignored until `force_update` is implemented.
-cargo test -- --ignored
 ```
 
-BLS signature verification is covered by official Ethereum consensus spec test vectors, and Merkle proof verification is exercised through fixture-driven light client tests. See [tests/BLS_TESTING.md](tests/BLS_TESTING.md) for signature verification details.
+# Roadmap
+### V1
+**To Do:** Implement the rest of the official vectors, mainnet-preset replays, and enforce weak subjectivity check for bootstrap.  
 
-## Roadmap
-1. Add fork-aware verification across all mainnet consensus forks (driven by `ChainSpec`):
-- [x] Altair
-- [x] Bellatrix
-- [x] Capella
-- [x] Deneb
-- [x] Electra
-- [ ] Fulu
-2. Expand the module READMEs (esp. [`src/consensus/README.md`](src/consensus/README.md)).  Discuss major Ethereum Consensus concepts and repository design
-3. Add serialization support (e.g. serde feature) so consumers can persist/restore LightClientStore
-4. Implement `force_update` for all forks
-5. Add a small "HTTP updater" example crate (separate from core; keep library verification-only)
+Tracking in issue [#131](https://github.com/EchoAlice/eth-light-client/issues/131).
+
+### V2
+- **`eth_getProof` verification** — the finalized execution state root is the anchor; EIP-1186 account and storage proofs are the questions.  A different tree (hexary Merkle-Patricia), so its own slice.
+- **Store persistence** — the store lives in memory; every restart re-bootstraps from a trusted root.
+- **`force_update`** — the spec's escape hatch for finality outages.  Cut so that the client stalls rather than force-applies; recovery is re-bootstrapping.
+
+Tracking in issue [#205](https://github.com/EchoAlice/eth-light-client/issues/205)
 
 ## License
 MIT OR Apache-2.0
