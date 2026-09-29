@@ -72,7 +72,7 @@ The library replays the official Ethereum consensus `light_client/sync` spec tes
 
 Vectors exist for each supported fork and each fork-transition boundary that changes light client behavior (Bellatrix→Capella, Capella→Deneb, Deneb→Electra).  **Note:** Electra→Fulu is pending ([#106](https://github.com/EchoAlice/eth-light-client/issues/106)).  Test vectors use minimal preset values.
 
-The underlying BLS math is `blst`'s; official `fast_aggregate_verify` vectors pin our adapter around it.  This includes the domain separation tag, infinity-pubkey handling, byte marshaling, and includes the negative cases the sync replays never reach ([tests/BLS_TESTING.md](tests/BLS_TESTING.md)).  Unit tests cover the rejection paths — wrong roots, malformed branches, minority participation — that valid-only fixtures cannot produce.
+The underlying BLS math is `blst`'s; official `fast_aggregate_verify` vectors pin our adapter around it.  This includes the domain separation tag, infinity-pubkey handling, byte marshaling, and includes the negative cases the sync replays never reach ([tests/README.md](tests/README.md#bls-vectors)).  Unit tests cover the rejection paths — wrong roots, malformed branches, minority participation — that valid-only fixtures cannot produce.
 
 Which official cases are vendored, and which remain, is being tracked within issue [#131](https://github.com/EchoAlice/eth-light-client/issues/131).  Mainnet-preset replays (512-member committees) are pending ([#122](https://github.com/EchoAlice/eth-light-client/issues/122)); the vectors' `force_update` steps are deferred with the feature ([#205](https://github.com/EchoAlice/eth-light-client/issues/205)).
 
