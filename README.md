@@ -68,13 +68,17 @@ This library begins at the SSZ-decode and verification boundary, and is built on
 <br/>
 
 # Testing
-The library replays the official Ethereum consensus `light_client/sync` spec test vectors through the public `LightClient` API facade for end-to-end verification.  
+The official Ethereum consensus `light_client/sync` spec vectors (minimal preset) replay end-to-end through the public `LightClient` API, for every supported fork and every fork-transition boundary that changes light client behavior (Bellatrix→Capella, Capella→Deneb, Deneb→Electra).  Electra→Fulu is pending ([#106](https://github.com/EchoAlice/eth-light-client/issues/106)).
 
-Vectors exist for each supported fork and each fork-transition boundary that changes light client behavior (Bellatrix→Capella, Capella→Deneb, Deneb→Electra).  **Note:** Electra→Fulu is pending ([#106](https://github.com/EchoAlice/eth-light-client/issues/106)).  Test vectors use minimal preset values.
+The consensus spec's sync replays are all-valid, so they only prove acceptance, not rejection.  Rejection is covered from two directions: (i) the official `fast_aggregate_verify` vectors and (ii) unit tests.
 
-The underlying BLS math is `blst`'s; official `fast_aggregate_verify` vectors pin our adapter around it.  This includes the domain separation tag, infinity-pubkey handling, byte marshaling, and includes the negative cases the sync replays never reach ([tests/README.md](tests/README.md#bls-vectors)).  Unit tests cover the rejection paths — wrong roots, malformed branches, minority participation — that valid-only fixtures cannot produce.
+The `fast_aggregate_verify` vectors pin the `blst` *adapter* (not `blst` itself), checking invalid inputs like tampered signatures, wrong pubkey sets, and infinity pubkeys.  Unit tests cover the rejection paths for things like wrong roots, malformed branches, and minority participation.
 
-Which official cases are vendored, and which remain, is being tracked within issue [#131](https://github.com/EchoAlice/eth-light-client/issues/131).  Mainnet-preset replays (512-member committees) are pending ([#122](https://github.com/EchoAlice/eth-light-client/issues/122)); the vectors' `force_update` steps are deferred with the feature ([#205](https://github.com/EchoAlice/eth-light-client/issues/205)).
+**To Do:**
+- Mainnet-preset replays (512-member committees) are pending ([#122](https://github.com/EchoAlice/eth-light-client/issues/122))
+- The vectors' `force_update` steps are deferred with the feature ([#205](https://github.com/EchoAlice/eth-light-client/issues/205)).
+
+Fixture layout, the vendored case inventory, and the loader are documented in [`tests/README.md`](tests/README.md).
 
 ```bash
 # Lints (includes examples and tests)
