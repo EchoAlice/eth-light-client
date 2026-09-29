@@ -7,10 +7,6 @@ pub mod types;
 
 mod consensus;
 
-/// Unstable: not part of the public API.
-#[cfg(any(test, feature = "test-utils"))]
-pub mod test_utils;
-
 // Crate root = the prelude plus the power-user types it omits.
 pub use crate::chain_spec::{BlobParameters, ChainSpecConfig};
 pub use crate::prelude::*;

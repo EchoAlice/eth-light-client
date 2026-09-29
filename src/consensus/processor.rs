@@ -290,12 +290,10 @@ impl LightClientProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::{SyncTestCase, TestStep};
     use crate::types::consensus::{
         AltairLightClientHeader, BeaconBlockHeader, FinalityProof, LightClientHeader, PubkeyBytes,
         SyncAggregate, SyncCommittee,
     };
-    use crate::Fork;
 
     fn test_committee() -> SyncCommittee {
         let pubkey = |byte| PubkeyBytes::new(vec![byte; 48]).unwrap();
@@ -418,36 +416,5 @@ mod tests {
         // TODO: Case 1: Period Servability.  Signature slot 129 is period 2; store holds committees for periods 0 and 1 only.
 
         // TODO: Case 2: Committee Equality.  Store holds `next = committee_A`; update carries B for the same period. Must match
-    }
-
-    #[test]
-    fn committee_update_without_finality_is_not_learned() {
-        let sync_test_case = SyncTestCase::light_client_sync(Fork::Altair);
-
-        let bootstrap = sync_test_case.load_bootstrap().unwrap();
-        let mut processor = LightClientProcessor::new(
-            sync_test_case.chain_spec().clone(),
-            sync_test_case.genesis_validators_root(),
-            sync_test_case.trusted_block_root(),
-            bootstrap,
-        )
-        .unwrap();
-
-        let steps = sync_test_case.load_steps().unwrap();
-        let TestStep::ProcessUpdate(step) = &steps[0] else {
-            panic!("first step is a process_update")
-        };
-        let mut update = sync_test_case
-            .load_update(&step.update, step.update_fork_digest)
-            .unwrap();
-        assert!(update.next_sync_committee.is_some());
-        update.finalized = None;
-
-        let changes = processor
-            .process_light_client_update(update, step.current_slot)
-            .unwrap();
-        assert!(changes.optimistic_updated);
-        assert!(!changes.next_committee_learned);
-        assert!(processor.store.next_sync_committee.is_none());
     }
 }

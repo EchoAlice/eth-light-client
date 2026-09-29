@@ -1,8 +1,7 @@
+use eth_light_client::chain_spec::{ChainSpecConfig, Fork};
 use std::path::{Path, PathBuf};
 
-use crate::chain_spec::{ChainSpecConfig, Fork};
-
-pub(crate) fn fork_dir(fork: Fork) -> &'static str {
+pub fn fork_dir(fork: Fork) -> &'static str {
     match fork {
         Fork::Altair => "altair",
         Fork::Bellatrix => "bellatrix",
@@ -13,7 +12,7 @@ pub(crate) fn fork_dir(fork: Fork) -> &'static str {
     }
 }
 
-pub(crate) fn single_fork_config(fork: Fork) -> ChainSpecConfig {
+pub fn single_fork_config(fork: Fork) -> ChainSpecConfig {
     // Altair active at genesis: the LC floor
     let mut config = ChainSpecConfig::minimal();
 
@@ -33,7 +32,7 @@ pub(crate) fn single_fork_config(fork: Fork) -> ChainSpecConfig {
     config
 }
 
-pub(crate) fn transition_config(from: Fork, to: Fork) -> ChainSpecConfig {
+pub fn transition_config(from: Fork, to: Fork) -> ChainSpecConfig {
     let mut config = single_fork_config(from);
     let epoch = 3; // Epoch transitions are hardcoded in fixtures
 
@@ -49,7 +48,7 @@ pub(crate) fn transition_config(from: Fork, to: Fork) -> ChainSpecConfig {
     config
 }
 
-pub(crate) fn case_path(fork_dir: &str, case: &str) -> PathBuf {
+pub fn case_path(fork_dir: &str, case: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
         "tests/fixtures/minimal/{fork_dir}/light_client/sync/{case}"
     ))

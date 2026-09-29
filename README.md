@@ -78,10 +78,10 @@ Which official cases are vendored, and which remain, is being tracked within iss
 
 ```bash
 # Lints (includes examples and tests)
-cargo clippy --features test-utils --all-targets -- -D warnings
+cargo clippy --all-targets -- -D warnings
 
-# Unit + integration tests; `test-utils` gates the spec-fixture loader (not stable API)
-cargo test --features test-utils
+# Unit + integration tests
+cargo test
 ```
 
 # Roadmap

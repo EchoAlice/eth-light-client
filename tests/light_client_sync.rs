@@ -1,6 +1,6 @@
-#![cfg(feature = "test-utils")]
+mod common;
 
-use eth_light_client::test_utils::{ProcessUpdateStep, StateChecks, SyncTestCase, TestStep};
+use common::{ProcessUpdateStep, StateChecks, SyncTestCase, TestStep};
 use eth_light_client::{Fork, LightClient, UpdateChanges};
 
 // TODO: Vendor Fulu `light_client` test vectors with the #106 fixture tail.
@@ -211,4 +211,34 @@ fn assert_header_checks(client: &LightClient, checks: &StateChecks, step_num: us
             expected.slot,
         );
     }
+}
+
+#[test]
+fn committee_update_without_finality_is_not_learned() {
+    let sync_test_case = SyncTestCase::light_client_sync(Fork::Altair);
+    let bootstrap = sync_test_case.load_bootstrap().unwrap();
+    let mut client = LightClient::new(
+        sync_test_case.chain_spec().clone(),
+        sync_test_case.genesis_validators_root(),
+        sync_test_case.trusted_block_root(),
+        bootstrap,
+    )
+    .unwrap();
+
+    let steps = sync_test_case.load_steps().unwrap();
+    let TestStep::ProcessUpdate(step) = &steps[0] else {
+        panic!("first step is a process_update")
+    };
+    let mut update = sync_test_case
+        .load_update(&step.update, step.update_fork_digest)
+        .unwrap();
+    assert!(update.next_sync_committee.is_some());
+    update.finalized = None;
+
+    let changes = client
+        .process_light_client_update(update, step.current_slot)
+        .unwrap();
+    assert!(changes.optimistic_updated);
+    assert!(!changes.next_committee_learned);
+    assert!(client.next_sync_committee().is_none());
 }
