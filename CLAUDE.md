@@ -109,6 +109,5 @@ Useful commands may include:
 
 ```sh
 cargo test
-cargo clippy -- -D warnings
-cargo test --features test-utils
-cargo test -- --ignored
+cargo clippy --all-targets -- -D warnings
+```

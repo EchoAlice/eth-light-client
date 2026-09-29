@@ -1,8 +1,9 @@
+use eth_light_client::types::consensus::BeaconBlockHeader;
+use eth_light_client::types::primitives::{Root, Slot};
 use serde::Deserialize;
+use tree_hash::TreeHash;
 
 use super::TestUtilsResult;
-use crate::types::consensus::BeaconBlockHeader;
-use crate::types::primitives::{Root, Slot};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -16,7 +17,7 @@ pub enum TestStep {
 pub struct ProcessUpdateStep {
     #[serde(deserialize_with = "de_fork_digest")]
     pub update_fork_digest: [u8; 4],
-    pub update: String, // Update file name (without .ssz_snappy extension).
+    pub update: String, // Update's file name (without .ssz_snappy extension).
     pub current_slot: Slot,
     pub checks: StateChecks,
 }
@@ -32,13 +33,14 @@ pub struct HeaderCheck {
     pub slot: Slot,
     #[serde(deserialize_with = "de_root")]
     pub beacon_root: Root,
+    #[allow(dead_code)] // Reserved for fork-boundary execution-root check #172
     #[serde(default, deserialize_with = "de_root_opt")]
     pub execution_root: Option<Root>,
 }
 
 impl HeaderCheck {
     pub fn matches(&self, header: &BeaconBlockHeader) -> bool {
-        let actual_root = header.hash_tree_root();
+        let actual_root = header.tree_hash_root().0;
         header.slot == self.slot && actual_root == self.beacon_root
     }
 }

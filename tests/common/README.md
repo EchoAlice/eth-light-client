@@ -1,15 +1,6 @@
-# Test Utilities (unstable)
+# Test Utilities
 
-**Not part of the stable public API.** This module is gated behind the `test-utils` feature and may change or be removed without notice.
-
-Enable with:
-
-```toml
-[dev-dependencies]
-eth-light-client = { version = "0.1", features = ["test-utils"] }
-```
-
-It loads the vendored Ethereum consensus **light-client spec-test fixtures** off disk and returns them as the crate's production types, so tests can drive the light client against the official vectors with no network or beacon node.
+This module loads the vendored Ethereum consensus **light-client spec-test fixtures** off disk and returns them as the crate's production types, so tests can drive the light client against the official vectors with no network or beacon node.
 
 ## Module map
 
@@ -26,11 +17,11 @@ Each fork's fixture directory (`tests/fixtures/minimal/<fork>/…`) holds the co
 
 | File | Contents |
 |------|----------|
+| `config.yaml` | The config the vectors were generated with — the authority behind the hand-transcribed schedules in `fork.rs`. Kept for reference; the replays fail loudly if the transcription diverges. |
+| `meta.yaml` | Test metadata — the genesis validators root, trusted block root, and fork digests (`bootstrap_fork_digest` drives bootstrap decode). |
 | `bootstrap.ssz_snappy` | The trusted starting point — a header plus the current sync committee and its merkle proof. |
 | `update_<hash>.ssz_snappy` | One light-client update — attested/finalized headers with their branches, the sync aggregate (signature), and an optional next sync committee. |
-| `meta.yaml` | Test metadata — the genesis validators root, trusted block root, and fork digests (`bootstrap_fork_digest` drives bootstrap decode). |
 | `steps.yaml` | The script — an ordered list of steps (updates to apply, each with a `current_slot` and its own `update_fork_digest`; store-upgrade checkpoints at fork boundaries) and the header state expected after each. |
-| `config.yaml` | The config the vectors were generated with — the authority behind the hand-transcribed schedules in `fork.rs`. Kept for reference; the replays fail loudly if the transcription diverges. |
 
 ## Data flow
 

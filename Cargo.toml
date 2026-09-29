@@ -10,7 +10,6 @@ categories = ["cryptography", "network-programming"]
 resolver = "2"
 
 [dependencies]
-serde = { version = "1.0", features = ["derive"] }
 hex = "0.4"
 blst = "0.3.10" 
 ethereum_ssz = "0.10"
@@ -24,20 +23,13 @@ alloy-primitives = "1"
 
 [features]
 default = []
-test-utils = ["dep:serde_yaml", "dep:snap"]
-
-[dependencies.serde_yaml]
-version = "0.9"
-optional = true
-
-[dependencies.snap]
-version = "1.1"
-optional = true
 
 # Testing
 [dev-dependencies]
+serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
 snap = "1.1"
+tree_hash = "0.12"
 ureq = "3.4"
 
 [profile.release]
