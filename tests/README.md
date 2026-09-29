@@ -1,149 +1,52 @@
-# Integration Tests
-
-This directory contains integration tests for the Ethereum light client implementation.
-
-## Test Structure
+# Tests
+Integration tests and the vendored spec fixtures that drive them.
 
 ```
 tests/
-├── README.md                                    # This file
-├── fixtures/                                    # Test data (SSZ files, YAML configs)
-│   └── README.md                               # Fixtures documentation
-└── light_client_sync_spec_tests.rs             # Spec compliance tests
+├── light_client_sync.rs   # the sync-vector replay + public-API guard tests
+├── common/                # fixture loader
+└── fixtures/              # vendored consensus-spec-tests
+    ├── minimal/<fork>/light_client/sync/<case>/
+    └── general/phase0/bls/fast_aggregate_verify/
 ```
 
-## Running Tests
+Run everything with `cargo test`; the replay alone with `cargo test --test light_client_sync`.
 
-Run all tests:
-```bash
-cargo test
-```
+## Fixtures
+Vendored from [`ethereum/consensus-spec-tests`](https://github.com/ethereum/consensus-spec-tests) (CC0-1.0). The directory layout mirrors upstream, so vendoring a case is a straight `cp -r` of its directory.  All sync cases use the **minimal preset**: 32-member sync committees, 8 slots per epoch, 8 epochs per sync committee period.
 
-Run specific test with output:
-```bash
-cargo test test_altair_light_client_sync -- --nocapture
-```
+<!-- TODO(#106): the fixtures were vendored incrementally (Jan–Aug 2026, five PRs) and no
+     upstream release was recorded, so they may span several. #106 re-vendors every case from
+     one pinned consensus-spec-tests release and records the tag here. -->
 
-Run only integration tests:
-```bash
-cargo test --test '*'
-```
+### A sync case
+Each case is one scenario in a box: a toy chain, a starting point, a sequence of inputs, and the reference implementation's expected store after each input.
 
-## Test Files
+| File | Contents |
+|---|---|
+| `config.yaml` | The toy chain's parameters (fork activation epochs and versions).  The authority behind the hand-transcribed schedules in `common/fork.rs`; replays fail loudly if the transcription diverges. |
+| `meta.yaml` | The out-of-band facts a light client needs: genesis validators root, trusted block root, and the fork digest each object was encoded under. |
+| `bootstrap.ssz_snappy` | The `LightClientBootstrap` for the trusted root. |
+| `update_<root>_<sf>.ssz_snappy` | One `LightClientUpdate`, named by its attested header root.  The suffix says what it carries: `s`/`x` = next sync committee present/absent, `f`/`x` = finality proof present/absent. |
+| `steps.yaml` | The script: an ordered list of updates to feed, the `current_slot` to feed each at, and the finalized/optimistic headers expected afterward. |
 
-### `light_client_sync_spec_tests.rs`
+### Case kinds vendored
+| Case | What it exercises | Forks |
+|---|---|---|
+| `light_client_sync` | The primary replay: bootstrap, then updates through several sync periods with rotation | Altair → Electra |
+| `advance_finality_without_sync_committee` | Finality advances on updates that carry no committee | Altair → Electra |
+| `supply_sync_committee_from_past_update` | A non-advancing past update still teaches the next committee | Altair → Electra |
+| `<fork>_fork` | Fork-transition boundary: chain crosses into the next fork mid-replay, with an `upgrade_store` step | `capella_fork`, `deneb_fork`, `electra_fork` |
 
-Validates light client sync protocol against official Ethereum consensus-spec test vectors.
+**TODO:** Multi-hop transitions, `*_store_with_legacy_data`, and the Fulu suite. Tracked in [#106](https://github.com/EchoAlice/eth-light-client/issues/106).  The vectors'
+`force_update` steps are deferred with the feature ([#205](https://github.com/EchoAlice/eth-light-client/issues/205)).
 
-**What it tests:**
-- Bootstrap initialization with trusted checkpoint
-- Light client update processing (10 sequential updates)
-- Sync committee signature verification (BLS12-381)
-- Merkle proof verification (finality and committee branches)
-- Sync committee rotation across periods
-- State transitions (finalized and optimistic headers)
+## The loader (`common/`)
+`SyncTestCase` picks a case directory and its chain schedule, parses `meta.yaml`, and builds a `ChainSpec` once at construction.  The `load_*` methods snappy-decompress a fixture file and hand the raw SSZ to the crate's public `from_ssz` decoders under the fork **that object's own fixture digest names**; this is never a per-test fork assumption.  That is what lets one replay span a fork boundary: pre-fork updates keep arriving after the chain forks, and each decodes under its own layout.
 
-**Configuration:**
-- Uses **minimal preset** (32 validators, 64 slots/period)
-- Tests Altair fork only (can be extended for later forks)
-- Comprehensive test coverage: optimistic, finality, period, and combined updates
+Constructors are named by case kind (`light_client_sync(fork)`, `fork_transition(from, to)`, …). `light_client_sync.rs` is the worked example.
 
-**Expected results:**
-- Steps 1-5, 10: Should pass ✅
-- Steps 6, 9: Force update not implemented yet (expected to fail)
-- Steps 7, 8: Under investigation
+## BLS vectors
+The BLS math is `blst`'s.  What the official `fast_aggregate_verify` vectors pin is *our adapter* around it (`src/consensus/bls.rs`): the domain separation tag, infinity-pubkey and empty-set handling, and byte marshaling — including the **negative** cases (tampered signatures, wrong pubkey sets, infinity pubkeys) that the all-valid sync replays never reach.  Sync-committee verification is a same-message aggregate, so `fast_aggregate_verify` is the only production BLS entry point and the only path these vectors drive.
 
-## Test Coverage
-
-### Current Coverage
-
-| Component | Coverage | Notes |
-|-----------|----------|-------|
-| Bootstrap verification | ✅ Full | With merkle proof validation |
-| Optimistic updates | ✅ Full | Attested header only |
-| Finality updates | ✅ Full | With finalized header + proof |
-| Period updates | ✅ Full | With next sync committee |
-| Combined updates | ✅ Full | Multiple features in one update |
-| Force updates | ⚠️ Partial | Not yet implemented |
-| BLS signatures | ✅ Full | Aggregate signature verification |
-| Merkle proofs | ✅ Full | Both finality and committee branches |
-| Period transitions | ✅ Full | Advancing sync committee periods |
-
-### Future Test Coverage
-
-Planned additions:
-- [ ] Edge cases (empty committee, invalid proofs)
-- [ ] Mainnet preset tests (slower, but production-realistic)
-- [ ] Bellatrix/Capella/Deneb/Electra/Fulu fork tests
-- [ ] Performance benchmarks
-
-## Writing New Tests
-
-To add a new integration test:
-
-1. **Create test file**: `tests/my_new_test.rs`
-2. **Import dependencies**:
-   ```rust
-   use eth_light_client::{ChainSpec, LightClient};
-   // ... other imports
-   ```
-3. **Load fixtures** (if needed):
-   ```rust
-   let fixtures_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-       .join("tests/fixtures/...");
-   ```
-4. **Write test function**:
-   ```rust
-   #[test]
-   fn test_my_feature() {
-       let chain_spec = ChainSpec::minimal();
-       // ... test code
-   }
-   ```
-
-### Testing Best Practices
-
-1. **Use minimal preset** for fast unit tests
-2. **Test one thing** per test function
-3. **Provide clear error messages** when assertions fail
-4. **Use fixtures** for complex test data
-5. **Document expected behavior** in comments
-6. **Test both success and failure cases**
-
-## Debugging Tests
-
-Enable detailed output:
-```bash
-cargo test -- --nocapture
-```
-
-Run single test:
-```bash
-cargo test test_altair_light_client_sync -- --nocapture
-```
-
-Show debug logging (if eprintln! statements are present):
-```bash
-cargo test -- --nocapture 2>&1 | grep "DEBUG:"
-```
-
-Check test compilation without running:
-```bash
-cargo test --no-run
-```
-
-## Continuous Integration
-
-Tests run automatically on:
-- Every commit (via GitHub Actions)
-- Pull requests
-- Release builds
-
-CI configuration: `.github/workflows/` (when added)
-
-## References
-
-- [Ethereum Consensus Specs](https://github.com/ethereum/consensus-specs)
-- [Light Client Sync Protocol](https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/sync-protocol.md)
-- [Consensus Spec Tests](https://github.com/ethereum/consensus-spec-tests)
-- [Rust Testing Guide](https://doc.rust-lang.org/book/ch11-00-testing.html)
+The test lives with the adapter (`spec_tests` in `bls.rs`) and walks every vendored vector, reporting all mismatches at once: `cargo test --lib fast_aggregate_verify_spec_vectors`.
