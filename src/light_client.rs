@@ -16,12 +16,14 @@ impl LightClient {
         genesis_validators_root: Root,
         trusted_block_root: Root,
         bootstrap: LightClientBootstrap,
+        current_slot: Slot,
     ) -> Result<Self> {
         let inner = LightClientProcessor::new(
             chain_spec,
             genesis_validators_root,
             trusted_block_root,
             bootstrap,
+            current_slot,
         )?;
 
         Ok(Self { inner })
