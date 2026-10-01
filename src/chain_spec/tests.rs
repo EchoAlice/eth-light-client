@@ -7,6 +7,8 @@ fn valid_config() -> ChainSpecConfig {
         slots_per_epoch: 32,
         epochs_per_sync_committee_period: 256,
         sync_committee_size: 512,
+        min_validator_withdrawability_delay: 256,
+        churn_limit_quotient: 65536,
         altair_fork_version: [0x01, 0x00, 0x00, 0x00],
         bellatrix_fork_version: [0x02, 0x00, 0x00, 0x00],
         capella_fork_version: [0x03, 0x00, 0x00, 0x00],
