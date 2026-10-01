@@ -128,11 +128,14 @@ impl ChainSpec {
         }
     }
 
-    /// Spec: `compute_weak_subjectivity_period`
-    /// (`electra/weak-subjectivity.md`) with the beacon state's total active
-    /// balance cancelled out — exact once that balance exceeds
-    /// `MIN_PER_EPOCH_CHURN_LIMIT_ELECTRA * CHURN_LIMIT_QUOTIENT`
-    /// (8.39M ETH; mainnet is ~4x past). Mainnet: 3532 epochs (~15.7 days).
+    /// Spec: `compute_weak_subjectivity_period` (Electra), reduced to config
+    /// constants.
+    ///
+    /// Light clients don't have immediate access to `BeaconState`, so we can't
+    /// calculate a (possibly) fluctuating epoch trust window based on total
+    /// active balance, t.  We assume per-epoch churn limit = t /
+    /// CHURN_LIMIT_QUOTIENT.  Under this assumption, calculating the weak
+    /// subjectivity period doesn't depend on beacon state information.
     pub const fn weak_subjectivity_period_epochs(&self) -> Epoch {
         self.min_validator_withdrawability_delay + SAFETY_DECAY * self.churn_limit_quotient / 200
     }
