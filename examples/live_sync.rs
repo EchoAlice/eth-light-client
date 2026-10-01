@@ -34,11 +34,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bootstrap = LightClientBootstrap::from_ssz(&bytes, fork, chain_spec.sync_committee_size())?;
 
     // 3. Create light client
+    let current_slot = current_slot_from_clock(&chain_spec)?;
     let mut client = LightClient::new(
         chain_spec,
         genesis_validators_root,
         trusted_block_root,
         bootstrap,
+        current_slot,
     )?;
 
     loop {

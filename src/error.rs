@@ -1,5 +1,6 @@
-use crate::types::primitives::Slot;
 use thiserror::Error;
+
+use crate::types::primitives::Slot;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -26,11 +27,11 @@ pub enum Error {
     #[error("Invalid input: {0}")]
     InvalidInput(String),
 
-    #[error("Trusted root too old: header slot {header_slot}, current_slot {current_slot}, max age {max_age_slots} slots")]
+    #[error("Trusted root too old: header slot {header_slot}, current slot {current_slot}, max age {ws_period_slots} slots")]
     StaleTrustedRoot {
         header_slot: Slot,
         current_slot: Slot,
-        max_age_slots: Slot,
+        ws_period_slots: Slot,
     },
 
     #[error("Internal error: {0}")]

@@ -1,7 +1,7 @@
 mod common;
 
 use common::{ProcessUpdateStep, StateChecks, SyncTestCase, TestStep};
-use eth_light_client::{Fork, LightClient, UpdateChanges};
+use eth_light_client::{Error, Fork, LightClient, UpdateChanges};
 
 // TODO: Vendor Fulu `light_client` test vectors with the #106 fixture tail.
 
@@ -124,11 +124,13 @@ fn run_public_api_sync(sync_test: SyncTestCase) {
         .expect("Failed to load bootstrap");
     let steps = sync_test.load_steps().expect("Failed to load steps");
 
+    let bootstrap_slot = bootstrap.header.slot();
     let mut client = LightClient::new(
         sync_test.chain_spec().clone(),
         sync_test.genesis_validators_root(),
         sync_test.trusted_block_root(),
         bootstrap,
+        bootstrap_slot,
     )
     .expect("Failed to initialize LightClient");
 
@@ -217,11 +219,14 @@ fn assert_header_checks(client: &LightClient, checks: &StateChecks, step_num: us
 fn committee_update_without_finality_is_not_learned() {
     let sync_test_case = SyncTestCase::light_client_sync(Fork::Altair);
     let bootstrap = sync_test_case.load_bootstrap().unwrap();
+
+    let bootstrap_slot = bootstrap.header.slot();
     let mut client = LightClient::new(
         sync_test_case.chain_spec().clone(),
         sync_test_case.genesis_validators_root(),
         sync_test_case.trusted_block_root(),
         bootstrap,
+        bootstrap_slot,
     )
     .unwrap();
 
@@ -241,4 +246,35 @@ fn committee_update_without_finality_is_not_learned() {
     assert!(changes.optimistic_updated);
     assert!(!changes.next_committee_learned);
     assert!(client.next_sync_committee().is_none());
+}
+
+#[test]
+fn trusted_root_freshness_boundary() {
+    let sync_test = SyncTestCase::light_client_sync(Fork::Altair);
+    let window = sync_test.chain_spec().weak_subjectivity_period_slots();
+
+    // Exactly one window old: still accepted.
+    let bootstrap = sync_test.load_bootstrap().unwrap();
+    let at_boundary = bootstrap.header.slot() + window;
+    assert!(LightClient::new(
+        sync_test.chain_spec().clone(),
+        sync_test.genesis_validators_root(),
+        sync_test.trusted_block_root(),
+        bootstrap,
+        at_boundary,
+    )
+    .is_ok());
+
+    // One slot past the window: rejected, and with the staleness variant —
+    // not the identity or proof errors that precede and follow the check.
+    let bootstrap = sync_test.load_bootstrap().unwrap();
+    let err = LightClient::new(
+        sync_test.chain_spec().clone(),
+        sync_test.genesis_validators_root(),
+        sync_test.trusted_block_root(),
+        bootstrap,
+        at_boundary + 1,
+    )
+    .unwrap_err();
+    assert!(matches!(err, Error::StaleTrustedRoot { .. }), "got: {err}");
 }

@@ -28,6 +28,7 @@ impl LightClientProcessor {
         genesis_validators_root: Root,
         trusted_block_root: Root,
         bootstrap: LightClientBootstrap,
+        current_slot: Slot,
     ) -> Result<Self> {
         verify_light_client_header(&bootstrap.header)?;
 
@@ -36,7 +37,16 @@ impl LightClientProcessor {
                 "Bootstrap doesn't match the trusted block root".to_string(),
             ));
         }
-        // TODO: Place weak subjectivity freshness check here.
+        // TODO: Figure out the best variable name here. i don't like "_slots". the suffix here is confusing... maybe "_as_slot" is better?
+        let ws_period_slots = chain_spec.weak_subjectivity_period_slots();
+        let header_slot = bootstrap.header.slot();
+        if current_slot > header_slot + ws_period_slots {
+            return Err(Error::StaleTrustedRoot {
+                header_slot,
+                current_slot,
+                ws_period_slots,
+            });
+        }
 
         verify_merkle_proof(
             &bootstrap.current_sync_committee.hash_tree_root(),
@@ -325,6 +335,7 @@ mod tests {
             [0u8; 32],
             [9u8; 32],
             bootstrap,
+            0,
         )
         .err()
         .unwrap();
