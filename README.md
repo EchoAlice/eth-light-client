@@ -25,7 +25,7 @@ For protocol background, see [`docs/consensus-primer.md`](docs/consensus-primer.
 - Embedded / constrained devices: verify minimal facts with minimal resources.
 
 ## Trust Model
-- Users provide a recent **trusted block root**, which is finalized and chosen out-of-band (a checkpoint provider, a block explorer, a friend's node).  This is the client's entire root of trust.  The bootstrap and all future updates can be provided by any untrusted source (beacon node API, relay, etc), and ultimately must stem from this root. 
+- Users provide a **trusted block root**, which should be finalized, is chosen out-of-band (a checkpoint provider, a block explorer, a friend's node), and must be within the weak subjectivity period (~16 days on mainnet; the client rejects older roots).  This is the client's entire root of trust.  The bootstrap and all future updates can be provided by any untrusted source (beacon node API, relay, etc).  All updates ultimately stem from this root. 
 - After providing a trusted block root, users fetch the `LightClientBootstrap`.  Its `BeaconBlockHeader`'s root has to match the trusted block root and provide a valid proof that the sync committee it claims is rooted within the header.  This gives the light client its first sync committee. 
 - Users then fetch subsequent updates and verify each is signed by the sync committee associated with the block's sync period (which rotates every ~27 hrs).  Updates regularly advance a light client's optimistic/finalized view of the chain, and provide the light client with the next sync committee once per sync period.  
 
@@ -62,7 +62,7 @@ This library begins at the SSZ-decode and verification boundary, and is built on
 `ExecutionPayloadHeader`s are exposed by the library too. But gathering and validating information against the roots within the payload is also the user's responsibility.
 
 ### API Notes
-- Time is always the caller's: `process_light_client_update(update, current_slot)` takes the current slot explicitly and never reads the system clock. `ChainSpec::timestamp_to_slot(unix_secs)` does the conversion; a clock that runs slow rejects more, never accepts more.
+- Time is always the caller's: `process_light_client_update(update, current_slot)` takes the current slot explicitly and never reads the system clock. `ChainSpec::timestamp_to_slot(unix_secs)` does the conversion. A slow clock rejects more updates but accepts slightly older trusted roots.
 - For local testnets or devnets, use `ChainSpecConfig` with `ChainSpec::try_from_config()`; the presets (`ChainSpec::mainnet()`, `ChainSpec::minimal()`) are the reference.
 
 <br/>
@@ -90,7 +90,7 @@ cargo test
 
 # Roadmap
 ### V1
-**To Do:** Implement the rest of the official vectors, mainnet-preset replays, and enforce weak subjectivity check for bootstrap.  
+**To Do:** Implement the rest of the official vectors and mainnet-preset replays.  
 
 Tracking in issue [#131](https://github.com/EchoAlice/eth-light-client/issues/131).
 
