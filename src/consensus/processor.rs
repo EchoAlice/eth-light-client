@@ -36,6 +36,7 @@ impl LightClientProcessor {
                 "Bootstrap doesn't match the trusted block root".to_string(),
             ));
         }
+        // TODO: Place weak subjectivity freshness check here.
 
         verify_merkle_proof(
             &bootstrap.current_sync_committee.hash_tree_root(),

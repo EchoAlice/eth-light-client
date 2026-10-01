@@ -2,6 +2,8 @@ use crate::consensus::signing::{compute_bpo_fork_digest, compute_fork_digest};
 use crate::error::{Error, Result};
 use crate::types::primitives::{Epoch, ForkDigest, Root, Slot};
 
+const SAFETY_DECAY: u64 = 10;
+
 /// Defines network-specific constants.
 #[derive(Debug, Clone)]
 pub struct ChainSpec {
@@ -10,6 +12,8 @@ pub struct ChainSpec {
     slots_per_epoch: u64,
     epochs_per_sync_committee_period: u64,
     sync_committee_size: usize,
+    min_validator_withdrawability_delay: Epoch,
+    churn_limit_quotient: u64,
     fork_schedule: ForkSchedule,
     blob_schedule: &'static [BlobParameters],
 }
@@ -36,6 +40,8 @@ impl ChainSpec {
             slots_per_epoch: config.slots_per_epoch,
             epochs_per_sync_committee_period: config.epochs_per_sync_committee_period,
             sync_committee_size: config.sync_committee_size,
+            min_validator_withdrawability_delay: config.min_validator_withdrawability_delay,
+            churn_limit_quotient: config.churn_limit_quotient,
             fork_schedule: ForkSchedule {
                 altair: ForkParameters {
                     version: config.altair_fork_version,
@@ -114,12 +120,25 @@ impl ChainSpec {
     }
 
     /// Fail-closed: a wrong/early clock lowers `current_slot`, and validation rejects updates with `signature_slot > current_slot`, so a bad clock rejects more, never accepts more.
-    pub fn timestamp_to_slot(&self, timestamp_secs: u64) -> u64 {
+    pub const fn timestamp_to_slot(&self, timestamp_secs: u64) -> u64 {
         if timestamp_secs >= self.genesis_time {
             (timestamp_secs - self.genesis_time) / self.seconds_per_slot
         } else {
             0
         }
+    }
+
+    /// Spec: `compute_weak_subjectivity_period`
+    /// (`electra/weak-subjectivity.md`) with the beacon state's total active
+    /// balance cancelled out — exact once that balance exceeds
+    /// `MIN_PER_EPOCH_CHURN_LIMIT_ELECTRA * CHURN_LIMIT_QUOTIENT`
+    /// (8.39M ETH; mainnet is ~4x past). Mainnet: 3532 epochs (~15.7 days).
+    pub const fn weak_subjectivity_period_epochs(&self) -> Epoch {
+        self.min_validator_withdrawability_delay + SAFETY_DECAY * self.churn_limit_quotient / 200
+    }
+
+    pub const fn weak_subjectivity_period_slots(&self) -> Slot {
+        self.weak_subjectivity_period_epochs() * self.slots_per_epoch
     }
 
     pub(crate) const fn slot_to_epoch(&self, slot: u64) -> u64 {
@@ -168,6 +187,10 @@ pub struct ChainSpecConfig {
     pub slots_per_epoch: u64,
     pub epochs_per_sync_committee_period: u64,
     pub sync_committee_size: usize,
+    pub min_validator_withdrawability_delay: Epoch,
+    /// Spec: `CHURN_LIMIT_QUOTIENT` is a divisor *despite the spec's misname*.
+    /// Per-epoch churn limit = total active balance / this
+    pub churn_limit_quotient: u64,
 
     pub altair_fork_version: [u8; 4],
     pub bellatrix_fork_version: [u8; 4],
@@ -194,6 +217,8 @@ impl ChainSpecConfig {
             slots_per_epoch: 32,
             epochs_per_sync_committee_period: 256,
             sync_committee_size: 512,
+            min_validator_withdrawability_delay: 256,
+            churn_limit_quotient: 65536,
             altair_fork_version: [0x01, 0x00, 0x00, 0x00],
             bellatrix_fork_version: [0x02, 0x00, 0x00, 0x00],
             capella_fork_version: [0x03, 0x00, 0x00, 0x00],
@@ -231,6 +256,8 @@ impl ChainSpecConfig {
             slots_per_epoch: 8,
             epochs_per_sync_committee_period: 8,
             sync_committee_size: 32,
+            min_validator_withdrawability_delay: 256,
+            churn_limit_quotient: 32,
             altair_fork_version: [0x01, 0x00, 0x00, 0x01],
             bellatrix_fork_version: [0x02, 0x00, 0x00, 0x01],
             capella_fork_version: [0x03, 0x00, 0x00, 0x01],
