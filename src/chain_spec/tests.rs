@@ -144,7 +144,7 @@ fn mainnet_digests_match_wire_observations() {
 #[test]
 fn weak_subjectivity_period_matches_spec_table() {
     // mainnet: electra/weak-subjectivity.md example table, plateau rows (3532 at ≥8.39M ETH).
-    assert_eq!(ChainSpec::mainnet().weak_subjectivity_period_epochs(), 3532);
+    assert_eq!(ChainSpec::mainnet().weak_subjectivity_period(), 3532);
     // minimal: our formula's value. Minimal networks sit below the churn floor, so this pins the transcription, not a spec-table row.
-    assert_eq!(ChainSpec::minimal().weak_subjectivity_period_epochs(), 257);
+    assert_eq!(ChainSpec::minimal().weak_subjectivity_period(), 257);
 }

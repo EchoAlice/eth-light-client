@@ -37,14 +37,13 @@ impl LightClientProcessor {
                 "Bootstrap doesn't match the trusted block root".to_string(),
             ));
         }
-        // TODO: Figure out the best variable name here. i don't like "_slots". the suffix here is confusing... maybe "_as_slot" is better?
-        let ws_period_slots = chain_spec.weak_subjectivity_period_slots();
+        let ws_period_as_slots = chain_spec.epoch_to_slot(chain_spec.weak_subjectivity_period());
         let header_slot = bootstrap.header.slot();
-        if current_slot > header_slot + ws_period_slots {
+        if current_slot > header_slot + ws_period_as_slots {
             return Err(Error::StaleTrustedRoot {
                 header_slot,
                 current_slot,
-                ws_period_slots,
+                ws_period_as_slots,
             });
         }
 
