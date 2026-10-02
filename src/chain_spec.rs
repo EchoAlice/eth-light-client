@@ -131,20 +131,18 @@ impl ChainSpec {
     /// Spec: `compute_weak_subjectivity_period` (Electra), reduced to config
     /// constants.
     ///
-    /// Light clients don't have immediate access to `BeaconState`, so we can't
-    /// calculate a (possibly) fluctuating epoch trust window based on total
-    /// active balance, t.  We assume per-epoch churn limit = t /
-    /// CHURN_LIMIT_QUOTIENT.  Under this assumption, calculating the weak
-    /// subjectivity period doesn't depend on beacon state information.
-    pub const fn weak_subjectivity_period_epochs(&self) -> Epoch {
+    /// We assume per-epoch churn limit = t / CHURN_LIMIT_QUOTIENT.  Under
+    /// this assumption, calculating the weak subjectivity period doesn't
+    /// depend on beacon state information.
+    pub const fn weak_subjectivity_period(&self) -> Epoch {
         self.min_validator_withdrawability_delay + SAFETY_DECAY * self.churn_limit_quotient / 200
     }
 
-    pub const fn weak_subjectivity_period_slots(&self) -> Slot {
-        self.weak_subjectivity_period_epochs() * self.slots_per_epoch
+    pub const fn epoch_to_slot(&self, epoch: Epoch) -> Slot {
+        epoch * self.slots_per_epoch
     }
 
-    pub(crate) const fn slot_to_epoch(&self, slot: u64) -> u64 {
+    pub const fn slot_to_epoch(&self, slot: Slot) -> Epoch {
         slot / self.slots_per_epoch
     }
 

@@ -27,11 +27,11 @@ pub enum Error {
     #[error("Invalid input: {0}")]
     InvalidInput(String),
 
-    #[error("Trusted root too old: header slot {header_slot}, current slot {current_slot}, max age {ws_period_slots} slots")]
+    #[error("Trusted root too old: header slot {header_slot}, current slot {current_slot}, weak subjectivity period {ws_period_as_slots} slots")]
     StaleTrustedRoot {
         header_slot: Slot,
         current_slot: Slot,
-        ws_period_slots: Slot,
+        ws_period_as_slots: Slot,
     },
 
     #[error("Internal error: {0}")]

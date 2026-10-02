@@ -251,11 +251,13 @@ fn committee_update_without_finality_is_not_learned() {
 #[test]
 fn trusted_root_freshness_boundary() {
     let sync_test = SyncTestCase::light_client_sync(Fork::Altair);
-    let window = sync_test.chain_spec().weak_subjectivity_period_slots();
+    let ws_period_as_slots = sync_test
+        .chain_spec()
+        .epoch_to_slot(sync_test.chain_spec().weak_subjectivity_period());
 
-    // Exactly one window old: still accepted.
+    // Exactly one weak subjectivity period old: still accepted.
     let bootstrap = sync_test.load_bootstrap().unwrap();
-    let at_boundary = bootstrap.header.slot() + window;
+    let at_boundary = bootstrap.header.slot() + ws_period_as_slots;
     assert!(LightClient::new(
         sync_test.chain_spec().clone(),
         sync_test.genesis_validators_root(),
@@ -265,7 +267,7 @@ fn trusted_root_freshness_boundary() {
     )
     .is_ok());
 
-    // One slot past the window: rejected, and with the staleness variant —
+    // One slot past the period: rejected, and with the staleness variant —
     // not the identity or proof errors that precede and follow the check.
     let bootstrap = sync_test.load_bootstrap().unwrap();
     let err = LightClient::new(
