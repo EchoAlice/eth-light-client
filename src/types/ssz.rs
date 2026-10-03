@@ -79,8 +79,6 @@ impl<N: Unsigned> RawSyncAggregate<N> {
     }
 }
 
-// Helper fns
-
 fn assemble_finality_proof(
     header: LightClientHeader,
     branch: Vec<Root>,
