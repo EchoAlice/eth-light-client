@@ -9,8 +9,6 @@ Light clients give users a highly secure way to access information within Ethere
 
 This library exposes functionality to track and independently verify sync committee commitments to the latest (i) finalized and (ii) optimistic beacon block headers.
 
-For protocol background, see [`docs/consensus-primer.md`](docs/consensus-primer.md) (work in progress).
-
 ### Resource Requirements
 | | Full node | Light client |
 |---|---|---|
