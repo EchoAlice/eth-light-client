@@ -15,8 +15,10 @@ For protocol background, see [`docs/consensus-primer.md`](docs/consensus-primer.
 | | Full node | Light client |
 |---|---|---|
 | **Bandwidth** | ~65 GB/day. Gossip peer, continuous | ~7 MB/day. A ~1KB update per slot|
-| **Compute** | Executes every transaction and checks ~64-128 aggregate attestation signatures per block.  **Scales with throughput** | One aggregate signature check + a few Merkle proofs per block. And one 1,000-hash committee root per sync period (~27 hrs).  **constant** |
+| **Compute** | Executes every transaction (with most of the computational work being state reads and writes) and verifies every attestation (~64-128 aggregate signatures per block).  **Scales with throughput** | One aggregate signature check + a few Merkle proofs per update.  One ~1,000-hash committee root per sync period (~27 hrs). No state I/O.  **Constant** |
 | **Storage** | Chain state + history: ~1-1.5TB, **grows with the chain** ~14GB/week | Only the verified store: ~50KB (2 sets of sync committee keys + 2 `LightClientHeader`s), **constant** |
+
+**Note:** A full node wants a quad-core, 16 GB, NVMe machine; the light client runs on anything. 
 
 ### Use Cases 
 - Wallets: “Is this transaction actually finalized?”
