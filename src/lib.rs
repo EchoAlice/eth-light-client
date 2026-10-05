@@ -16,7 +16,7 @@ pub use crate::types::consensus::SyncAggregate;
 /// networks) and [`SyncAggregate`]; import those from the crate root.
 pub mod prelude {
     pub use crate::chain_spec::{ChainSpec, Fork};
-    pub use crate::consensus::processor::UpdateChanges;
+    pub use crate::consensus::processor::StoreChanges;
     pub use crate::error::{Error, Result};
     pub use crate::light_client::LightClient;
     pub use crate::types::{

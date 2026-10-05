@@ -1,7 +1,7 @@
 mod common;
 
 use common::{ProcessUpdateStep, StateChecks, SyncTestCase, TestStep};
-use eth_light_client::{Error, Fork, LightClient, UpdateChanges};
+use eth_light_client::{Error, Fork, LightClient, StoreChanges};
 
 // TODO: Vendor Fulu `light_client` test vectors with the #106 fixture tail.
 
@@ -168,14 +168,14 @@ fn process_step(
     let before_finalized = client.finalized_beacon_block_header().slot;
     let before_optimistic = client.optimistic_beacon_block_header().slot;
 
-    let changes: UpdateChanges = client
+    let changes: StoreChanges = client
         .process_light_client_update(update, step.current_slot)
         .unwrap_or_else(|e| panic!("step {}: error processing update: {}", step_num, e));
 
     let after_finalized = client.finalized_beacon_block_header().slot;
     let after_optimistic = client.optimistic_beacon_block_header().slot;
 
-    // UpdateChanges must agree with observed state.
+    // StoreChanges must agree with observed state.
     if changes.finalized_updated {
         assert!(
             after_finalized > before_finalized,

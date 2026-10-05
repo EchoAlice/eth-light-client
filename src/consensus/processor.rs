@@ -8,7 +8,7 @@ use crate::types::consensus::{LightClientBootstrap, LightClientUpdate};
 use crate::types::primitives::{Root, Slot};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct UpdateChanges {
+pub struct StoreChanges {
     pub finalized_updated: bool,
     pub optimistic_updated: bool,
     pub rotated: bool,
@@ -69,8 +69,8 @@ impl LightClientProcessor {
         &mut self,
         update: LightClientUpdate,
         current_slot: Slot,
-    ) -> Result<UpdateChanges> {
-        let mut changes = UpdateChanges::default();
+    ) -> Result<StoreChanges> {
+        let mut changes = StoreChanges::default();
         // Strict 2/3 participation requirement up front. Diverges from spec for simplicity.
         if !self
             .store
@@ -236,11 +236,7 @@ impl LightClientProcessor {
     }
 
     /// Mutates store (write-once). Assumes validation and gate admission
-    fn apply_light_client_update(
-        &mut self,
-        update: LightClientUpdate,
-        changes: &mut UpdateChanges,
-    ) {
+    fn apply_light_client_update(&mut self, update: LightClientUpdate, changes: &mut StoreChanges) {
         let store_period = self.store.finalized_sync_committee_period(&self.chain_spec);
         let finality_update = update
             .finalized
