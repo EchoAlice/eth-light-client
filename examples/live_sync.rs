@@ -68,7 +68,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 
         if finality_changes.finalized_updated {
             println!();
-            println!("*** Finality ***: {:?}", finality_changes);
+            println!("Finality Update: {:?}", finality_changes);
 
             match client.finalized_execution_state_root() {
                 Some(root) => println!("finalized execution state root: 0x{}", hex::encode(root)),
@@ -88,7 +88,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 
         let optimistic_changes =
             client.process_light_client_update(optimistic_update.into(), current_slot)?;
-        println!("*** Optimistic ***: {:?}", optimistic_changes);
+        println!("Optimistic Update: {:?}", optimistic_changes);
 
         thread::sleep(Duration::from_secs(12));
     }
@@ -171,7 +171,7 @@ fn process_sync_update_batch(
         )?;
         let current_slot = current_slot_from_clock(client.chain_spec())?;
         let changes = client.process_light_client_update(update, current_slot)?;
-        println!("*** Sync Committee ***: {:?}", changes);
+        println!("Sync Committee Update: {:?}", changes);
 
         bytes = &bytes[chunk_len..];
     }
