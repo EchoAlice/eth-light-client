@@ -9,7 +9,14 @@ use eth_light_client::{
     LightClientFinalityUpdate, LightClientOptimisticUpdate, LightClientUpdate, Root,
 };
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() {
+    if let Err(e) = run() {
+        eprintln!("error: {e}");
+        std::process::exit(1);
+    }
+}
+
+fn run() -> Result<(), Box<dyn std::error::Error>> {
     // Note: This example is pinned to mainnet
     let chain_spec = ChainSpec::mainnet();
     let gvr_hex = "4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95";

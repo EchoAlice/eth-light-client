@@ -1,5 +1,5 @@
 use crate::chain_spec::ChainSpec;
-use crate::consensus::processor::{LightClientProcessor, UpdateChanges};
+use crate::consensus::processor::{LightClientProcessor, StoreChanges};
 use crate::error::Result;
 use crate::types::consensus::{
     BeaconBlockHeader, LightClientBootstrap, LightClientUpdate, SyncCommittee,
@@ -33,7 +33,7 @@ impl LightClient {
         &mut self,
         update: LightClientUpdate,
         current_slot: Slot,
-    ) -> Result<UpdateChanges> {
+    ) -> Result<StoreChanges> {
         self.inner.process_light_client_update(update, current_slot)
     }
 
