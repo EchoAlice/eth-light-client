@@ -72,11 +72,7 @@ impl LightClientProcessor {
     ) -> Result<StoreChanges> {
         let mut changes = StoreChanges::default();
         // Strict 2/3 participation requirement up front. Diverges from spec for simplicity.
-        if !self
-            .store
-            .current_sync_committee
-            .has_supermajority_participation(&update.sync_aggregate.sync_committee_bits)
-        {
+        if !update.sync_aggregate.has_supermajority_participation() {
             return Err(Error::InvalidInput(
                 "Insufficient sync committee participation".to_string(),
             ));
