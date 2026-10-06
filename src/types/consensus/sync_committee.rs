@@ -13,6 +13,14 @@ pub struct SyncAggregate {
     pub sync_committee_signature: BLSSignature,
 }
 
+impl SyncAggregate {
+    /// Spec: `sum(sync_aggregate.sync_committee_bits) * 3 >= len(sync_committee_bits) * 2`
+    pub(crate) fn has_supermajority_participation(&self) -> bool {
+        let participants = self.sync_committee_bits.iter().filter(|b| **b).count();
+        participants * 3 >= self.sync_committee_bits.len() * 2
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct SyncCommittee {
     pubkeys: Vec<PubkeyBytes>,
@@ -20,14 +28,6 @@ pub struct SyncCommittee {
 }
 
 impl SyncCommittee {
-    pub(crate) fn has_supermajority_participation(&self, participation_bits: &[bool]) -> bool {
-        if participation_bits.len() != self.pubkeys.len() {
-            return false;
-        }
-        let participants = participation_bits.iter().filter(|&&b| b).count();
-        participants * 3 >= self.pubkeys.len() * 2
-    }
-
     pub(crate) fn participating_pubkeys(
         &self,
         participation_bits: &[bool],
@@ -80,31 +80,19 @@ impl SyncCommittee {
 mod tests {
     use super::*;
 
-    fn test_committee() -> SyncCommittee {
-        let pubkey = |byte| PubkeyBytes::new(vec![byte; 48]).unwrap();
-        SyncCommittee::from_parts(vec![pubkey(1); 32], pubkey(2)).unwrap()
-    }
-
     #[test]
-    fn test_sync_committee_supermajority() {
-        let committee = test_committee();
-        // 2/3 of 32 is 21.33…, so 22 is the smallest supermajority for minimal spec values.
-        let threshold = 22;
+    fn supermajority_threshold_minimal_preset() {
+        let aggregate = |bits: Vec<bool>| SyncAggregate {
+            sync_committee_bits: bits,
+            sync_committee_signature: [0u8; 96],
+        };
 
-        let mut participation = vec![false; 32];
-        participation
-            .iter_mut()
-            .take(threshold)
-            .for_each(|p| *p = true);
-        assert!(committee.has_supermajority_participation(&participation));
-
-        let mut participation = vec![false; 32];
-        participation
-            .iter_mut()
-            .take(threshold - 1)
-            .for_each(|p| *p = true);
-        assert!(!committee.has_supermajority_participation(&participation));
-
-        assert!(committee.has_supermajority_participation(&[true; 32]));
+        // 2/3 of 32 is 21.33…, so 22 is the smallest supermajority
+        assert!(!aggregate([vec![true; 21], vec![false; 11]].concat())
+            .has_supermajority_participation());
+        assert!(
+            aggregate([vec![true; 22], vec![false; 10]].concat()).has_supermajority_participation()
+        );
+        assert!(aggregate(vec![true; 32]).has_supermajority_participation());
     }
 }
