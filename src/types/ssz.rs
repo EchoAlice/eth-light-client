@@ -11,10 +11,8 @@ use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
 
 use crate::error::{Error, Result};
-use crate::types::consensus::{
-    FinalityProof, LightClientHeader, PubkeyBytes, SyncAggregate, SyncCommittee,
-};
-use crate::types::primitives::Root;
+use crate::types::consensus::{FinalityProof, LightClientHeader, SyncAggregate, SyncCommittee};
+use crate::types::primitives::{PubkeyBytes, Root};
 
 // Sized Types:
 // The sync committee size consists of 32 members for minimal and 512

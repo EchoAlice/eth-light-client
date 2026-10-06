@@ -293,9 +293,10 @@ impl LightClientProcessor {
 mod tests {
     use super::*;
     use crate::types::consensus::{
-        AltairLightClientHeader, BeaconBlockHeader, FinalityProof, LightClientHeader, PubkeyBytes,
+        AltairLightClientHeader, BeaconBlockHeader, FinalityProof, LightClientHeader,
         SyncAggregate, SyncCommittee,
     };
+    use crate::types::primitives::PubkeyBytes;
 
     fn test_committee() -> SyncCommittee {
         let pubkey = |byte| PubkeyBytes::new(vec![byte; 48]).unwrap();
