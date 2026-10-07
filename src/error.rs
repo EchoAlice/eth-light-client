@@ -1,57 +1,32 @@
-use thiserror::Error;
-
 use crate::types::primitives::Slot;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Error, Debug)]
+#[derive(Debug)]
 pub enum Error {
-    #[error("Invalid block header: {0}")]
-    InvalidBlockHeader(String),
-
-    #[error("Invalid proof: {0}")]
-    InvalidProof(String),
-
-    #[error("Patricia trie error: {0}")]
-    PatriciaTrie(String),
-
-    #[error("Cryptographic error: {0}")]
-    Crypto(String),
-
-    #[error("Serialization error: {0}")]
     Serialization(String),
-
-    #[error("Consensus error: {0}")]
-    Consensus(String),
-
-    #[error("Invalid input: {0}")]
     InvalidInput(String),
-
-    #[error("Trusted root too old: header slot = {header_slot}, current slot = {current_slot}, weak subjectivity period as slots = {ws_period_as_slots}")]
     StaleTrustedRoot {
         header_slot: Slot,
         current_slot: Slot,
         ws_period_as_slots: Slot,
     },
-
-    #[error("Internal error: {0}")]
     Internal(String),
 }
 
-impl Error {
-    pub fn invalid_proof(msg: impl Into<String>) -> Self {
-        Self::InvalidProof(msg.into())
-    }
-
-    pub fn patricia_trie(msg: impl Into<String>) -> Self {
-        Self::PatriciaTrie(msg.into())
-    }
-
-    pub fn crypto(msg: impl Into<String>) -> Self {
-        Self::Crypto(msg.into())
-    }
-
-    pub fn consensus(msg: impl Into<String>) -> Self {
-        Self::Consensus(msg.into())
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::Serialization(msg) => write!(f, "Serialization error: {msg}"),
+            Error::InvalidInput(msg) => write!(f, "Invalid input: {msg}"),
+            Error::StaleTrustedRoot {
+                header_slot,
+                current_slot,
+                ws_period_as_slots,
+            } => write!(f, "Trusted root too old: header slot = {header_slot}, current slot = {current_slot}, weak subjectivity period as slots = {ws_period_as_slots}"),
+            Error::Internal(msg) => write!(f, "Internal error: {msg}"),
+        }
     }
 }
+
+impl std::error::Error for Error {}
