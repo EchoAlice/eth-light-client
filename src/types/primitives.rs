@@ -11,10 +11,7 @@ pub type Epoch = u64;
 
 pub type ValidatorIndex = u64;
 
-/// BLS pubkey as the SSZ wire type; the same 48 bytes as BLSPublicKey
 pub type PubkeyBytes = FixedVector<u8, U48>;
-
-pub type BLSPublicKey = [u8; 48];
 
 pub type BLSSignature = [u8; 96];
 

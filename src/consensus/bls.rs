@@ -6,7 +6,7 @@ use blst::{
 const DST: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
 
 pub(crate) fn fast_aggregate_verify(
-    pubkeys: &[[u8; 48]],
+    pubkeys: &[&[u8]],
     message: &[u8],
     signature: &[u8; 96],
 ) -> bool {
@@ -89,16 +89,12 @@ mod spec_tests {
             let case: FastAggregateVerifyCase =
                 serde_yaml::from_str(&contents).unwrap_or_else(|e| panic!("parse {name}: {e}"));
 
-            let pubkeys: Vec<[u8; 48]> = case
-                .input
-                .pubkeys
-                .iter()
-                .map(|p| fixed(&parse_hex(p)))
-                .collect();
+            let pubkeys: Vec<Vec<u8>> = case.input.pubkeys.iter().map(|pk| parse_hex(pk)).collect();
             let message = parse_hex(&case.input.message);
             let signature: [u8; 96] = fixed(&parse_hex(&case.input.signature));
 
-            let actual = fast_aggregate_verify(&pubkeys, &message, &signature);
+            let pubkey_refs: Vec<&[u8]> = pubkeys.iter().map(|pk| pk.as_slice()).collect();
+            let actual = fast_aggregate_verify(&pubkey_refs, &message, &signature);
             if actual != case.output {
                 failures.push(format!("{name}: expected {}, got {actual}", case.output));
             }
