@@ -109,6 +109,8 @@ impl LightClientProcessor {
         Ok(changes)
     }
 
+    /// Spec: `validate_light_client_update`, minus the supermajority check (gated up front).
+    ///
     /// Verifies update's (i) relevance, (ii) internal construction, and that
     /// (iii) the sync committee signature is sound
     fn validate_light_client_update(
@@ -231,6 +233,8 @@ impl LightClientProcessor {
         Ok(())
     }
 
+    /// Spec: `apply_light_client_update`
+    ///
     /// Mutates store (write-once). Assumes validation and gate admission
     fn apply_light_client_update(&mut self, update: LightClientUpdate, changes: &mut StoreChanges) {
         let store_period = self.store.finalized_sync_committee_period(&self.chain_spec);

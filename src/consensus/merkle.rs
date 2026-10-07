@@ -7,6 +7,7 @@ const EXECUTION_PAYLOAD_GINDEX: u64 = 25;
 
 // The fork defines the SSZ schema. The SSZ schema defines the index.
 impl Fork {
+    /// Spec: `CURRENT_SYNC_COMMITTEE_GINDEX` / `_ELECTRA`
     pub(crate) const fn current_sync_committee_gindex(&self) -> u64 {
         match self {
             Fork::Altair | Fork::Bellatrix | Fork::Capella | Fork::Deneb => 54,
@@ -14,6 +15,7 @@ impl Fork {
         }
     }
 
+    /// Spec: `NEXT_SYNC_COMMITTEE_GINDEX` / `_ELECTRA`
     pub(crate) const fn next_sync_committee_gindex(&self) -> u64 {
         match self {
             Fork::Altair | Fork::Bellatrix | Fork::Capella | Fork::Deneb => 55,
@@ -21,6 +23,7 @@ impl Fork {
         }
     }
 
+    /// Spec: `FINALIZED_ROOT_GINDEX` / `_ELECTRA`
     pub(crate) const fn finalized_root_gindex(&self) -> u64 {
         match self {
             Fork::Altair | Fork::Bellatrix | Fork::Capella | Fork::Deneb => 105,
@@ -62,6 +65,7 @@ pub(crate) fn verify_light_client_header(header: &LightClientHeader) -> Result<(
     }
 }
 
+/// Spec: `is_valid_normalized_merkle_branch`, fused with its caller-side `assert`.
 pub(crate) fn verify_merkle_proof(
     leaf: &Root,
     branch: &[Root],
