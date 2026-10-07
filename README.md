@@ -45,6 +45,19 @@ The library currently supports fork-aware light client verification through **Fu
 
 Capella+ light client headers include authenticated execution payload header data rooted within the verified beacon block.  This exposes trusted execution-layer commitments (like state, transaction, and receipt roots), which can serve as anchors for proving arbitrary execution-layer facts.
 
+## Roadmap
+### V1
+**To Do:** Implement the rest of the official vectors and mainnet-preset replays.  
+
+Tracking in issue [#131](https://github.com/EchoAlice/eth-light-client/issues/131).
+
+### V2
+- **`eth_getProof` verification** — the finalized execution state root is the anchor; EIP-1186 account and storage proofs are the questions.  A different tree (hexary Merkle-Patricia), so its own slice.
+- **Store persistence** — the store lives in memory; every restart re-bootstraps from a trusted root.
+- **`force_update`** — the spec's escape hatch for finality outages.  Cut so that the client stalls rather than force-applies; recovery is re-bootstrapping.
+
+Tracking in issue [#205](https://github.com/EchoAlice/eth-light-client/issues/205)
+
 <br/>
 
 # Usage
@@ -87,19 +100,6 @@ cargo clippy --all-targets -- -D warnings
 # Unit + integration tests
 cargo test
 ```
-
-# Roadmap
-### V1
-**To Do:** Implement the rest of the official vectors and mainnet-preset replays.  
-
-Tracking in issue [#131](https://github.com/EchoAlice/eth-light-client/issues/131).
-
-### V2
-- **`eth_getProof` verification** — the finalized execution state root is the anchor; EIP-1186 account and storage proofs are the questions.  A different tree (hexary Merkle-Patricia), so its own slice.
-- **Store persistence** — the store lives in memory; every restart re-bootstraps from a trusted root.
-- **`force_update`** — the spec's escape hatch for finality outages.  Cut so that the client stalls rather than force-applies; recovery is re-bootstrapping.
-
-Tracking in issue [#205](https://github.com/EchoAlice/eth-light-client/issues/205)
 
 ## License
 MIT OR Apache-2.0
