@@ -114,7 +114,7 @@ impl ChainSpec {
         self.sync_committee_size
     }
 
-    /// Mirrors Spec's `compute_sync_committee_period_at_slot` functionality
+    /// Spec: `compute_sync_committee_period_at_slot`
     pub const fn slot_to_sync_committee_period(&self, slot: u64) -> u64 {
         self.slot_to_epoch(slot) / self.epochs_per_sync_committee_period
     }
@@ -138,18 +138,22 @@ impl ChainSpec {
         self.min_validator_withdrawability_delay + SAFETY_DECAY * self.churn_limit_quotient / 200
     }
 
+    /// Spec: `compute_start_slot_at_epoch` (a position); used here as a duration.
     pub const fn epoch_to_slot(&self, epoch: Epoch) -> Slot {
         epoch * self.slots_per_epoch
     }
 
+    /// Spec: `compute_epoch_at_slot`
     pub const fn slot_to_epoch(&self, slot: Slot) -> Epoch {
         slot / self.slots_per_epoch
     }
 
+    /// Spec: `compute_fork_version`
     pub(crate) const fn fork_version_at_epoch(&self, epoch: u64) -> [u8; 4] {
         self.fork_schedule.version_at_epoch(epoch)
     }
 
+    /// Spec: the `*_gindex_at_slot(slot)` family — resolve the fork here, read the gindex off `Fork`.
     pub(crate) const fn fork_at_slot(&self, slot: Slot) -> Fork {
         self.fork_schedule
             .fork_at_epoch(slot / self.slots_per_epoch)

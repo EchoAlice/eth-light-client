@@ -5,6 +5,7 @@ use blst::{
 
 const DST: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
 
+/// Spec: `eth2_fast_aggregate_verify`; its empty-participants arm is unreachable behind the supermajority gate.
 pub(crate) fn fast_aggregate_verify(
     pubkeys: &[&[u8]],
     message: &[u8],
