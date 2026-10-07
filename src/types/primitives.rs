@@ -1,9 +1,9 @@
-//! Primitive type aliases shared across the crate.
-
 /// 256-bit unsigned integer. `alloy_primitives::U256` carries the native SSZ
 /// `Decode`/`TreeHash` impls (via the sigp stack's alloy support), so execution
 /// headers derive their SSZ directly.
 pub use alloy_primitives::U256;
+use ssz_types::typenum::U48;
+use ssz_types::FixedVector;
 
 pub type Slot = u64;
 
@@ -11,7 +11,7 @@ pub type Epoch = u64;
 
 pub type ValidatorIndex = u64;
 
-pub type BLSPublicKey = [u8; 48];
+pub type PubkeyBytes = FixedVector<u8, U48>;
 
 pub type BLSSignature = [u8; 96];
 

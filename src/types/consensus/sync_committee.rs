@@ -1,11 +1,5 @@
-use ssz_types::typenum::U48;
-use ssz_types::FixedVector;
-
 use crate::error::{Error, Result};
-use crate::types::primitives::{BLSPublicKey, BLSSignature};
-
-// TODO: Should this move to primitives.rs?
-pub type PubkeyBytes = FixedVector<u8, U48>;
+use crate::types::primitives::{BLSSignature, PubkeyBytes};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyncAggregate {
@@ -28,24 +22,20 @@ pub struct SyncCommittee {
 }
 
 impl SyncCommittee {
-    pub(crate) fn participating_pubkeys(
-        &self,
-        participation_bits: &[bool],
-    ) -> Result<Vec<BLSPublicKey>> {
+    pub(crate) fn participating_pubkeys(&self, participation_bits: &[bool]) -> Result<Vec<&[u8]>> {
         if participation_bits.len() != self.pubkeys.len() {
             return Err(Error::InvalidInput(
                 "Participation bits length mismatch".to_string(),
             ));
         }
-        let mut out = Vec::new();
-        for (i, &bit) in participation_bits.iter().enumerate() {
-            if bit {
-                let mut key = [0u8; 48];
-                key.copy_from_slice(&self.pubkeys[i]);
-                out.push(key);
-            }
-        }
-        Ok(out)
+
+        Ok(self
+            .pubkeys
+            .iter()
+            .zip(participation_bits)
+            .filter(|(_, &bit)| bit)
+            .map(|(pk, _)| pk.as_ref())
+            .collect())
     }
 
     /// Enforces the `{32, 512}` size invariant at construction, so the size
