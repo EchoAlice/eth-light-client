@@ -30,7 +30,7 @@ impl LightClientProcessor {
         bootstrap: LightClientBootstrap,
         current_slot: Slot,
     ) -> Result<Self> {
-        verify_light_client_header(&bootstrap.header)?;
+        verify_light_client_header(&bootstrap.header, &chain_spec)?;
 
         if bootstrap.header.beacon().hash_tree_root() != trusted_block_root {
             return Err(Error::InvalidInput(
@@ -110,16 +110,12 @@ impl LightClientProcessor {
     }
 
     /// Spec: `validate_light_client_update`, minus the supermajority check (gated up front).
-    ///
-    /// Verifies update's (i) relevance, (ii) internal construction, and that
-    /// (iii) the sync committee signature is sound
     fn validate_light_client_update(
         &self,
         update: &LightClientUpdate,
         current_slot: Slot,
     ) -> Result<()> {
-        // Verify update's sync committee signature can be checked (based on local store's registry)
-        verify_light_client_header(&update.attested_header)?;
+        verify_light_client_header(&update.attested_header, &self.chain_spec)?;
         let update_attested_slot = update.attested_header.slot();
         let update_finalized_slot = update.finalized.as_ref().map_or(0, |f| f.header.slot());
         if !(current_slot >= update.signature_slot
@@ -167,7 +163,7 @@ impl LightClientProcessor {
 
         // Verify that the `finalized_header` (if present) is rooted in the state of `attested_header`.
         if let Some(ref finalized) = update.finalized {
-            verify_light_client_header(&finalized.header)?;
+            verify_light_client_header(&finalized.header, &self.chain_spec)?;
             verify_merkle_proof(
                 &finalized.header.beacon().hash_tree_root(),
                 &finalized.branch,
@@ -233,9 +229,8 @@ impl LightClientProcessor {
         Ok(())
     }
 
-    /// Spec: `apply_light_client_update`
-    ///
-    /// Mutates store (write-once). Assumes validation and gate admission
+    /// Spec: `apply_light_client_update`.  Mutates store (write-once). Assumes
+    /// validation and gate admission
     fn apply_light_client_update(&mut self, update: LightClientUpdate, changes: &mut StoreChanges) {
         let store_period = self.store.finalized_sync_committee_period(&self.chain_spec);
         let finality_update = update
