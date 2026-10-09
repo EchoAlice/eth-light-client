@@ -1,4 +1,4 @@
-use crate::chain_spec::Fork;
+use crate::chain_spec::{ChainSpec, Fork};
 use crate::error::{Error, Result};
 use crate::types::consensus::LightClientHeader;
 use crate::types::primitives::Root;
@@ -7,7 +7,6 @@ const EXECUTION_PAYLOAD_GINDEX: u64 = 25;
 
 // The fork defines the SSZ schema. The SSZ schema defines the index.
 impl Fork {
-    /// Spec: `CURRENT_SYNC_COMMITTEE_GINDEX` / `_ELECTRA`
     pub(crate) const fn current_sync_committee_gindex(&self) -> u64 {
         match self {
             Fork::Altair | Fork::Bellatrix | Fork::Capella | Fork::Deneb => 54,
@@ -15,7 +14,6 @@ impl Fork {
         }
     }
 
-    /// Spec: `NEXT_SYNC_COMMITTEE_GINDEX` / `_ELECTRA`
     pub(crate) const fn next_sync_committee_gindex(&self) -> u64 {
         match self {
             Fork::Altair | Fork::Bellatrix | Fork::Capella | Fork::Deneb => 55,
@@ -23,7 +21,6 @@ impl Fork {
         }
     }
 
-    /// Spec: `FINALIZED_ROOT_GINDEX` / `_ELECTRA`
     pub(crate) const fn finalized_root_gindex(&self) -> u64 {
         match self {
             Fork::Altair | Fork::Bellatrix | Fork::Capella | Fork::Deneb => 105,
@@ -32,32 +29,37 @@ impl Fork {
     }
 }
 
-/// Spec: `is_valid_light_client_header`, fused with its caller-side `assert`
-/// (returns `Err` instead of a bool).  Proves header-internal consistency.
-/// Handles fork dispatch.  No signature checks involved.
-pub(crate) fn verify_light_client_header(header: &LightClientHeader) -> Result<()> {
+/// Spec: `is_valid_light_client_header`. Proves header-internal consistency.
+pub(crate) fn verify_light_client_header(
+    header: &LightClientHeader,
+    chain_spec: &ChainSpec,
+) -> Result<()> {
+    let block_fork = chain_spec.fork_at_slot(header.beacon().slot);
+
+    // TODO: Implement the container checks that the spec has for zeroed fields
+
     match header {
         LightClientHeader::Altair(_) | LightClientHeader::Bellatrix(_) => Ok(()),
         LightClientHeader::Capella(h) => verify_merkle_proof(
-            &h.execution.hash_tree_root(),
+            &get_lc_execution_root(header, block_fork),
             &h.execution_branch,
             EXECUTION_PAYLOAD_GINDEX,
             &h.beacon.body_root,
         ),
         LightClientHeader::Deneb(h) => verify_merkle_proof(
-            &h.execution.hash_tree_root(),
+            &get_lc_execution_root(header, block_fork),
             &h.execution_branch,
             EXECUTION_PAYLOAD_GINDEX,
             &h.beacon.body_root,
         ),
         LightClientHeader::Electra(h) => verify_merkle_proof(
-            &h.execution.hash_tree_root(),
+            &get_lc_execution_root(header, block_fork),
             &h.execution_branch,
             EXECUTION_PAYLOAD_GINDEX,
             &h.beacon.body_root,
         ),
         LightClientHeader::Fulu(h) => verify_merkle_proof(
-            &h.execution.hash_tree_root(),
+            &get_lc_execution_root(header, block_fork),
             &h.execution_branch,
             EXECUTION_PAYLOAD_GINDEX,
             &h.beacon.body_root,
@@ -65,13 +67,35 @@ pub(crate) fn verify_light_client_header(header: &LightClientHeader) -> Result<(
     }
 }
 
-/// Spec: `is_valid_normalized_merkle_branch`, fused with its caller-side `assert`.
+// TODO:
+//   - `LightClientHeader::execution_root_as_capella()`
+//   - Should this exist in merkle.rs, or inside the LightClientHeader's type?
+//   - what should we do about "baking in EXECUTION_PAYLOAD_GINDEX"?
+
+/// Hashes execution payload header the way it was committed within `body_root`.
+fn get_lc_execution_root(header: &LightClientHeader, block_fork: Fork) -> Root {
+    if header.fork() == block_fork {
+        return header.execution_payload_root();
+    }
+
+    // The exception at fork boundaries: The wire's container doesn't match the
+    // fork it's block was made within.
+    if header.fork() == Fork::Deneb && block_fork == Fork::Capella {
+        header.execution_root_as_capella()
+    } else {
+        header.execution_payload_root()
+    }
+}
+
+/// Spec: `is_valid_normalized_merkle_branch`, fused with its caller-side assert
 pub(crate) fn verify_merkle_proof(
     leaf: &Root,
     branch: &[Root],
     gindex: u64,
     root: &Root,
 ) -> Result<()> {
+    // TODO: Implement the logic that's present in spec's normalization
+
     if is_valid_merkle_branch(leaf, branch, gindex, root)? {
         Ok(())
     } else {

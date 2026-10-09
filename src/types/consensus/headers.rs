@@ -5,6 +5,7 @@ use ssz_types::{FixedVector, VariableList};
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
 
+use crate::chain_spec::Fork;
 use crate::types::primitives::{Root, Slot, ValidatorIndex};
 
 /// Verification logic accesses the inner `BeaconBlockHeader` through [`beacon()`](Self::beacon), keeping the pipeline fork-agnostic.
@@ -69,6 +70,26 @@ impl LightClientHeader {
         }
     }
 
+    /// Returns the slot the beacon block was proposed in, not the signature slot.
+    pub fn slot(&self) -> Slot {
+        self.beacon().slot
+    }
+
+    pub fn state_root(&self) -> &Root {
+        &self.beacon().state_root
+    }
+
+    pub fn fork(&self) -> Fork {
+        match self {
+            Self::Altair(_) => Fork::Altair,
+            Self::Bellatrix(_) => Fork::Bellatrix,
+            Self::Capella(_) => Fork::Capella,
+            Self::Deneb(_) => Fork::Deneb,
+            Self::Electra(_) => Fork::Electra,
+            Self::Fulu(_) => Fork::Fulu,
+        }
+    }
+
     pub fn execution_state_root(&self) -> Option<Root> {
         match self {
             Self::Altair(_) | Self::Bellatrix(_) => None,
@@ -79,13 +100,24 @@ impl LightClientHeader {
         }
     }
 
-    /// Returns the slot the beacon block was proposed in, not the signature slot.
-    pub fn slot(&self) -> Slot {
-        self.beacon().slot
+    pub(crate) fn execution_payload_root(&self) -> Root {
+        match self {
+            Self::Altair(_) | Self::Bellatrix(_) => {
+                unreachable!("Pre-Capella containers carry no execution header.verify_light_client_header returns before hashing")
+            }
+            Self::Capella(h) => h.execution.hash_tree_root(),
+            Self::Deneb(h) => h.execution.hash_tree_root(),
+            Self::Electra(h) => h.execution.hash_tree_root(),
+            Self::Fulu(h) => h.execution.hash_tree_root(),
+        }
     }
 
-    pub fn state_root(&self) -> &Root {
-        &self.beacon().state_root
+    pub(crate) fn _execution_branch(&self) -> &[Root] {
+        todo!()
+    }
+
+    pub(crate) fn execution_root_as_capella(&self) -> Root {
+        todo!()
     }
 }
 
