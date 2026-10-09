@@ -20,44 +20,6 @@ pub enum LightClientHeader {
     Fulu(FuluLightClientHeader),
 }
 
-#[derive(Debug, Clone, PartialEq, Decode)]
-pub struct AltairLightClientHeader {
-    pub beacon: BeaconBlockHeader,
-}
-
-#[derive(Debug, Clone, PartialEq, Decode)]
-pub struct BellatrixLightClientHeader {
-    pub beacon: BeaconBlockHeader,
-}
-
-#[derive(Debug, Clone, PartialEq, Decode)]
-pub struct CapellaLightClientHeader {
-    pub beacon: BeaconBlockHeader,
-    pub execution: CapellaExecutionPayloadHeader,
-    pub execution_branch: FixedVector<Root, U4>,
-}
-
-#[derive(Debug, Clone, PartialEq, Decode)]
-pub struct DenebLightClientHeader {
-    pub beacon: BeaconBlockHeader,
-    pub execution: DenebExecutionPayloadHeader,
-    pub execution_branch: FixedVector<Root, U4>,
-}
-
-#[derive(Debug, Clone, PartialEq, Decode)]
-pub struct ElectraLightClientHeader {
-    pub beacon: BeaconBlockHeader,
-    pub execution: ElectraExecutionPayloadHeader,
-    pub execution_branch: FixedVector<Root, U4>,
-}
-
-#[derive(Debug, Clone, PartialEq, Decode)]
-pub struct FuluLightClientHeader {
-    pub beacon: BeaconBlockHeader,
-    pub execution: FuluExecutionPayloadHeader,
-    pub execution_branch: FixedVector<Root, U4>,
-}
-
 impl LightClientHeader {
     pub fn beacon(&self) -> &BeaconBlockHeader {
         match self {
@@ -103,7 +65,7 @@ impl LightClientHeader {
     pub(crate) fn execution_payload_root(&self) -> Root {
         match self {
             Self::Altair(_) | Self::Bellatrix(_) => {
-                unreachable!("Pre-Capella containers carry no execution header.verify_light_client_header returns before hashing")
+                unreachable!("Pre-Capella containers don't carry an execution header.")
             }
             Self::Capella(h) => h.execution.hash_tree_root(),
             Self::Deneb(h) => h.execution.hash_tree_root(),
@@ -112,13 +74,55 @@ impl LightClientHeader {
         }
     }
 
-    pub(crate) fn _execution_branch(&self) -> &[Root] {
-        todo!()
+    pub(crate) fn execution_branch(&self) -> &[Root] {
+        match self {
+            Self::Altair(_) | Self::Bellatrix(_) => {
+                unreachable!("Pre-Capella containers don't carry an execution branch.")
+            }
+            Self::Capella(h) => &h.execution_branch,
+            Self::Deneb(h) => &h.execution_branch,
+            Self::Electra(h) => &h.execution_branch,
+            Self::Fulu(h) => &h.execution_branch,
+        }
     }
+}
 
-    pub(crate) fn execution_root_as_capella(&self) -> Root {
-        todo!()
-    }
+#[derive(Debug, Clone, PartialEq, Decode)]
+pub struct AltairLightClientHeader {
+    pub beacon: BeaconBlockHeader,
+}
+
+#[derive(Debug, Clone, PartialEq, Decode)]
+pub struct BellatrixLightClientHeader {
+    pub beacon: BeaconBlockHeader,
+}
+
+#[derive(Debug, Clone, PartialEq, Decode)]
+pub struct CapellaLightClientHeader {
+    pub beacon: BeaconBlockHeader,
+    pub execution: CapellaExecutionPayloadHeader,
+    pub execution_branch: FixedVector<Root, U4>,
+}
+
+#[derive(Debug, Clone, PartialEq, Decode)]
+pub struct DenebLightClientHeader {
+    pub beacon: BeaconBlockHeader,
+    pub execution: DenebExecutionPayloadHeader,
+    pub execution_branch: FixedVector<Root, U4>,
+}
+
+#[derive(Debug, Clone, PartialEq, Decode)]
+pub struct ElectraLightClientHeader {
+    pub beacon: BeaconBlockHeader,
+    pub execution: ElectraExecutionPayloadHeader,
+    pub execution_branch: FixedVector<Root, U4>,
+}
+
+#[derive(Debug, Clone, PartialEq, Decode)]
+pub struct FuluLightClientHeader {
+    pub beacon: BeaconBlockHeader,
+    pub execution: FuluExecutionPayloadHeader,
+    pub execution_branch: FixedVector<Root, U4>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, TreeHash, Decode)]
@@ -185,6 +189,28 @@ pub struct DenebExecutionPayloadHeader {
 impl DenebExecutionPayloadHeader {
     pub(crate) fn hash_tree_root(&self) -> Root {
         self.tree_hash_root().0
+    }
+
+    /// Spec: the Capella-era arm of `get_lc_execution_root`. A Capella block's
+    /// `body_root` committed the 15-field header; this is that header.
+    pub(crate) fn to_capella(&self) -> CapellaExecutionPayloadHeader {
+        CapellaExecutionPayloadHeader {
+            parent_hash: self.parent_hash,
+            fee_recipient: self.fee_recipient,
+            state_root: self.state_root,
+            receipts_root: self.receipts_root,
+            logs_bloom: self.logs_bloom.clone(),
+            prev_randao: self.prev_randao,
+            block_number: self.block_number,
+            gas_limit: self.gas_limit,
+            gas_used: self.gas_used,
+            timestamp: self.timestamp,
+            extra_data: self.extra_data.clone(),
+            base_fee_per_gas: self.base_fee_per_gas,
+            block_hash: self.block_hash,
+            transactions_root: self.transactions_root,
+            withdrawals_root: self.withdrawals_root,
+        }
     }
 }
 

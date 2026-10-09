@@ -3,8 +3,6 @@ use crate::error::{Error, Result};
 use crate::types::consensus::LightClientHeader;
 use crate::types::primitives::Root;
 
-const EXECUTION_PAYLOAD_GINDEX: u64 = 25;
-
 // The fork defines the SSZ schema. The SSZ schema defines the index.
 impl Fork {
     pub(crate) const fn current_sync_committee_gindex(&self) -> u64 {
@@ -27,50 +25,35 @@ impl Fork {
             Fork::Electra | Fork::Fulu => 169,
         }
     }
+
+    pub(crate) const fn execution_payload_gindex(&self) -> u64 {
+        match self {
+            // No execution payload in the body before Capella; callers return before asking.
+            Fork::Altair | Fork::Bellatrix => unreachable!(),
+            Fork::Capella | Fork::Deneb | Fork::Electra | Fork::Fulu => 25,
+        }
+    }
 }
 
-/// Spec: `is_valid_light_client_header`. Proves header-internal consistency.
+/// Spec: `is_valid_light_client_header`.
 pub(crate) fn verify_light_client_header(
     header: &LightClientHeader,
     chain_spec: &ChainSpec,
 ) -> Result<()> {
-    let block_fork = chain_spec.fork_at_slot(header.beacon().slot);
+    if header.fork() == Fork::Altair || header.fork() == Fork::Bellatrix {
+        return Ok(());
+    }
 
+    let block_fork = chain_spec.fork_at_slot(header.beacon().slot);
     // TODO: Implement the container checks that the spec has for zeroed fields
 
-    match header {
-        LightClientHeader::Altair(_) | LightClientHeader::Bellatrix(_) => Ok(()),
-        LightClientHeader::Capella(h) => verify_merkle_proof(
-            &get_lc_execution_root(header, block_fork),
-            &h.execution_branch,
-            EXECUTION_PAYLOAD_GINDEX,
-            &h.beacon.body_root,
-        ),
-        LightClientHeader::Deneb(h) => verify_merkle_proof(
-            &get_lc_execution_root(header, block_fork),
-            &h.execution_branch,
-            EXECUTION_PAYLOAD_GINDEX,
-            &h.beacon.body_root,
-        ),
-        LightClientHeader::Electra(h) => verify_merkle_proof(
-            &get_lc_execution_root(header, block_fork),
-            &h.execution_branch,
-            EXECUTION_PAYLOAD_GINDEX,
-            &h.beacon.body_root,
-        ),
-        LightClientHeader::Fulu(h) => verify_merkle_proof(
-            &get_lc_execution_root(header, block_fork),
-            &h.execution_branch,
-            EXECUTION_PAYLOAD_GINDEX,
-            &h.beacon.body_root,
-        ),
-    }
+    verify_merkle_proof(
+        &get_lc_execution_root(header, block_fork),
+        header.execution_branch(),
+        block_fork.execution_payload_gindex(),
+        &header.beacon().body_root,
+    )
 }
-
-// TODO:
-//   - `LightClientHeader::execution_root_as_capella()`
-//   - Should this exist in merkle.rs, or inside the LightClientHeader's type?
-//   - what should we do about "baking in EXECUTION_PAYLOAD_GINDEX"?
 
 /// Hashes execution payload header the way it was committed within `body_root`.
 fn get_lc_execution_root(header: &LightClientHeader, block_fork: Fork) -> Root {
@@ -79,15 +62,16 @@ fn get_lc_execution_root(header: &LightClientHeader, block_fork: Fork) -> Root {
     }
 
     // The exception at fork boundaries: The wire's container doesn't match the
-    // fork it's block was made within.
-    if header.fork() == Fork::Deneb && block_fork == Fork::Capella {
-        header.execution_root_as_capella()
-    } else {
-        header.execution_payload_root()
+    // fork its block was made within.  Deneb container
+    match header {
+        LightClientHeader::Deneb(h) if block_fork == Fork::Capella => {
+            h.execution.to_capella().hash_tree_root()
+        }
+        _ => header.execution_payload_root(),
     }
 }
 
-/// Spec: `is_valid_normalized_merkle_branch`, fused with its caller-side assert
+/// Spec: `is_valid_normalized_merkle_branch`
 pub(crate) fn verify_merkle_proof(
     leaf: &Root,
     branch: &[Root],
