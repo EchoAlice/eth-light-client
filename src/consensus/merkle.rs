@@ -35,7 +35,7 @@ impl Fork {
     }
 }
 
-/// Spec: `is_valid_light_client_header`.
+/// Spec: `is_valid_light_client_header`, fused with its caller-side `assert`.
 pub(crate) fn verify_light_client_header(
     header: &LightClientHeader,
     chain_spec: &ChainSpec,
@@ -71,25 +71,13 @@ fn get_lc_execution_root(header: &LightClientHeader, block_fork: Fork) -> Root {
     }
 }
 
-/// Spec: `is_valid_normalized_merkle_branch`
+/// Spec: `is_valid_merkle_branch`, fused with its caller-side `assert`.
 pub(crate) fn verify_merkle_proof(
     leaf: &Root,
     branch: &[Root],
     gindex: u64,
     root: &Root,
 ) -> Result<()> {
-    // TODO: Implement the logic that's present in spec's normalization
-
-    if is_valid_merkle_branch(leaf, branch, gindex, root)? {
-        Ok(())
-    } else {
-        Err(Error::InvalidInput(format!(
-            "merkle branch verification failed at gindex {gindex}"
-        )))
-    }
-}
-
-fn is_valid_merkle_branch(leaf: &Root, branch: &[Root], gindex: u64, root: &Root) -> Result<bool> {
     let expected_depth = gindex
         .checked_ilog2()
         .ok_or_else(|| Error::InvalidInput("gindex cannot be 0".to_string()))?;
@@ -121,7 +109,13 @@ fn is_valid_merkle_branch(leaf: &Root, branch: &[Root], gindex: u64, root: &Root
         "merkle branch traversal should end at root"
     );
 
-    Ok(current_hash == *root)
+    if current_hash == *root {
+        Ok(())
+    } else {
+        Err(Error::InvalidInput(format!(
+            "merkle branch doesn't resolve to root at gindex {gindex}"
+        )))
+    }
 }
 
 #[inline]
@@ -139,28 +133,24 @@ mod tests {
         let root = [2u8; 32];
         let empty_branch: Vec<Root> = vec![];
 
-        let result = is_valid_merkle_branch(&root, &empty_branch, 1, &root);
-        assert!(result.unwrap());
+        let result = verify_merkle_proof(&root, &empty_branch, 1, &root);
+        assert!(result.is_ok());
 
-        let result = is_valid_merkle_branch(&leaf, &empty_branch, 0, &root);
+        let result = verify_merkle_proof(&leaf, &empty_branch, 0, &root);
         assert!(result.is_err());
 
-        // gindex 54 has depth 5, so a 3-element branch is rejected.
         let short_branch = vec![[0u8; 32]; 3];
-        let result = is_valid_merkle_branch(&leaf, &short_branch, 54, &root);
+        let result = verify_merkle_proof(&leaf, &short_branch, 54, &root);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_merkle_branch_roundtrip() {
-        // 2-leaf tree: root = hash(l, r). l at gindex 2 (left), r at gindex 3 (right).
         let (l, r) = ([1u8; 32], [2u8; 32]);
         let root = hash_pair(&l, &r);
 
-        assert!(is_valid_merkle_branch(&l, &[r], 2, &root).unwrap());
-        assert!(is_valid_merkle_branch(&r, &[l], 3, &root).unwrap());
-
-        // Correct length, wrong root: reconstructs but doesn't match -> Ok(false).
-        assert!(!is_valid_merkle_branch(&l, &[r], 2, &[9u8; 32]).unwrap());
+        assert!(verify_merkle_proof(&l, &[r], 2, &root).is_ok());
+        assert!(verify_merkle_proof(&r, &[l], 3, &root).is_ok());
+        assert!(verify_merkle_proof(&l, &[r], 2, &[9u8; 32]).is_err());
     }
 }
