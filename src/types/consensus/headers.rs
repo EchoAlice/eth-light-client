@@ -8,6 +8,21 @@ use tree_hash_derive::TreeHash;
 use crate::chain_spec::Fork;
 use crate::types::primitives::{Root, Slot, ValidatorIndex};
 
+#[derive(Debug, Clone, PartialEq, Eq, TreeHash, Decode)]
+pub struct BeaconBlockHeader {
+    pub slot: Slot,
+    pub proposer_index: ValidatorIndex,
+    pub parent_root: Root,
+    pub state_root: Root,
+    pub body_root: Root,
+}
+
+impl BeaconBlockHeader {
+    pub(crate) fn hash_tree_root(&self) -> Root {
+        TreeHash::tree_hash_root(self).0
+    }
+}
+
 /// Verification logic accesses the inner `BeaconBlockHeader` through [`beacon()`](Self::beacon), keeping the pipeline fork-agnostic.
 #[derive(Debug, Clone, PartialEq)]
 #[allow(clippy::large_enum_variant)]
@@ -104,42 +119,6 @@ pub struct CapellaLightClientHeader {
     pub execution_branch: FixedVector<Root, U4>,
 }
 
-#[derive(Debug, Clone, PartialEq, Decode)]
-pub struct DenebLightClientHeader {
-    pub beacon: BeaconBlockHeader,
-    pub execution: DenebExecutionPayloadHeader,
-    pub execution_branch: FixedVector<Root, U4>,
-}
-
-#[derive(Debug, Clone, PartialEq, Decode)]
-pub struct ElectraLightClientHeader {
-    pub beacon: BeaconBlockHeader,
-    pub execution: ElectraExecutionPayloadHeader,
-    pub execution_branch: FixedVector<Root, U4>,
-}
-
-#[derive(Debug, Clone, PartialEq, Decode)]
-pub struct FuluLightClientHeader {
-    pub beacon: BeaconBlockHeader,
-    pub execution: FuluExecutionPayloadHeader,
-    pub execution_branch: FixedVector<Root, U4>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, TreeHash, Decode)]
-pub struct BeaconBlockHeader {
-    pub slot: Slot,
-    pub proposer_index: ValidatorIndex,
-    pub parent_root: Root,
-    pub state_root: Root,
-    pub body_root: Root,
-}
-
-impl BeaconBlockHeader {
-    pub(crate) fn hash_tree_root(&self) -> Root {
-        TreeHash::tree_hash_root(self).0
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Decode, TreeHash)]
 pub struct CapellaExecutionPayloadHeader {
     pub parent_hash: Root,
@@ -163,6 +142,13 @@ impl CapellaExecutionPayloadHeader {
     pub(crate) fn hash_tree_root(&self) -> Root {
         self.tree_hash_root().0
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Decode)]
+pub struct DenebLightClientHeader {
+    pub beacon: BeaconBlockHeader,
+    pub execution: DenebExecutionPayloadHeader,
+    pub execution_branch: FixedVector<Root, U4>,
 }
 
 #[derive(Debug, Clone, PartialEq, Decode, TreeHash)]
@@ -214,6 +200,20 @@ impl DenebExecutionPayloadHeader {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Decode)]
+pub struct ElectraLightClientHeader {
+    pub beacon: BeaconBlockHeader,
+    pub execution: ElectraExecutionPayloadHeader,
+    pub execution_branch: FixedVector<Root, U4>,
+}
+
 pub type ElectraExecutionPayloadHeader = DenebExecutionPayloadHeader;
+
+#[derive(Debug, Clone, PartialEq, Decode)]
+pub struct FuluLightClientHeader {
+    pub beacon: BeaconBlockHeader,
+    pub execution: FuluExecutionPayloadHeader,
+    pub execution_branch: FixedVector<Root, U4>,
+}
 
 pub type FuluExecutionPayloadHeader = DenebExecutionPayloadHeader;
