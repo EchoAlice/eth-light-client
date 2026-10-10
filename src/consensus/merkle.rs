@@ -126,9 +126,36 @@ fn hash_pair(left: &Root, right: &Root) -> Root {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chain_spec::ChainSpecConfig;
+    use crate::types::consensus::{
+        CapellaLightClientHeader, DenebExecutionPayloadHeader, DenebLightClientHeader,
+        LightClientUpdate,
+    };
+
+    fn spec(capella_epoch: u64, deneb_epoch: u64) -> ChainSpec {
+        let mut config = ChainSpecConfig::minimal();
+        config.bellatrix_fork_epoch = 0;
+        config.capella_fork_epoch = capella_epoch;
+        config.deneb_fork_epoch = deneb_epoch;
+        ChainSpec::try_from_config(config).unwrap()
+    }
+
+    fn capella_fixture_header() -> CapellaLightClientHeader {
+        let path = "tests/fixtures/minimal/capella/light_client/sync/light_client_sync/\
+        update_0x068c574b9bcfae81ecae2ab779d14f66761e5d21ac44e4ed2dd49a40da491212_sx.ssz_snappy";
+        let compressed = std::fs::read(path).unwrap();
+        let bytes = snap::raw::Decoder::new()
+            .decompress_vec(&compressed)
+            .unwrap();
+        let update = LightClientUpdate::from_ssz(&bytes, Fork::Capella, 32).unwrap();
+        match update.attested_header {
+            LightClientHeader::Capella(h) => h,
+            _ => unreachable!(),
+        }
+    }
 
     #[test]
-    fn test_merkle_branch_validation() {
+    fn merkle_branch_validation() {
         let leaf = [1u8; 32];
         let root = [2u8; 32];
         let empty_branch: Vec<Root> = vec![];
@@ -145,12 +172,48 @@ mod tests {
     }
 
     #[test]
-    fn test_merkle_branch_roundtrip() {
+    fn merkle_branch_roundtrip() {
         let (l, r) = ([1u8; 32], [2u8; 32]);
         let root = hash_pair(&l, &r);
 
         assert!(verify_merkle_proof(&l, &[r], 2, &root).is_ok());
         assert!(verify_merkle_proof(&r, &[l], 3, &root).is_ok());
         assert!(verify_merkle_proof(&l, &[r], 2, &[9u8; 32]).is_err());
+    }
+
+    #[test]
+    fn capella_block_in_deneb_container_hashes_as_capella() {
+        let header = capella_fixture_header();
+        let e = header.execution;
+
+        let widened = LightClientHeader::Deneb(DenebLightClientHeader {
+            beacon: header.beacon,
+            execution: DenebExecutionPayloadHeader {
+                parent_hash: e.parent_hash,
+                fee_recipient: e.fee_recipient,
+                state_root: e.state_root,
+                receipts_root: e.receipts_root,
+                logs_bloom: e.logs_bloom,
+                prev_randao: e.prev_randao,
+                block_number: e.block_number,
+                gas_limit: e.gas_limit,
+                gas_used: e.gas_used,
+                timestamp: e.timestamp,
+                extra_data: e.extra_data,
+                base_fee_per_gas: e.base_fee_per_gas,
+                block_hash: e.block_hash,
+                transactions_root: e.transactions_root,
+                withdrawals_root: e.withdrawals_root,
+                blob_gas_used: 0,
+                excess_blob_gas: 0,
+            },
+            execution_branch: header.execution_branch,
+        });
+
+        // Schedule says the block is Capella-era: re-hash as 15 fields,
+        // branch resolves.
+        assert!(verify_light_client_header(&widened, &spec(0, u64::MAX)).is_ok());
+        // Schedule says Deneb-era: hashed as 17 fields, same branch must fail.
+        assert!(verify_light_client_header(&widened, &spec(0, 0)).is_err());
     }
 }
