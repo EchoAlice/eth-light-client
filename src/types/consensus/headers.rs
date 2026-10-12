@@ -100,6 +100,15 @@ impl LightClientHeader {
             Self::Fulu(h) => &h.execution_branch,
         }
     }
+
+    pub(crate) fn has_blob_gas(&self) -> bool {
+        match self {
+            Self::Altair(_) | Self::Bellatrix(_) | Self::Capella(_) => false,
+            Self::Deneb(h) => h.execution.blob_gas_used != 0 || h.execution.excess_blob_gas != 0,
+            Self::Electra(h) => h.execution.blob_gas_used != 0 || h.execution.excess_blob_gas != 0,
+            Self::Fulu(h) => h.execution.blob_gas_used != 0 || h.execution.excess_blob_gas != 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Decode)]

@@ -45,7 +45,13 @@ pub(crate) fn verify_light_client_header(
     }
 
     let block_fork = chain_spec.fork_at_slot(header.beacon().slot);
-    // TODO: Implement the container checks that the spec has for zeroed fields
+    if block_fork < Fork::Deneb && header.has_blob_gas() {
+        return Err(Error::InvalidInput(
+            "Header contains non-zeroed blob gas fields".to_string(),
+        ));
+    }
+    // TODO: Implement Capella-container with Bellatrix block check.
+    // Must create header.has_execution_payload()
 
     verify_merkle_proof(
         &get_lc_execution_root(header, block_fork),
@@ -154,6 +160,33 @@ mod tests {
         }
     }
 
+    fn widened_to_deneb(header: CapellaLightClientHeader) -> DenebLightClientHeader {
+        let e = header.execution;
+        DenebLightClientHeader {
+            beacon: header.beacon,
+            execution: DenebExecutionPayloadHeader {
+                parent_hash: e.parent_hash,
+                fee_recipient: e.fee_recipient,
+                state_root: e.state_root,
+                receipts_root: e.receipts_root,
+                logs_bloom: e.logs_bloom,
+                prev_randao: e.prev_randao,
+                block_number: e.block_number,
+                gas_limit: e.gas_limit,
+                gas_used: e.gas_used,
+                timestamp: e.timestamp,
+                extra_data: e.extra_data,
+                base_fee_per_gas: e.base_fee_per_gas,
+                block_hash: e.block_hash,
+                transactions_root: e.transactions_root,
+                withdrawals_root: e.withdrawals_root,
+                blob_gas_used: 0,
+                excess_blob_gas: 0,
+            },
+            execution_branch: header.execution_branch,
+        }
+    }
+
     #[test]
     fn merkle_branch_validation() {
         let leaf = [1u8; 32];
@@ -184,36 +217,19 @@ mod tests {
     #[test]
     fn capella_block_in_deneb_container_hashes_as_capella() {
         let header = capella_fixture_header();
-        let e = header.execution;
+        let widened = LightClientHeader::Deneb(widened_to_deneb(header));
 
-        let widened = LightClientHeader::Deneb(DenebLightClientHeader {
-            beacon: header.beacon,
-            execution: DenebExecutionPayloadHeader {
-                parent_hash: e.parent_hash,
-                fee_recipient: e.fee_recipient,
-                state_root: e.state_root,
-                receipts_root: e.receipts_root,
-                logs_bloom: e.logs_bloom,
-                prev_randao: e.prev_randao,
-                block_number: e.block_number,
-                gas_limit: e.gas_limit,
-                gas_used: e.gas_used,
-                timestamp: e.timestamp,
-                extra_data: e.extra_data,
-                base_fee_per_gas: e.base_fee_per_gas,
-                block_hash: e.block_hash,
-                transactions_root: e.transactions_root,
-                withdrawals_root: e.withdrawals_root,
-                blob_gas_used: 0,
-                excess_blob_gas: 0,
-            },
-            execution_branch: header.execution_branch,
-        });
-
-        // Schedule says the block is Capella-era: re-hash as 15 fields,
-        // branch resolves.
         assert!(verify_light_client_header(&widened, &spec(0, u64::MAX)).is_ok());
         // Schedule says Deneb-era: hashed as 17 fields, same branch must fail.
         assert!(verify_light_client_header(&widened, &spec(0, 0)).is_err());
+    }
+
+    #[test]
+    fn capella_block_with_blob_gas_is_rejected() {
+        let mut widened = widened_to_deneb(capella_fixture_header());
+        widened.execution.blob_gas_used = 1;
+        let header = LightClientHeader::Deneb(widened);
+
+        assert!(verify_light_client_header(&header, &spec(0, u64::MAX)).is_err())
     }
 }
