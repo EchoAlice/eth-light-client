@@ -33,7 +33,7 @@ impl From<LightClientFinalityUpdate> for LightClientUpdate {
     fn from(finality: LightClientFinalityUpdate) -> Self {
         LightClientUpdate {
             attested_header: finality.attested_header,
-            finalized: finality.finalized,
+            finalized: Some(finality.finalized),
             next_sync_committee: None,
             sync_aggregate: finality.sync_aggregate,
             signature_slot: finality.signature_slot,
@@ -51,7 +51,7 @@ pub struct LightClientOptimisticUpdate {
 #[derive(Debug, Clone, PartialEq)]
 pub struct LightClientFinalityUpdate {
     pub attested_header: LightClientHeader,
-    pub finalized: Option<FinalityProof>,
+    pub finalized: FinalityProof,
     pub sync_aggregate: SyncAggregate,
     pub signature_slot: Slot,
 }

@@ -2,7 +2,7 @@ use ssz_derive::Decode;
 use ssz_types::typenum::{Unsigned, U32, U512, U6, U7};
 use ssz_types::FixedVector;
 
-use super::{assemble_finality_proof, bad_size, decode_as, RawSyncAggregate};
+use super::{assemble_required_finality_proof, bad_size, decode_as, RawSyncAggregate};
 use crate::chain_spec::Fork;
 use crate::error::Result;
 use crate::types::consensus::LightClientHeader::{
@@ -67,8 +67,10 @@ struct RawAltairFinalityUpdate<N: Unsigned> {
 
 impl<N: Unsigned> RawAltairFinalityUpdate<N> {
     fn into_update(self) -> Result<LightClientFinalityUpdate> {
-        let finalized =
-            assemble_finality_proof(Altair(self.finalized_header), self.finality_branch.to_vec())?;
+        let finalized = assemble_required_finality_proof(
+            Altair(self.finalized_header),
+            self.finality_branch.to_vec(),
+        )?;
 
         Ok(LightClientFinalityUpdate {
             attested_header: Altair(self.attested_header),
@@ -90,7 +92,7 @@ struct RawBellatrixFinalityUpdate<N: Unsigned> {
 
 impl<N: Unsigned> RawBellatrixFinalityUpdate<N> {
     fn into_update(self) -> Result<LightClientFinalityUpdate> {
-        let finalized = assemble_finality_proof(
+        let finalized = assemble_required_finality_proof(
             Bellatrix(self.finalized_header),
             self.finality_branch.to_vec(),
         )?;
@@ -115,7 +117,7 @@ struct RawCapellaFinalityUpdate<N: Unsigned> {
 
 impl<N: Unsigned> RawCapellaFinalityUpdate<N> {
     fn into_update(self) -> Result<LightClientFinalityUpdate> {
-        let finalized = assemble_finality_proof(
+        let finalized = assemble_required_finality_proof(
             Capella(self.finalized_header),
             self.finality_branch.to_vec(),
         )?;
@@ -140,8 +142,10 @@ struct RawDenebFinalityUpdate<N: Unsigned> {
 
 impl<N: Unsigned> RawDenebFinalityUpdate<N> {
     fn into_update(self) -> Result<LightClientFinalityUpdate> {
-        let finalized =
-            assemble_finality_proof(Deneb(self.finalized_header), self.finality_branch.to_vec())?;
+        let finalized = assemble_required_finality_proof(
+            Deneb(self.finalized_header),
+            self.finality_branch.to_vec(),
+        )?;
 
         Ok(LightClientFinalityUpdate {
             attested_header: Deneb(self.attested_header),
@@ -163,7 +167,7 @@ struct RawElectraFinalityUpdate<N: Unsigned> {
 
 impl<N: Unsigned> RawElectraFinalityUpdate<N> {
     fn into_update(self) -> Result<LightClientFinalityUpdate> {
-        let finalized = assemble_finality_proof(
+        let finalized = assemble_required_finality_proof(
             Electra(self.finalized_header),
             self.finality_branch.to_vec(),
         )?;
@@ -188,8 +192,10 @@ struct RawFuluFinalityUpdate<N: Unsigned> {
 
 impl<N: Unsigned> RawFuluFinalityUpdate<N> {
     fn into_update(self) -> Result<LightClientFinalityUpdate> {
-        let finalized =
-            assemble_finality_proof(Fulu(self.finalized_header), self.finality_branch.to_vec())?;
+        let finalized = assemble_required_finality_proof(
+            Fulu(self.finalized_header),
+            self.finality_branch.to_vec(),
+        )?;
 
         Ok(LightClientFinalityUpdate {
             attested_header: Fulu(self.attested_header),

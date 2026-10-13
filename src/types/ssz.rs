@@ -89,12 +89,19 @@ fn assemble_finality_proof(
         (true, false) => Err(Error::InvalidInput(
             "finalized header present but finality branch is empty".to_string(),
         )),
-        // Deviation from spec: a finality branch traveling with a zeroed header
-        // is dropped unverified. The spec's genesis-finality case decodes to
-        // `finalized: None`.  This deviation is fail-closed.
+        // Deviation from spec (fail-closed): the genesis-finality case is
+        // dropped unverified.
         (false, true) => Ok(None),
         (false, false) => Ok(None),
     }
+}
+
+fn assemble_required_finality_proof(
+    header: LightClientHeader,
+    branch: Vec<Root>,
+) -> Result<FinalityProof> {
+    assemble_finality_proof(header, branch)?
+        .ok_or_else(|| Error::InvalidInput("finality update carries no finality".to_string()))
 }
 
 fn decode_as<R: Decode>(bytes: &[u8]) -> Result<R> {
