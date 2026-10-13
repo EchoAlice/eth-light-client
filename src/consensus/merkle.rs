@@ -50,8 +50,15 @@ pub(crate) fn verify_light_client_header(
             "Header contains non-zeroed blob gas fields".to_string(),
         ));
     }
-    // TODO: Implement Capella-container with Bellatrix block check.
-    // Must create header.has_execution_payload()
+    if block_fork < Fork::Capella {
+        return if header.has_execution_payload() {
+            Err(Error::InvalidInput(
+                "Header contains non-zeroed execution payload and/or branch".to_string(),
+            ))
+        } else {
+            Ok(())
+        };
+    }
 
     verify_merkle_proof(
         &get_lc_execution_root(header, block_fork),
@@ -132,10 +139,12 @@ fn hash_pair(left: &Root, right: &Root) -> Root {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ssz_types::FixedVector;
+
     use crate::chain_spec::ChainSpecConfig;
     use crate::types::consensus::{
-        CapellaLightClientHeader, DenebExecutionPayloadHeader, DenebLightClientHeader,
-        LightClientUpdate,
+        BellatrixLightClientHeader, CapellaExecutionPayloadHeader, CapellaLightClientHeader,
+        DenebExecutionPayloadHeader, DenebLightClientHeader, LightClientUpdate,
     };
 
     fn spec(capella_epoch: u64, deneb_epoch: u64) -> ChainSpec {
@@ -144,6 +153,20 @@ mod tests {
         config.capella_fork_epoch = capella_epoch;
         config.deneb_fork_epoch = deneb_epoch;
         ChainSpec::try_from_config(config).unwrap()
+    }
+
+    fn bellatrix_fixture_header() -> BellatrixLightClientHeader {
+        let path = "tests/fixtures/minimal/bellatrix/light_client/sync/light_client_sync/\
+        update_0x47c97bfd79102f9616861fde11a204427e5ff3032e9ba6754d77a9fdff9ca1f1_sf.ssz_snappy";
+        let compressed = std::fs::read(path).unwrap();
+        let bytes = snap::raw::Decoder::new()
+            .decompress_vec(&compressed)
+            .unwrap();
+        let update = LightClientUpdate::from_ssz(&bytes, Fork::Bellatrix, 32).unwrap();
+        match update.attested_header {
+            LightClientHeader::Bellatrix(h) => h,
+            _ => unreachable!(),
+        }
     }
 
     fn capella_fixture_header() -> CapellaLightClientHeader {
@@ -157,6 +180,16 @@ mod tests {
         match update.attested_header {
             LightClientHeader::Capella(h) => h,
             _ => unreachable!(),
+        }
+    }
+
+    // A pre-Capella block has no execution payload to prove, so the server
+    // fills the slot with defaults and a zero branch.
+    fn widened_to_capella(header: BellatrixLightClientHeader) -> CapellaLightClientHeader {
+        CapellaLightClientHeader {
+            beacon: header.beacon,
+            execution: CapellaExecutionPayloadHeader::default(),
+            execution_branch: FixedVector::default(),
         }
     }
 
@@ -215,13 +248,31 @@ mod tests {
     }
 
     #[test]
-    fn capella_block_in_deneb_container_hashes_as_capella() {
-        let header = capella_fixture_header();
-        let widened = LightClientHeader::Deneb(widened_to_deneb(header));
+    fn bellatrix_block_in_capella_container_accepted_when_empty() {
+        let widened = widened_to_capella(bellatrix_fixture_header());
+        let bellatrix_era = spec(u64::MAX, u64::MAX);
 
-        assert!(verify_light_client_header(&widened, &spec(0, u64::MAX)).is_ok());
+        let empty = LightClientHeader::Capella(widened.clone());
+        assert!(verify_light_client_header(&empty, &bellatrix_era).is_ok());
+
+        let mut flipped = widened.clone();
+        flipped.execution.block_number = 1;
+        let nonzero_execution = LightClientHeader::Capella(flipped);
+        assert!(verify_light_client_header(&nonzero_execution, &bellatrix_era).is_err());
+
+        let mut flipped = widened;
+        flipped.execution_branch[0] = [1u8; 32];
+        let nonzero_branch = LightClientHeader::Capella(flipped);
+        assert!(verify_light_client_header(&nonzero_branch, &bellatrix_era).is_err());
+    }
+
+    #[test]
+    fn capella_block_in_deneb_container_hashes_as_capella() {
+        let header = LightClientHeader::Deneb(widened_to_deneb(capella_fixture_header()));
+
+        assert!(verify_light_client_header(&header, &spec(0, u64::MAX)).is_ok());
         // Schedule says Deneb-era: hashed as 17 fields, same branch must fail.
-        assert!(verify_light_client_header(&widened, &spec(0, 0)).is_err());
+        assert!(verify_light_client_header(&header, &spec(0, 0)).is_err());
     }
 
     #[test]
