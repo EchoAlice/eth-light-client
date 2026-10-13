@@ -67,6 +67,28 @@ impl LightClientHeader {
         }
     }
 
+    pub(crate) fn has_execution_payload(&self) -> bool {
+        match self {
+            Self::Altair(_) | Self::Bellatrix(_) => false,
+            Self::Capella(h) => {
+                h.execution != CapellaExecutionPayloadHeader::default()
+                    || h.execution_branch.iter().any(|r| *r != [0u8; 32])
+            }
+            Self::Deneb(h) => {
+                h.execution != DenebExecutionPayloadHeader::default()
+                    || h.execution_branch.iter().any(|r| *r != [0u8; 32])
+            }
+            Self::Electra(h) => {
+                h.execution != ElectraExecutionPayloadHeader::default()
+                    || h.execution_branch.iter().any(|r| *r != [0u8; 32])
+            }
+            Self::Fulu(h) => {
+                h.execution != FuluExecutionPayloadHeader::default()
+                    || h.execution_branch.iter().any(|r| *r != [0u8; 32])
+            }
+        }
+    }
+
     pub fn execution_state_root(&self) -> Option<Root> {
         match self {
             Self::Altair(_) | Self::Bellatrix(_) => None,
@@ -128,7 +150,7 @@ pub struct CapellaLightClientHeader {
     pub execution_branch: FixedVector<Root, U4>,
 }
 
-#[derive(Debug, Clone, PartialEq, Decode, TreeHash)]
+#[derive(Debug, Clone, PartialEq, Default, Decode, TreeHash)]
 pub struct CapellaExecutionPayloadHeader {
     pub parent_hash: Root,
     pub fee_recipient: Address,
@@ -160,7 +182,7 @@ pub struct DenebLightClientHeader {
     pub execution_branch: FixedVector<Root, U4>,
 }
 
-#[derive(Debug, Clone, PartialEq, Decode, TreeHash)]
+#[derive(Debug, Clone, PartialEq, Default, Decode, TreeHash)]
 pub struct DenebExecutionPayloadHeader {
     pub parent_hash: Root,
     pub fee_recipient: Address,
