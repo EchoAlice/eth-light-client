@@ -86,7 +86,7 @@ fn assemble_finality_proof(
 
     match (has_finalized_header, has_finality_branch) {
         (true, true) => Ok(Some(FinalityProof { header, branch })),
-        (true, false) => Err(Error::InvalidInput(
+        (true, false) => Err(Error::InvalidUpdate(
             "finalized header present but finality branch is empty".to_string(),
         )),
         // Deviation from spec (fail-closed): the genesis-finality case is
@@ -101,7 +101,7 @@ fn assemble_required_finality_proof(
     branch: Vec<Root>,
 ) -> Result<FinalityProof> {
     assemble_finality_proof(header, branch)?
-        .ok_or_else(|| Error::InvalidInput("finality update carries no finality".to_string()))
+        .ok_or_else(|| Error::InvalidUpdate("finality update carries no finality".to_string()))
 }
 
 fn decode_as<R: Decode>(bytes: &[u8]) -> Result<R> {
@@ -113,5 +113,5 @@ fn decode_err(e: ssz::DecodeError) -> Error {
 }
 
 fn bad_size(n: usize) -> Error {
-    Error::InvalidInput(format!("sync_committee_size must be 32 or 512, got {n}"))
+    Error::InvalidConfig(format!("sync_committee_size must be 32 or 512, got {n}"))
 }

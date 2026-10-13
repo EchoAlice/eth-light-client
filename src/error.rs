@@ -1,11 +1,17 @@
-use crate::types::primitives::Slot;
+use crate::types::primitives::{Root, Slot};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug)]
 pub enum Error {
     Serialization(String),
-    InvalidInput(String),
+    InvalidConfig(String),
+    TrustedRootMismatch {
+        expected: Root,
+        got: Root,
+    },
+    InvalidUpdate(String),
+    InvalidProof(String),
     StaleTrustedRoot {
         header_slot: Slot,
         current_slot: Slot,
@@ -18,7 +24,15 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::Serialization(msg) => write!(f, "Serialization error: {msg}"),
-            Error::InvalidInput(msg) => write!(f, "Invalid input: {msg}"),
+            Error::InvalidConfig(msg) => write!(f, "Invalid config: {msg}"),
+            Error::TrustedRootMismatch { expected, got } => write!(
+                f,
+                "Bootstrap doesn't match the trusted block root: expected 0x{}, got 0x{}",
+                hex(expected),
+                hex(got)
+            ),
+            Error::InvalidUpdate(msg) => write!(f, "Invalid update: {msg}"),
+            Error::InvalidProof(msg) => write!(f, "Invalid proof: {msg}"),
             Error::StaleTrustedRoot {
                 header_slot,
                 current_slot,
@@ -30,3 +44,7 @@ impl std::fmt::Display for Error {
 }
 
 impl std::error::Error for Error {}
+
+fn hex(root: &Root) -> String {
+    root.iter().map(|b| format!("{b:02x}")).collect()
+}

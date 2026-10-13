@@ -33,9 +33,10 @@ impl LightClientProcessor {
         verify_light_client_header(&bootstrap.header, &chain_spec)?;
 
         if bootstrap.header.beacon().hash_tree_root() != trusted_block_root {
-            return Err(Error::InvalidInput(
-                "Bootstrap doesn't match the trusted block root".to_string(),
-            ));
+            return Err(Error::TrustedRootMismatch {
+                expected: trusted_block_root,
+                got: bootstrap.header.beacon().hash_tree_root(),
+            });
         }
         let ws_period_as_slots = chain_spec.epoch_to_slot(chain_spec.weak_subjectivity_period());
         let header_slot = bootstrap.header.slot();
@@ -73,7 +74,7 @@ impl LightClientProcessor {
         let mut changes = StoreChanges::default();
         // Strict 2/3 participation requirement up front. Diverges from spec for simplicity.
         if !update.sync_aggregate.has_supermajority_participation() {
-            return Err(Error::InvalidInput(
+            return Err(Error::InvalidUpdate(
                 "Insufficient sync committee participation".to_string(),
             ));
         }
@@ -122,7 +123,7 @@ impl LightClientProcessor {
             && update.signature_slot > update_attested_slot
             && update_attested_slot >= update_finalized_slot)
         {
-            return Err(Error::InvalidInput(
+            return Err(Error::InvalidUpdate(
                 "Update slots must satisfy current slot >= signature slot > attested slot >= finalized slot"
                     .to_string(),
             ));
@@ -136,12 +137,12 @@ impl LightClientProcessor {
             if !(update_signature_period == store_period
                 || update_signature_period == store_period + 1)
             {
-                return Err(Error::InvalidInput(
+                return Err(Error::InvalidUpdate(
                     "Signature period not servable by store's known committees".to_string(),
                 ));
             }
         } else if !(update_signature_period == store_period) {
-            return Err(Error::InvalidInput(
+            return Err(Error::InvalidUpdate(
                 "Signature period not servable by store's known committees".to_string(),
             ));
         }
@@ -156,7 +157,7 @@ impl LightClientProcessor {
         if !(update_attested_slot > self.store.finalized_header.beacon().slot
             || update_supplies_next_sync_committee)
         {
-            return Err(Error::InvalidInput(
+            return Err(Error::InvalidUpdate(
                 "Update doesn't contain relevant information".to_string(),
             ));
         }
@@ -180,7 +181,7 @@ impl LightClientProcessor {
                 if update_attested_period == store_period
                     && next_sync_committee.committee != *stored_next
                 {
-                    return Err(Error::InvalidInput("Sync committee updates should match if they fall within the same sync period".to_string()));
+                    return Err(Error::InvalidUpdate("Sync committee updates should match if they fall within the same sync period".to_string()));
                 }
             }
             verify_merkle_proof(
@@ -222,7 +223,7 @@ impl LightClientProcessor {
             &signing_root,
             &update.sync_aggregate.sync_committee_signature,
         ) {
-            return Err(Error::InvalidInput(
+            return Err(Error::InvalidUpdate(
                 "Invalid sync committee signature".to_string(),
             ));
         }

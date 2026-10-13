@@ -281,51 +281,51 @@ impl ChainSpecConfig {
 
     pub fn validate(&self) -> Result<()> {
         if self.seconds_per_slot == 0 {
-            return Err(Error::InvalidInput(
+            return Err(Error::InvalidConfig(
                 "seconds_per_slot must be > 0".to_string(),
             ));
         }
         if self.slots_per_epoch == 0 {
-            return Err(Error::InvalidInput(
+            return Err(Error::InvalidConfig(
                 "slots_per_epoch must be > 0".to_string(),
             ));
         }
         if self.epochs_per_sync_committee_period == 0 {
-            return Err(Error::InvalidInput(
+            return Err(Error::InvalidConfig(
                 "epochs_per_sync_committee_period must be > 0".to_string(),
             ));
         }
 
         // Must match a compiled decoder shape (32 minimal / 512 mainnet).  See dispatch in types/ssz.rs
         if self.sync_committee_size != 32 && self.sync_committee_size != 512 {
-            return Err(Error::InvalidInput(
+            return Err(Error::InvalidConfig(
                 "sync_committee_size must be 32 or 512".to_string(),
             ));
         }
 
         // Fork epochs are monotonically non-decreasing, anchored at Altair.
         if self.fulu_fork_epoch < self.electra_fork_epoch {
-            return Err(Error::InvalidInput(
+            return Err(Error::InvalidConfig(
                 "fulu_fork_epoch must be >= electra_fork_epoch".to_string(),
             ));
         }
         if self.electra_fork_epoch < self.deneb_fork_epoch {
-            return Err(Error::InvalidInput(
+            return Err(Error::InvalidConfig(
                 "electra_fork_epoch must be >= deneb_fork_epoch".to_string(),
             ));
         }
         if self.deneb_fork_epoch < self.capella_fork_epoch {
-            return Err(Error::InvalidInput(
+            return Err(Error::InvalidConfig(
                 "deneb_fork_epoch must be >= capella_fork_epoch".to_string(),
             ));
         }
         if self.capella_fork_epoch < self.bellatrix_fork_epoch {
-            return Err(Error::InvalidInput(
+            return Err(Error::InvalidConfig(
                 "capella_fork_epoch must be >= bellatrix_fork_epoch".to_string(),
             ));
         }
         if self.bellatrix_fork_epoch < self.altair_fork_epoch {
-            return Err(Error::InvalidInput(
+            return Err(Error::InvalidConfig(
                 "bellatrix_fork_epoch must be >= altair_fork_epoch".to_string(),
             ));
         }

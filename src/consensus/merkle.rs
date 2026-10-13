@@ -46,13 +46,13 @@ pub(crate) fn verify_light_client_header(
 
     let block_fork = chain_spec.fork_at_slot(header.beacon().slot);
     if block_fork < Fork::Deneb && header.has_blob_gas() {
-        return Err(Error::InvalidInput(
+        return Err(Error::InvalidProof(
             "Header contains non-zeroed blob gas fields".to_string(),
         ));
     }
     if block_fork < Fork::Capella {
         return if header.has_execution_payload() {
-            Err(Error::InvalidInput(
+            Err(Error::InvalidProof(
                 "Header contains non-zeroed execution payload and/or branch".to_string(),
             ))
         } else {
@@ -93,10 +93,10 @@ pub(crate) fn verify_merkle_proof(
 ) -> Result<()> {
     let expected_depth = gindex
         .checked_ilog2()
-        .ok_or_else(|| Error::InvalidInput("gindex cannot be 0".to_string()))?;
+        .ok_or_else(|| Error::Internal("gindex cannot be 0".to_string()))?;
 
     if branch.len() != expected_depth as usize {
-        return Err(Error::InvalidInput(format!(
+        return Err(Error::InvalidProof(format!(
             "Branch length {} doesn't match expected depth {} for gindex {}",
             branch.len(),
             expected_depth,
@@ -125,7 +125,7 @@ pub(crate) fn verify_merkle_proof(
     if current_hash == *root {
         Ok(())
     } else {
-        Err(Error::InvalidInput(format!(
+        Err(Error::InvalidProof(format!(
             "merkle branch doesn't resolve to root at gindex {gindex}"
         )))
     }
