@@ -52,9 +52,12 @@ Capella+ light client headers include authenticated execution payload header dat
 Tracking in issue [#131](https://github.com/EchoAlice/eth-light-client/issues/131).
 
 ### V2
-- **`eth_getProof` verification** — the finalized execution state root is the anchor; EIP-1186 account and storage proofs are the questions.  A different tree (hexary Merkle-Patricia), so its own slice.
-- **Store persistence** — the store lives in memory; every restart re-bootstraps from a trusted root.
-- **`force_update`** — the spec's escape hatch for finality outages.  Cut so that the client stalls rather than force-applies; recovery is re-bootstrapping.
+- **Formal verification** — harden what exists before extending it.  Bounded model checking (Kani) of the arithmetic predicates and the Merkle walker first; then machine-checked proofs, via Rust-to-Lean translation, that the store's invariants survive every update.  BLS and SHA-256 stay the assumed primitives.
+
+### Deferred
+- **`eth_getProof` verification** — the finalized execution state root is the anchor; EIP-1186 account and storage proofs are the questions.  A different tree (hexary Merkle-Patricia), so its own slice, and it gets the same harnesses.
+- **`force_update`** — the spec's escape hatch for finality outages.  The client stalls rather than force-applies; recovery is re-bootstrapping.  Keeping the store's state machine fixed is what makes proving its invariants worthwhile.
+- **Store persistence** — disk, a format, and trusting your own disk all sit outside what a prover models.  Callers that need it serialize the store at the facade.
 
 Tracking in issue [#205](https://github.com/EchoAlice/eth-light-client/issues/205)
 
