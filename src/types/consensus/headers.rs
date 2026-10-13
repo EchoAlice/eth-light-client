@@ -47,7 +47,6 @@ impl LightClientHeader {
         }
     }
 
-    /// Returns the slot the beacon block was proposed in, not the signature slot.
     pub fn slot(&self) -> Slot {
         self.beacon().slot
     }
