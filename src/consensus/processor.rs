@@ -332,8 +332,11 @@ mod tests {
         .err()
         .unwrap();
         assert!(
-            err.to_string()
-                .contains("Bootstrap doesn't match the trusted block root"),
+            matches!(
+                err,
+                Error::TrustedRootMismatch { expected, got }
+                    if expected == [9u8; 32] && got == test_beacon_header(1).hash_tree_root()
+            ),
             "got: {err}"
         );
     }
