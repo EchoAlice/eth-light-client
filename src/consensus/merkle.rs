@@ -230,11 +230,15 @@ mod tests {
         assert!(result.is_ok());
 
         let result = verify_merkle_proof(&leaf, &empty_branch, 0, &root);
-        assert!(result.is_err());
+        assert!(matches!(result, Err(Error::Internal(_))));
 
         let short_branch = vec![[0u8; 32]; 3];
         let result = verify_merkle_proof(&leaf, &short_branch, 54, &root);
-        assert!(result.is_err());
+        assert!(matches!(result, Err(Error::InvalidProof(_))));
+
+        let long_branch = vec![[0u8; 32]; 6];
+        let result = verify_merkle_proof(&leaf, &long_branch, 54, &root);
+        assert!(matches!(result, Err(Error::InvalidProof(_))));
     }
 
     #[test]
@@ -244,7 +248,10 @@ mod tests {
 
         assert!(verify_merkle_proof(&l, &[r], 2, &root).is_ok());
         assert!(verify_merkle_proof(&r, &[l], 3, &root).is_ok());
-        assert!(verify_merkle_proof(&l, &[r], 2, &[9u8; 32]).is_err());
+        assert!(matches!(
+            verify_merkle_proof(&l, &[r], 2, &[9u8; 32]),
+            Err(Error::InvalidProof(_))
+        ));
     }
 
     #[test]
@@ -258,12 +265,18 @@ mod tests {
         let mut flipped = widened.clone();
         flipped.execution.block_number = 1;
         let nonzero_execution = LightClientHeader::Capella(flipped);
-        assert!(verify_light_client_header(&nonzero_execution, &bellatrix_era).is_err());
+        assert!(matches!(
+            verify_light_client_header(&nonzero_execution, &bellatrix_era),
+            Err(Error::InvalidProof(_))
+        ));
 
         let mut flipped = widened;
         flipped.execution_branch[0] = [1u8; 32];
         let nonzero_branch = LightClientHeader::Capella(flipped);
-        assert!(verify_light_client_header(&nonzero_branch, &bellatrix_era).is_err());
+        assert!(matches!(
+            verify_light_client_header(&nonzero_branch, &bellatrix_era),
+            Err(Error::InvalidProof(_))
+        ));
     }
 
     #[test]
@@ -272,7 +285,10 @@ mod tests {
 
         assert!(verify_light_client_header(&header, &spec(0, u64::MAX)).is_ok());
         // Schedule says Deneb-era: hashed as 17 fields, same branch must fail.
-        assert!(verify_light_client_header(&header, &spec(0, 0)).is_err());
+        assert!(matches!(
+            verify_light_client_header(&header, &spec(0, 0)),
+            Err(Error::InvalidProof(_))
+        ));
     }
 
     #[test]
@@ -281,6 +297,9 @@ mod tests {
         widened.execution.blob_gas_used = 1;
         let header = LightClientHeader::Deneb(widened);
 
-        assert!(verify_light_client_header(&header, &spec(0, u64::MAX)).is_err())
+        assert!(matches!(
+            verify_light_client_header(&header, &spec(0, u64::MAX)),
+            Err(Error::InvalidProof(_))
+        ));
     }
 }
