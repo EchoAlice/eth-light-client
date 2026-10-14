@@ -43,22 +43,25 @@ fn timestamp_to_slot_fails_closed_before_genesis() {
 fn rejects_zero_seconds_per_slot() {
     let mut config = valid_config();
     config.seconds_per_slot = 0;
-    assert!(config.validate().is_err());
-    assert!(ChainSpec::try_from_config(config).is_err());
+    assert!(matches!(config.validate(), Err(Error::InvalidConfig(_))));
+    assert!(matches!(
+        ChainSpec::try_from_config(config),
+        Err(Error::InvalidConfig(_))
+    ));
 }
 
 #[test]
 fn rejects_zero_slots_per_epoch() {
     let mut config = valid_config();
     config.slots_per_epoch = 0;
-    assert!(config.validate().is_err());
+    assert!(matches!(config.validate(), Err(Error::InvalidConfig(_))));
 }
 
 #[test]
 fn rejects_zero_epochs_per_period() {
     let mut config = valid_config();
     config.epochs_per_sync_committee_period = 0;
-    assert!(config.validate().is_err());
+    assert!(matches!(config.validate(), Err(Error::InvalidConfig(_))));
 }
 
 #[test]
@@ -73,16 +76,16 @@ fn rejects_unsupported_sync_committee_sizes() {
 
     // Invalid sizes
     config.sync_committee_size = 0;
-    assert!(config.validate().is_err());
+    assert!(matches!(config.validate(), Err(Error::InvalidConfig(_))));
 
     config.sync_committee_size = 64;
-    assert!(config.validate().is_err());
+    assert!(matches!(config.validate(), Err(Error::InvalidConfig(_))));
 
     config.sync_committee_size = 256;
-    assert!(config.validate().is_err());
+    assert!(matches!(config.validate(), Err(Error::InvalidConfig(_))));
 
     config.sync_committee_size = 1024;
-    assert!(config.validate().is_err());
+    assert!(matches!(config.validate(), Err(Error::InvalidConfig(_))));
 }
 
 #[test]
@@ -95,22 +98,22 @@ fn rejects_unordered_fork_epochs() {
     let mut config = valid_config();
     config.altair_fork_epoch = 10;
     config.bellatrix_fork_epoch = 5;
-    assert!(config.validate().is_err());
+    assert!(matches!(config.validate(), Err(Error::InvalidConfig(_))));
 
     let mut config = valid_config();
     config.bellatrix_fork_epoch = 100;
     config.capella_fork_epoch = 50;
-    assert!(config.validate().is_err());
+    assert!(matches!(config.validate(), Err(Error::InvalidConfig(_))));
 
     let mut config = valid_config();
     config.capella_fork_epoch = 100;
     config.deneb_fork_epoch = 50;
-    assert!(config.validate().is_err());
+    assert!(matches!(config.validate(), Err(Error::InvalidConfig(_))));
 
     let mut config = valid_config();
     config.deneb_fork_epoch = 100;
     config.electra_fork_epoch = 50;
-    assert!(config.validate().is_err());
+    assert!(matches!(config.validate(), Err(Error::InvalidConfig(_))));
 }
 
 #[test]

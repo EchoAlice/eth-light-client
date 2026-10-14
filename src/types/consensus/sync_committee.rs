@@ -24,7 +24,7 @@ pub struct SyncCommittee {
 impl SyncCommittee {
     pub(crate) fn participating_pubkeys(&self, participation_bits: &[bool]) -> Result<Vec<&[u8]>> {
         if participation_bits.len() != self.pubkeys.len() {
-            return Err(Error::InvalidInput(
+            return Err(Error::InvalidUpdate(
                 "Participation bits length mismatch".to_string(),
             ));
         }
@@ -46,7 +46,7 @@ impl SyncCommittee {
         aggregate_pubkey: PubkeyBytes,
     ) -> Result<Self> {
         if pubkeys.len() != 32 && pubkeys.len() != 512 {
-            return Err(Error::InvalidInput(format!(
+            return Err(Error::InvalidConfig(format!(
                 "sync committee must have 32 or 512 members, got {}",
                 pubkeys.len()
             )));

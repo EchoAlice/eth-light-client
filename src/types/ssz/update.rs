@@ -224,7 +224,7 @@ fn assemble_update(
 
     let is_sync_committee_update = next_sync_committee_branch.iter().any(|r| r != &[0u8; 32]);
     if !is_sync_committee_update && !is_zeroed_committee(&next_sync_committee) {
-        return Err(Error::InvalidInput(
+        return Err(Error::InvalidUpdate(
             "next sync committee present but its branch is empty".to_string(),
         ));
     }
