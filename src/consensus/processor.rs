@@ -1,5 +1,5 @@
 use crate::chain_spec::ChainSpec;
-use crate::consensus::bls;
+use crate::consensus::bls::{fast_aggregate_verify, validate_pubkeys};
 use crate::consensus::merkle::{verify_light_client_header, verify_merkle_proof};
 use crate::consensus::signing::{compute_domain, compute_signing_root, DOMAIN_SYNC_COMMITTEE};
 use crate::consensus::store::LightClientStore;
@@ -56,6 +56,8 @@ impl LightClientProcessor {
                 .current_sync_committee_gindex(),
             bootstrap.header.state_root(),
         )?;
+
+        validate_pubkeys(bootstrap.current_sync_committee.pubkeys())?;
 
         let store = LightClientStore::new(bootstrap.header, bootstrap.current_sync_committee);
 
@@ -192,6 +194,8 @@ impl LightClientProcessor {
                     .next_sync_committee_gindex(),
                 update.attested_header.state_root(),
             )?;
+
+            validate_pubkeys(next_sync_committee.committee.pubkeys())?;
         }
 
         // Verify sync committee aggregate signature
@@ -218,7 +222,7 @@ impl LightClientProcessor {
         let attested_header_root = update.attested_header.beacon().hash_tree_root();
         let signing_root = compute_signing_root(attested_header_root, domain);
 
-        if !bls::fast_aggregate_verify(
+        if !fast_aggregate_verify(
             &participating_pubkeys,
             &signing_root,
             &update.sync_aggregate.sync_committee_signature,
