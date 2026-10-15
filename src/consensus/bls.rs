@@ -3,36 +3,51 @@ use blst::{
     BLST_ERROR,
 };
 
+use crate::error::{Error, Result};
+use crate::types::primitives::PubkeyBytes;
+
 const DST: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
 
-/// Spec: `eth2_fast_aggregate_verify`; its empty-participants arm is unreachable behind the supermajority gate.
+pub(crate) fn validate_pubkeys(pubkeys: &[PubkeyBytes]) -> Result<()> {
+    for pk in pubkeys {
+        let pk = PublicKey::from_bytes(pk.as_ref()).map_err(|_| {
+            Error::InvalidProof("sync committee pubkey isn't a point on the curve".to_string())
+        })?;
+
+        pk.validate().map_err(|_| {
+            Error::InvalidProof(
+                "sync committee pubkey is either a point at infinity or fails subgroup check"
+                    .to_string(),
+            )
+        })?;
+    }
+    Ok(())
+}
+
+/// Spec: `eth2_fast_aggregate_verify`
 pub(crate) fn fast_aggregate_verify(
     pubkeys: &[&[u8]],
     message: &[u8],
     signature: &[u8; 96],
 ) -> bool {
+    // Impossible behind the supermajority gate.  Kept for spec conformance
     if pubkeys.is_empty() {
         return false;
-    }
-
-    let mut pks: Vec<PublicKey> = Vec::with_capacity(pubkeys.len());
-    for pk_bytes in pubkeys {
-        let pk = match PublicKey::from_bytes(pk_bytes) {
-            Ok(pk) => pk,
-            Err(_) => return false,
-        };
-        if pk.validate().is_err() {
-            return false;
-        }
-        pks.push(pk);
     }
 
     let sig = match Signature::from_bytes(signature) {
         Ok(s) => s,
         Err(_) => return false,
     };
-
+    let mut pks = Vec::with_capacity(pubkeys.len());
+    for pk_bytes in pubkeys {
+        match PublicKey::from_bytes(pk_bytes) {
+            Ok(pk) => pks.push(pk),
+            Err(_) => return false,
+        }
+    }
     let pk_refs: Vec<&PublicKey> = pks.iter().collect();
+
     matches!(
         sig.fast_aggregate_verify(true, message, DST, &pk_refs),
         BLST_ERROR::BLST_SUCCESS
@@ -90,12 +105,18 @@ mod spec_tests {
             let case: FastAggregateVerifyCase =
                 serde_yaml::from_str(&contents).unwrap_or_else(|e| panic!("parse {name}: {e}"));
 
-            let pubkeys: Vec<Vec<u8>> = case.input.pubkeys.iter().map(|pk| parse_hex(pk)).collect();
+            let pubkeys: Vec<PubkeyBytes> = case
+                .input
+                .pubkeys
+                .iter()
+                .map(|pk| PubkeyBytes::new(parse_hex(pk)).expect("48-byte pubkey"))
+                .collect();
+            let pubkey_refs: Vec<&[u8]> = pubkeys.iter().map(|pk| pk.as_ref()).collect();
             let message = parse_hex(&case.input.message);
             let signature: [u8; 96] = fixed(&parse_hex(&case.input.signature));
 
-            let pubkey_refs: Vec<&[u8]> = pubkeys.iter().map(|pk| pk.as_slice()).collect();
-            let actual = fast_aggregate_verify(&pubkey_refs, &message, &signature);
+            let actual = validate_pubkeys(&pubkeys).is_ok()
+                && fast_aggregate_verify(&pubkey_refs, &message, &signature);
             if actual != case.output {
                 failures.push(format!("{name}: expected {}, got {actual}", case.output));
             }
