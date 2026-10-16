@@ -296,6 +296,8 @@ impl LightClientProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chain_spec::Fork;
+    use crate::consensus::merkle::hash_pair;
     use crate::types::consensus::{
         AltairLightClientHeader, BeaconBlockHeader, FinalityProof, LightClientHeader,
         SyncAggregate, SyncCommittee,
@@ -315,6 +317,38 @@ mod tests {
             state_root: [2u8; 32],
             body_root: [3u8; 32],
         }
+    }
+
+    /// A bootstrap whose committee proof holds, so every check in `new` before
+    /// `validate_pubkeys` passes and only the keys can reject.
+    fn test_valid_bootstrap(current_sync_committee: SyncCommittee) -> (LightClientBootstrap, Root) {
+        let mut current_hash = current_sync_committee.hash_tree_root();
+        let mut current_gindex = Fork::Altair.current_sync_committee_gindex();
+        let current_sync_committee_branch = vec![[0u8; 32]; current_gindex.ilog2() as usize];
+
+        for sibling_hash in &current_sync_committee_branch {
+            let is_right_child = (current_gindex % 2) == 1;
+            current_hash = if is_right_child {
+                hash_pair(sibling_hash, &current_hash)
+            } else {
+                hash_pair(&current_hash, sibling_hash)
+            };
+            current_gindex /= 2;
+        }
+
+        let mut beacon = test_beacon_header(1);
+        beacon.state_root = current_hash;
+        let trusted_root = beacon.hash_tree_root();
+
+        let header = LightClientHeader::Altair(AltairLightClientHeader { beacon });
+        (
+            LightClientBootstrap {
+                header,
+                current_sync_committee,
+                current_sync_committee_branch,
+            },
+            trusted_root,
+        )
     }
 
     #[test]
@@ -345,6 +379,24 @@ mod tests {
         );
     }
 
+    // Pins `validate_pubkeys` to `LightClientProcessor::new`
+    #[test]
+    fn rejects_bootstrap_with_off_curve_pubkey() {
+        let (bootstrap, trusted_root) = test_valid_bootstrap(test_committee());
+
+        let err =
+            LightClientProcessor::new(ChainSpec::minimal(), [0u8; 32], trusted_root, bootstrap, 1)
+                .err()
+                .unwrap();
+
+        assert!(
+            matches!(err, Error::InvalidProof(_))
+                && err.to_string().contains("isn't a point on the curve"),
+            "got: {err}"
+        );
+    }
+
+    // TODO: Change errored assertions to match specified error types
     #[test]
     fn rejects_updates_failing_basic_validation() {
         let mut processor = LightClientProcessor {
@@ -427,5 +479,7 @@ mod tests {
         // TODO: Case 1: Period Servability.  Signature slot 129 is period 2; store holds committees for periods 0 and 1 only.
 
         // TODO: Case 2: Committee Equality.  Store holds `next = committee_A`; update carries B for the same period. Must match
+
+        // TODO: Case 3: Pubkey Validation. Update carries a next committee whose proof resolves but holds an off-curve key; pins `validate_pubkeys` within `validate_light_client_update`
     }
 }

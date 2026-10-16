@@ -132,7 +132,7 @@ pub(crate) fn verify_merkle_proof(
 }
 
 #[inline]
-fn hash_pair(left: &Root, right: &Root) -> Root {
+pub(crate) fn hash_pair(left: &Root, right: &Root) -> Root {
     ethereum_hashing::hash32_concat(left, right)
 }
 
