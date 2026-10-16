@@ -396,7 +396,6 @@ mod tests {
         );
     }
 
-    // TODO: Change errored assertions to match specified error types
     #[test]
     fn rejects_updates_failing_basic_validation() {
         let mut processor = LightClientProcessor {
@@ -422,6 +421,14 @@ mod tests {
             signature_slot,
         };
 
+        // Every case is an InvalidUpdate; the message says which rule.
+        let assert_invalid_update = |err: Error, rule: &str| {
+            assert!(
+                matches!(err, Error::InvalidUpdate(_)) && err.to_string().contains(rule),
+                "got: {err}"
+            );
+        };
+
         // Case 1: Supermajority Gate. Only 10 of 32 participants
         let mut minority = vec![false; 32];
         minority[..10].fill(true);
@@ -429,11 +436,7 @@ mod tests {
             .process_light_client_update(update(minority, 3), 4)
             .err()
             .unwrap();
-        assert!(
-            err.to_string()
-                .contains("Insufficient sync committee participation"),
-            "got: {err}"
-        );
+        assert_invalid_update(err, "Insufficient sync committee participation");
 
         let slot_chain_msg =
             "Update slots must satisfy current slot >= signature slot > attested slot >= finalized slot";
@@ -443,14 +446,14 @@ mod tests {
             .process_light_client_update(update(vec![true; 32], 2), 4)
             .err()
             .unwrap();
-        assert!(err.to_string().contains(slot_chain_msg), "got: {err}");
+        assert_invalid_update(err, slot_chain_msg);
 
         // Case 3: Slot Chain.  Signature_slot is one past current_slot (update must not be in the future, relative to the light client).
         let err = processor
             .process_light_client_update(update(vec![true; 32], 5), 4)
             .err()
             .unwrap();
-        assert!(err.to_string().contains(slot_chain_msg), "got: {err}");
+        assert_invalid_update(err, slot_chain_msg);
 
         // Case 4: Slot Chain.  Finalized slot is ahead of attested slot (a state cannot finalize a block from its own future).
         let mut bad_finality = update(vec![true; 32], 3);
@@ -464,7 +467,7 @@ mod tests {
             .process_light_client_update(bad_finality, 10)
             .err()
             .unwrap();
-        assert!(err.to_string().contains(slot_chain_msg), "got: {err}");
+        assert_invalid_update(err, slot_chain_msg);
 
         // TODO: Case 5:  Period Servability.  Signature slot 65 is period 1; store is period 0 with no next committee, so LC can't check its sig
 
