@@ -33,9 +33,11 @@ Each case is one scenario in a box: a toy chain, a starting point, a sequence of
 | `advance_finality_without_sync_committee` | Finality advances on updates that carry no committee | Altair → Electra |
 | `supply_sync_committee_from_past_update` | A non-advancing past update still teaches the next committee | Altair → Electra |
 | `<fork>_fork` | Fork-transition boundary: chain crosses into the next fork mid-replay, with an `upgrade_store` step | `capella_fork`, `deneb_fork`, `electra_fork` |
+| `<fork>_<fork>_fork` | Multi-hop transition: one store crosses two boundaries, so both shape changes land in one replay | `capella_deneb_fork`, `capella_electra_fork`, `deneb_electra_fork` |
+| `<fork>_store_with_legacy_data` | Bootstrap in one fork, store already migrated to a later one (pyspec's `upgrade_lc_store`) | 9 cases, Altair → Deneb origins |
+| `light_client_sync_no_force_update` | The baseline chain, ending in a `force_update` step that must leave the store unchanged | Altair → Fulu |
 
-**TODO:** Multi-hop transitions, `*_store_with_legacy_data`, and the Fulu suite. Tracked in [#106](https://github.com/EchoAlice/eth-light-client/issues/106).  The vectors'
-`force_update` steps are deferred with the feature ([#205](https://github.com/EchoAlice/eth-light-client/issues/205)).
+Every case the release ships is wired, but not every case exercises something.  The `*_store_with_legacy_data` cases test pyspec's store migration, which has no counterpart in a fork-agnostic store; they pass trivially.  The `*_no_force_update` cases halt at their `force_update` step like every other replay.  Both kinds are kept so the vendored set is exactly one upstream release, not a curated subset.  The vectors' `force_update` steps are deferred with the feature ([#205](https://github.com/EchoAlice/eth-light-client/issues/205)).
 
 ## The loader (`common/`)
 `SyncTestCase` picks a case directory and its chain schedule, parses `meta.yaml`, and builds a `ChainSpec` once at construction.  The `load_*` methods snappy-decompress a fixture file and hand the raw SSZ to the crate's public `from_ssz` decoders under the fork **that object's own fixture digest names**; this is never a per-test fork assumption.  That is what lets one replay span a fork boundary: pre-fork updates keep arriving after the chain forks, and each decodes under its own layout.
