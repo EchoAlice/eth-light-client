@@ -23,21 +23,25 @@ fn altair_supply_sync_committee_from_past_update() {
 }
 
 #[test]
+#[ignore = "TODO(#106): wire the constructor"]
 fn altair_light_client_sync_no_force_update() {
     todo!()
 }
 
 #[test]
+#[ignore = "TODO(#106): wire the constructor"]
 fn altair_capella_store_with_legacy_data() {
     todo!()
 }
 
 #[test]
+#[ignore = "TODO(#106): wire the constructor"]
 fn altair_deneb_store_with_legacy_data() {
     todo!()
 }
 
 #[test]
+#[ignore = "TODO(#106): wire the constructor"]
 fn altair_electra_store_with_legacy_data() {
     todo!()
 }
@@ -70,31 +74,37 @@ fn bellatrix_capella_fork() {
 }
 
 #[test]
+#[ignore = "TODO(#106): wire the constructor"]
 fn bellatrix_light_client_sync_no_force_update() {
     todo!()
 }
 
 #[test]
+#[ignore = "TODO(#106): wire the constructor"]
 fn bellatrix_capella_deneb_fork() {
     todo!()
 }
 
 #[test]
+#[ignore = "TODO(#106): wire the constructor"]
 fn bellatrix_capella_electra_fork() {
     todo!()
 }
 
 #[test]
+#[ignore = "TODO(#106): wire the constructor"]
 fn bellatrix_capella_store_with_legacy_data() {
     todo!()
 }
 
 #[test]
+#[ignore = "TODO(#106): wire the constructor"]
 fn bellatrix_deneb_store_with_legacy_data() {
     todo!()
 }
 
 #[test]
+#[ignore = "TODO(#106): wire the constructor"]
 fn bellatrix_electra_store_with_legacy_data() {
     todo!()
 }
@@ -124,21 +134,25 @@ fn capella_deneb_fork() {
 }
 
 #[test]
+#[ignore = "TODO(#106): wire the constructor"]
 fn capella_light_client_sync_no_force_update() {
     todo!()
 }
 
 #[test]
+#[ignore = "TODO(#106): wire the constructor"]
 fn capella_deneb_electra_fork() {
     todo!()
 }
 
 #[test]
+#[ignore = "TODO(#106): wire the constructor"]
 fn capella_deneb_store_with_legacy_data() {
     todo!()
 }
 
 #[test]
+#[ignore = "TODO(#106): wire the constructor"]
 fn capella_electra_store_with_legacy_data() {
     todo!()
 }
@@ -168,11 +182,13 @@ fn deneb_electra_fork() {
 }
 
 #[test]
+#[ignore = "TODO(#106): wire the constructor"]
 fn deneb_light_client_sync_no_force_update() {
     todo!()
 }
 
 #[test]
+#[ignore = "TODO(#106): wire the constructor"]
 fn deneb_electra_store_with_legacy_data() {
     todo!()
 }
@@ -197,26 +213,31 @@ fn electra_supply_sync_committee_from_past_update() {
 }
 
 #[test]
+#[ignore = "TODO(#106): wire the constructor"]
 fn electra_light_client_sync_no_force_update() {
     todo!()
 }
 
 #[test]
+#[ignore = "TODO(#106): wire the constructor"]
 fn fulu_light_client_sync() {
     todo!()
 }
 
 #[test]
+#[ignore = "TODO(#106): wire the constructor"]
 fn fulu_advance_finality_without_sync_committee() {
     todo!()
 }
 
 #[test]
+#[ignore = "TODO(#106): wire the constructor"]
 fn fulu_supply_sync_committee_from_past_update() {
     todo!()
 }
 
 #[test]
+#[ignore = "TODO(#106): wire the constructor"]
 fn fulu_light_client_sync_no_force_update() {
     todo!()
 }
