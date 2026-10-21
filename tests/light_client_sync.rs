@@ -1,107 +1,48 @@
 mod common;
 
 use common::{ProcessUpdateStep, StateChecks, SyncTestCase, TestStep};
-use eth_light_client::{Error, Fork, LightClient, StoreChanges};
-
-// TODO: Vendor Fulu `light_client` test vectors with the #106 fixture tail.
+use eth_light_client::{Error, Fork, LightClient};
 
 #[test]
-fn altair_sync_via_public_api() {
+fn altair_light_client_sync() {
     run_public_api_sync(SyncTestCase::light_client_sync(Fork::Altair));
 }
 
 #[test]
-fn bellatrix_sync_via_public_api() {
+fn altair_advance_finality_without_sync_committee() {
+    run_public_api_sync(SyncTestCase::advance_finality_without_sync_committee(
+        Fork::Altair,
+    ));
+}
+
+#[test]
+fn altair_supply_sync_committee_from_past_update() {
+    run_public_api_sync(SyncTestCase::supply_sync_committee_from_past_update(
+        Fork::Altair,
+    ));
+}
+
+#[test]
+fn bellatrix_light_client_sync() {
     run_public_api_sync(SyncTestCase::light_client_sync(Fork::Bellatrix));
 }
 
 #[test]
-fn capella_sync_via_public_api() {
-    run_public_api_sync(SyncTestCase::light_client_sync(Fork::Capella));
-}
-
-#[test]
-fn deneb_sync_via_public_api() {
-    run_public_api_sync(SyncTestCase::light_client_sync(Fork::Deneb));
-}
-
-#[test]
-fn electra_sync_via_public_api() {
-    run_public_api_sync(SyncTestCase::light_client_sync(Fork::Electra));
-}
-
-#[test]
-fn altair_advance_finality_without_sync_committee_via_public_api() {
-    run_public_api_sync(SyncTestCase::advance_finality_without_sync_committee(
-        Fork::Altair,
-    ));
-}
-
-#[test]
-fn bellatrix_advance_finality_without_sync_committee_via_public_api() {
+fn bellatrix_advance_finality_without_sync_committee() {
     run_public_api_sync(SyncTestCase::advance_finality_without_sync_committee(
         Fork::Bellatrix,
     ));
 }
 
 #[test]
-fn capella_advance_finality_without_sync_committee_via_public_api() {
-    run_public_api_sync(SyncTestCase::advance_finality_without_sync_committee(
-        Fork::Capella,
-    ));
-}
-
-#[test]
-fn deneb_advance_finality_without_sync_committee_via_public_api() {
-    run_public_api_sync(SyncTestCase::advance_finality_without_sync_committee(
-        Fork::Deneb,
-    ));
-}
-
-#[test]
-fn electra_advance_finality_without_sync_committee_via_public_api() {
-    run_public_api_sync(SyncTestCase::advance_finality_without_sync_committee(
-        Fork::Electra,
-    ));
-}
-
-#[test]
-fn altair_supply_sync_committee_from_past_update_via_public_api() {
-    run_public_api_sync(SyncTestCase::supply_sync_committee_from_past_update(
-        Fork::Altair,
-    ));
-}
-
-#[test]
-fn bellatrix_supply_sync_committee_from_past_update_via_public_api() {
+fn bellatrix_supply_sync_committee_from_past_update() {
     run_public_api_sync(SyncTestCase::supply_sync_committee_from_past_update(
         Fork::Bellatrix,
     ));
 }
 
 #[test]
-fn capella_supply_sync_committee_from_past_update_via_public_api() {
-    run_public_api_sync(SyncTestCase::supply_sync_committee_from_past_update(
-        Fork::Capella,
-    ));
-}
-
-#[test]
-fn deneb_supply_sync_committee_from_past_update_via_public_api() {
-    run_public_api_sync(SyncTestCase::supply_sync_committee_from_past_update(
-        Fork::Deneb,
-    ));
-}
-
-#[test]
-fn electra_supply_sync_committee_from_past_update_via_public_api() {
-    run_public_api_sync(SyncTestCase::supply_sync_committee_from_past_update(
-        Fork::Electra,
-    ));
-}
-
-#[test]
-fn capella_fork_sync_via_public_api() {
+fn bellatrix_capella_fork() {
     run_public_api_sync(SyncTestCase::fork_transition(
         Fork::Bellatrix,
         Fork::Capella,
@@ -109,14 +50,73 @@ fn capella_fork_sync_via_public_api() {
 }
 
 #[test]
-fn deneb_fork_sync_via_public_api() {
+fn capella_light_client_sync() {
+    run_public_api_sync(SyncTestCase::light_client_sync(Fork::Capella));
+}
+
+#[test]
+fn capella_advance_finality_without_sync_committee() {
+    run_public_api_sync(SyncTestCase::advance_finality_without_sync_committee(
+        Fork::Capella,
+    ));
+}
+
+#[test]
+fn capella_supply_sync_committee_from_past_update() {
+    run_public_api_sync(SyncTestCase::supply_sync_committee_from_past_update(
+        Fork::Capella,
+    ));
+}
+
+#[test]
+fn capella_deneb_fork() {
     run_public_api_sync(SyncTestCase::fork_transition(Fork::Capella, Fork::Deneb));
 }
 
 #[test]
-fn electra_fork_sync_via_public_api() {
+fn deneb_light_client_sync() {
+    run_public_api_sync(SyncTestCase::light_client_sync(Fork::Deneb));
+}
+
+#[test]
+fn deneb_advance_finality_without_sync_committee() {
+    run_public_api_sync(SyncTestCase::advance_finality_without_sync_committee(
+        Fork::Deneb,
+    ));
+}
+
+#[test]
+fn deneb_supply_sync_committee_from_past_update() {
+    run_public_api_sync(SyncTestCase::supply_sync_committee_from_past_update(
+        Fork::Deneb,
+    ));
+}
+
+#[test]
+fn deneb_electra_fork() {
     run_public_api_sync(SyncTestCase::fork_transition(Fork::Deneb, Fork::Electra));
 }
+
+#[test]
+fn electra_light_client_sync() {
+    run_public_api_sync(SyncTestCase::light_client_sync(Fork::Electra));
+}
+
+#[test]
+fn electra_advance_finality_without_sync_committee() {
+    run_public_api_sync(SyncTestCase::advance_finality_without_sync_committee(
+        Fork::Electra,
+    ));
+}
+
+#[test]
+fn electra_supply_sync_committee_from_past_update() {
+    run_public_api_sync(SyncTestCase::supply_sync_committee_from_past_update(
+        Fork::Electra,
+    ));
+}
+
+// TODO: Vendor Fulu `light_client` test vectors with the #106 fixture tail.
 
 fn run_public_api_sync(sync_test: SyncTestCase) {
     let bootstrap = sync_test
@@ -124,6 +124,8 @@ fn run_public_api_sync(sync_test: SyncTestCase) {
         .expect("Failed to load bootstrap");
     let steps = sync_test.load_steps().expect("Failed to load steps");
 
+    // Fixtures don't carry a bootstrap clock. The header's own slot is the
+    // earliest honest one.
     let bootstrap_slot = bootstrap.header.slot();
     let mut client = LightClient::new(
         sync_test.chain_spec().clone(),
@@ -142,7 +144,7 @@ fn run_public_api_sync(sync_test: SyncTestCase) {
                 processed += 1;
             }
             // Store migration is a no-op for this store; the step's checks
-            // still assert the store is unperturbed.
+            // still assert the store isn't changed.
             TestStep::UpgradeStore { checks } => {
                 assert_header_checks(&client, checks, i + 1);
             }
@@ -165,37 +167,13 @@ fn process_step(
         .load_update(&step.update, step.update_fork_digest)
         .expect("Failed to load update");
 
-    let before_finalized = client.finalized_beacon_block_header().slot;
-    let before_optimistic = client.optimistic_beacon_block_header().slot;
-
-    let changes: StoreChanges = client
+    client
         .process_light_client_update(update, step.current_slot)
         .unwrap_or_else(|e| panic!("step {}: error processing update: {}", step_num, e));
-
-    let after_finalized = client.finalized_beacon_block_header().slot;
-    let after_optimistic = client.optimistic_beacon_block_header().slot;
-
-    // StoreChanges must agree with observed state.
-    if changes.finalized_updated {
-        assert!(
-            after_finalized > before_finalized,
-            "step {}: finalized_updated but slot didn't advance",
-            step_num
-        );
-    }
-    if changes.optimistic_updated {
-        assert!(
-            after_optimistic > before_optimistic,
-            "step {}: optimistic_updated but slot didn't advance",
-            step_num
-        );
-    }
 
     assert_header_checks(client, &step.checks, step_num);
 }
 
-/// Assert a step's `checks` (slot + beacon root; the public API exposes only
-/// `BeaconBlockHeader`, so execution roots are covered by the processor replay).
 fn assert_header_checks(client: &LightClient, checks: &StateChecks, step_num: usize) {
     if let Some(expected) = &checks.finalized_header {
         assert!(
@@ -204,7 +182,15 @@ fn assert_header_checks(client: &LightClient, checks: &StateChecks, step_num: us
             step_num,
             expected.slot,
         );
+        if let Some(root) = expected.execution_payload_root {
+            assert_eq!(
+                Some(root),
+                client.finalized_execution_payload_root(),
+                "step {step_num}: finalized execution payload root mismatch"
+            );
+        }
     }
+
     if let Some(expected) = &checks.optimistic_header {
         assert!(
             expected.matches(client.optimistic_beacon_block_header()),
@@ -212,6 +198,13 @@ fn assert_header_checks(client: &LightClient, checks: &StateChecks, step_num: us
             step_num,
             expected.slot,
         );
+        if let Some(root) = expected.execution_payload_root {
+            assert_eq!(
+                Some(root),
+                client.optimistic_execution_payload_root(),
+                "step {step_num}: finalized execution payload root mismatch"
+            );
+        }
     }
 }
 

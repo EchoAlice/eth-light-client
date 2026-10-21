@@ -1,4 +1,5 @@
 use crate::chain_spec::{ChainSpec, Fork};
+use crate::consensus::merkle::get_lc_execution_root;
 use crate::consensus::processor::{LightClientProcessor, StoreChanges};
 use crate::error::Result;
 use crate::types::consensus::{
@@ -41,20 +42,34 @@ impl LightClient {
         self.inner.store().finalized_header.beacon()
     }
 
-    pub fn optimistic_beacon_block_header(&self) -> &BeaconBlockHeader {
-        self.inner.store().optimistic_header.beacon()
+    pub fn finalized_execution_payload_root(&self) -> Option<Root> {
+        self.execution_payload_root(&self.inner.store().finalized_header)
     }
 
     pub fn finalized_execution_state_root(&self) -> Option<Root> {
         self.execution_state_root(&self.inner.store().finalized_header)
     }
 
+    pub fn optimistic_beacon_block_header(&self) -> &BeaconBlockHeader {
+        self.inner.store().optimistic_header.beacon()
+    }
+
+    pub fn optimistic_execution_payload_root(&self) -> Option<Root> {
+        self.execution_payload_root(&self.inner.store().optimistic_header)
+    }
+
     pub fn optimistic_execution_state_root(&self) -> Option<Root> {
         self.execution_state_root(&self.inner.store().optimistic_header)
     }
 
-    /// `None` when the block predates Capella, regardless of the container that
-    /// carries it.  The execution slot is a placeholder there, not an anchor.
+    fn execution_payload_root(&self, header: &LightClientHeader) -> Option<Root> {
+        let block_fork = self.inner.chain_spec().fork_at_slot(header.slot());
+        if block_fork < Fork::Capella {
+            return None;
+        }
+        Some(get_lc_execution_root(header, block_fork))
+    }
+
     fn execution_state_root(&self, header: &LightClientHeader) -> Option<Root> {
         let block_fork = self.inner.chain_spec().fork_at_slot(header.slot());
         if block_fork < Fork::Capella {

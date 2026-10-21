@@ -17,7 +17,7 @@ pub enum TestStep {
 pub struct ProcessUpdateStep {
     #[serde(deserialize_with = "de_fork_digest")]
     pub update_fork_digest: [u8; 4],
-    pub update: String, // Update's file name (without .ssz_snappy extension).
+    pub update: String, // file name without .ssz_snappy extension
     pub current_slot: Slot,
     pub checks: StateChecks,
 }
@@ -33,9 +33,8 @@ pub struct HeaderCheck {
     pub slot: Slot,
     #[serde(deserialize_with = "de_root")]
     pub beacon_root: Root,
-    #[allow(dead_code)] // Reserved for fork-boundary execution-root check #172
     #[serde(default, deserialize_with = "de_root_opt")]
-    pub execution_root: Option<Root>,
+    pub execution_payload_root: Option<Root>,
 }
 
 impl HeaderCheck {
