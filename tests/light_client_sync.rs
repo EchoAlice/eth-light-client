@@ -23,6 +23,26 @@ fn altair_supply_sync_committee_from_past_update() {
 }
 
 #[test]
+fn altair_light_client_sync_no_force_update() {
+    todo!()
+}
+
+#[test]
+fn altair_capella_store_with_legacy_data() {
+    todo!()
+}
+
+#[test]
+fn altair_deneb_store_with_legacy_data() {
+    todo!()
+}
+
+#[test]
+fn altair_electra_store_with_legacy_data() {
+    todo!()
+}
+
+#[test]
 fn bellatrix_light_client_sync() {
     run_public_api_sync(SyncTestCase::light_client_sync(Fork::Bellatrix));
 }
@@ -50,6 +70,36 @@ fn bellatrix_capella_fork() {
 }
 
 #[test]
+fn bellatrix_light_client_sync_no_force_update() {
+    todo!()
+}
+
+#[test]
+fn bellatrix_capella_deneb_fork() {
+    todo!()
+}
+
+#[test]
+fn bellatrix_capella_electra_fork() {
+    todo!()
+}
+
+#[test]
+fn bellatrix_capella_store_with_legacy_data() {
+    todo!()
+}
+
+#[test]
+fn bellatrix_deneb_store_with_legacy_data() {
+    todo!()
+}
+
+#[test]
+fn bellatrix_electra_store_with_legacy_data() {
+    todo!()
+}
+
+#[test]
 fn capella_light_client_sync() {
     run_public_api_sync(SyncTestCase::light_client_sync(Fork::Capella));
 }
@@ -71,6 +121,26 @@ fn capella_supply_sync_committee_from_past_update() {
 #[test]
 fn capella_deneb_fork() {
     run_public_api_sync(SyncTestCase::fork_transition(Fork::Capella, Fork::Deneb));
+}
+
+#[test]
+fn capella_light_client_sync_no_force_update() {
+    todo!()
+}
+
+#[test]
+fn capella_deneb_electra_fork() {
+    todo!()
+}
+
+#[test]
+fn capella_deneb_store_with_legacy_data() {
+    todo!()
+}
+
+#[test]
+fn capella_electra_store_with_legacy_data() {
+    todo!()
 }
 
 #[test]
@@ -98,6 +168,16 @@ fn deneb_electra_fork() {
 }
 
 #[test]
+fn deneb_light_client_sync_no_force_update() {
+    todo!()
+}
+
+#[test]
+fn deneb_electra_store_with_legacy_data() {
+    todo!()
+}
+
+#[test]
 fn electra_light_client_sync() {
     run_public_api_sync(SyncTestCase::light_client_sync(Fork::Electra));
 }
@@ -114,6 +194,31 @@ fn electra_supply_sync_committee_from_past_update() {
     run_public_api_sync(SyncTestCase::supply_sync_committee_from_past_update(
         Fork::Electra,
     ));
+}
+
+#[test]
+fn electra_light_client_sync_no_force_update() {
+    todo!()
+}
+
+#[test]
+fn fulu_light_client_sync() {
+    todo!()
+}
+
+#[test]
+fn fulu_advance_finality_without_sync_committee() {
+    todo!()
+}
+
+#[test]
+fn fulu_supply_sync_committee_from_past_update() {
+    todo!()
+}
+
+#[test]
+fn fulu_light_client_sync_no_force_update() {
+    todo!()
 }
 
 // The replay: one fixture case through the public API.
