@@ -1,7 +1,7 @@
 mod common;
 
 use common::{ProcessUpdateStep, StateChecks, SyncTestCase, TestStep};
-use eth_light_client::{Error, Fork, LightClient};
+use eth_light_client::{Fork, LightClient};
 
 #[test]
 fn altair_light_client_sync() {
@@ -20,6 +20,30 @@ fn altair_supply_sync_committee_from_past_update() {
     run_public_api_sync(SyncTestCase::supply_sync_committee_from_past_update(
         Fork::Altair,
     ));
+}
+
+#[test]
+#[ignore = "TODO(#106): wire the constructor"]
+fn altair_light_client_sync_no_force_update() {
+    todo!()
+}
+
+#[test]
+#[ignore = "TODO(#106): wire the constructor"]
+fn altair_capella_store_with_legacy_data() {
+    todo!()
+}
+
+#[test]
+#[ignore = "TODO(#106): wire the constructor"]
+fn altair_deneb_store_with_legacy_data() {
+    todo!()
+}
+
+#[test]
+#[ignore = "TODO(#106): wire the constructor"]
+fn altair_electra_store_with_legacy_data() {
+    todo!()
 }
 
 #[test]
@@ -50,6 +74,42 @@ fn bellatrix_capella_fork() {
 }
 
 #[test]
+#[ignore = "TODO(#106): wire the constructor"]
+fn bellatrix_light_client_sync_no_force_update() {
+    todo!()
+}
+
+#[test]
+#[ignore = "TODO(#106): wire the constructor"]
+fn bellatrix_capella_deneb_fork() {
+    todo!()
+}
+
+#[test]
+#[ignore = "TODO(#106): wire the constructor"]
+fn bellatrix_capella_electra_fork() {
+    todo!()
+}
+
+#[test]
+#[ignore = "TODO(#106): wire the constructor"]
+fn bellatrix_capella_store_with_legacy_data() {
+    todo!()
+}
+
+#[test]
+#[ignore = "TODO(#106): wire the constructor"]
+fn bellatrix_deneb_store_with_legacy_data() {
+    todo!()
+}
+
+#[test]
+#[ignore = "TODO(#106): wire the constructor"]
+fn bellatrix_electra_store_with_legacy_data() {
+    todo!()
+}
+
+#[test]
 fn capella_light_client_sync() {
     run_public_api_sync(SyncTestCase::light_client_sync(Fork::Capella));
 }
@@ -71,6 +131,30 @@ fn capella_supply_sync_committee_from_past_update() {
 #[test]
 fn capella_deneb_fork() {
     run_public_api_sync(SyncTestCase::fork_transition(Fork::Capella, Fork::Deneb));
+}
+
+#[test]
+#[ignore = "TODO(#106): wire the constructor"]
+fn capella_light_client_sync_no_force_update() {
+    todo!()
+}
+
+#[test]
+#[ignore = "TODO(#106): wire the constructor"]
+fn capella_deneb_electra_fork() {
+    todo!()
+}
+
+#[test]
+#[ignore = "TODO(#106): wire the constructor"]
+fn capella_deneb_store_with_legacy_data() {
+    todo!()
+}
+
+#[test]
+#[ignore = "TODO(#106): wire the constructor"]
+fn capella_electra_store_with_legacy_data() {
+    todo!()
 }
 
 #[test]
@@ -98,6 +182,18 @@ fn deneb_electra_fork() {
 }
 
 #[test]
+#[ignore = "TODO(#106): wire the constructor"]
+fn deneb_light_client_sync_no_force_update() {
+    todo!()
+}
+
+#[test]
+#[ignore = "TODO(#106): wire the constructor"]
+fn deneb_electra_store_with_legacy_data() {
+    todo!()
+}
+
+#[test]
 fn electra_light_client_sync() {
     run_public_api_sync(SyncTestCase::light_client_sync(Fork::Electra));
 }
@@ -116,7 +212,37 @@ fn electra_supply_sync_committee_from_past_update() {
     ));
 }
 
-// TODO: Vendor Fulu `light_client` test vectors with the #106 fixture tail.
+#[test]
+#[ignore = "TODO(#106): wire the constructor"]
+fn electra_light_client_sync_no_force_update() {
+    todo!()
+}
+
+#[test]
+#[ignore = "TODO(#106): wire the constructor"]
+fn fulu_light_client_sync() {
+    todo!()
+}
+
+#[test]
+#[ignore = "TODO(#106): wire the constructor"]
+fn fulu_advance_finality_without_sync_committee() {
+    todo!()
+}
+
+#[test]
+#[ignore = "TODO(#106): wire the constructor"]
+fn fulu_supply_sync_committee_from_past_update() {
+    todo!()
+}
+
+#[test]
+#[ignore = "TODO(#106): wire the constructor"]
+fn fulu_light_client_sync_no_force_update() {
+    todo!()
+}
+
+// The replay: one fixture case through the public API.
 
 fn run_public_api_sync(sync_test: SyncTestCase) {
     let bootstrap = sync_test
@@ -206,70 +332,4 @@ fn assert_header_checks(client: &LightClient, checks: &StateChecks, step_num: us
             );
         }
     }
-}
-
-#[test]
-fn committee_update_without_finality_is_not_learned() {
-    let sync_test_case = SyncTestCase::light_client_sync(Fork::Altair);
-    let bootstrap = sync_test_case.load_bootstrap().unwrap();
-
-    let bootstrap_slot = bootstrap.header.slot();
-    let mut client = LightClient::new(
-        sync_test_case.chain_spec().clone(),
-        sync_test_case.genesis_validators_root(),
-        sync_test_case.trusted_block_root(),
-        bootstrap,
-        bootstrap_slot,
-    )
-    .unwrap();
-
-    let steps = sync_test_case.load_steps().unwrap();
-    let TestStep::ProcessUpdate(step) = &steps[0] else {
-        panic!("first step is a process_update")
-    };
-    let mut update = sync_test_case
-        .load_update(&step.update, step.update_fork_digest)
-        .unwrap();
-    assert!(update.next_sync_committee.is_some());
-    update.finalized = None;
-
-    let changes = client
-        .process_light_client_update(update, step.current_slot)
-        .unwrap();
-    assert!(changes.optimistic_updated);
-    assert!(!changes.next_committee_learned);
-    assert!(client.next_sync_committee().is_none());
-}
-
-#[test]
-fn trusted_root_freshness_boundary() {
-    let sync_test = SyncTestCase::light_client_sync(Fork::Altair);
-    let ws_period_as_slots = sync_test
-        .chain_spec()
-        .epoch_to_slot(sync_test.chain_spec().weak_subjectivity_period());
-
-    // Exactly one weak subjectivity period old: still accepted.
-    let bootstrap = sync_test.load_bootstrap().unwrap();
-    let at_boundary = bootstrap.header.slot() + ws_period_as_slots;
-    assert!(LightClient::new(
-        sync_test.chain_spec().clone(),
-        sync_test.genesis_validators_root(),
-        sync_test.trusted_block_root(),
-        bootstrap,
-        at_boundary,
-    )
-    .is_ok());
-
-    // One slot past the period: rejected, and with the staleness variant —
-    // not the identity or proof errors that precede and follow the check.
-    let bootstrap = sync_test.load_bootstrap().unwrap();
-    let err = LightClient::new(
-        sync_test.chain_spec().clone(),
-        sync_test.genesis_validators_root(),
-        sync_test.trusted_block_root(),
-        bootstrap,
-        at_boundary + 1,
-    )
-    .unwrap_err();
-    assert!(matches!(err, Error::StaleTrustedRoot { .. }), "got: {err}");
 }

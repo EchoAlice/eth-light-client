@@ -3,7 +3,8 @@ Integration tests and the vendored spec fixtures that drive them.
 
 ```
 tests/
-├── light_client_sync.rs   # the sync-vector replay + public-API guard tests
+├── light_client_sync.rs   # the sync-vector replay
+├── light_client_api.rs    # public-API behavior the replays can't express
 ├── common/                # fixture loader
 └── fixtures/              # vendored consensus-spec-tests
     ├── minimal/<fork>/light_client/sync/<case>/

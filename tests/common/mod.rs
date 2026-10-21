@@ -1,3 +1,7 @@
+// Each integration test binary compiles this module on its own, so anything
+// one binary doesn't use is dead code there.
+#![allow(dead_code, unused_imports)]
+
 mod fork;
 mod loader;
 mod steps;
