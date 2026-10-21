@@ -69,7 +69,7 @@ pub(crate) fn verify_light_client_header(
 }
 
 /// Hashes execution payload header the way it was committed within `body_root`.
-fn get_lc_execution_root(header: &LightClientHeader, block_fork: Fork) -> Root {
+pub(crate) fn get_lc_execution_root(header: &LightClientHeader, block_fork: Fork) -> Root {
     if header.fork() == block_fork {
         return header.execution_payload_root();
     }
