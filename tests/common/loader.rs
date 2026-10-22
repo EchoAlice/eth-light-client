@@ -47,6 +47,16 @@ impl SyncTestCase {
         )
     }
 
+    /// Pyspec's upgrade_lc_store migration; a no-op for a fork-agnostic store.
+    pub fn store_with_legacy_data(from: Fork, to: Fork) -> Self {
+        let from_dir = fork_dir(from);
+        let to_dir = fork_dir(to);
+        Self::open(
+            case_path(from_dir, &format!("{to_dir}_store_with_legacy_data")),
+            single_fork_config(from),
+        )
+    }
+
     pub fn fork_transition(from: Fork, to: Fork) -> Self {
         let from_dir = fork_dir(from);
         let to_dir = fork_dir(to);
