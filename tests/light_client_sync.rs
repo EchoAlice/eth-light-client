@@ -88,15 +88,16 @@ fn bellatrix_light_client_sync_no_force_update() {
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
 fn bellatrix_capella_deneb_fork() {
-    todo!()
+    run_public_api_sync(SyncTestCase::fork_transition(Fork::Bellatrix, Fork::Deneb));
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
 fn bellatrix_capella_electra_fork() {
-    todo!()
+    run_public_api_sync(SyncTestCase::fork_transition(
+        Fork::Bellatrix,
+        Fork::Electra,
+    ));
 }
 
 #[test]
@@ -155,9 +156,8 @@ fn capella_light_client_sync_no_force_update() {
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
 fn capella_deneb_electra_fork() {
-    todo!()
+    run_public_api_sync(SyncTestCase::fork_transition(Fork::Capella, Fork::Electra));
 }
 
 #[test]

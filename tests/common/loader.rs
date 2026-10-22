@@ -4,7 +4,7 @@ use eth_light_client::types::primitives::Root;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::fork::{case_path, fork_dir, single_fork_config, transition_config};
+use super::fork::{case_path, fork_dir, forks_crossed, single_fork_config, transition_config};
 use super::steps::{TestMeta, TestStep};
 use super::TestUtilsResult;
 
@@ -47,7 +47,6 @@ impl SyncTestCase {
         )
     }
 
-    /// Pyspec's upgrade_lc_store migration; a no-op for a fork-agnostic store.
     pub fn store_with_legacy_data(from: Fork, to: Fork) -> Self {
         let from_dir = fork_dir(from);
         let to_dir = fork_dir(to);
@@ -57,13 +56,17 @@ impl SyncTestCase {
         )
     }
 
+    /// Upstream names a transition by its endpoints: `capella_fork` for one
+    /// hop, `capella_electra_fork` for a chain that also crosses Deneb.
     pub fn fork_transition(from: Fork, to: Fork) -> Self {
         let from_dir = fork_dir(from);
-        let to_dir = fork_dir(to);
-        Self::open(
-            case_path(from_dir, &format!("{to_dir}_fork")),
-            transition_config(from, to),
-        )
+        let first = fork_dir(forks_crossed(from, to)[0]);
+        let case = if first == fork_dir(to) {
+            format!("{first}_fork")
+        } else {
+            format!("{first}_{}_fork", fork_dir(to))
+        };
+        Self::open(case_path(from_dir, &case), transition_config(from, to))
     }
 
     fn open(case_dir: PathBuf, config: ChainSpecConfig) -> Self {

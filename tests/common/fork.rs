@@ -28,21 +28,40 @@ pub fn single_fork_config(fork: Fork) -> ChainSpecConfig {
     if fork >= Fork::Electra {
         config.electra_fork_epoch = 0;
     }
+    if fork >= Fork::Fulu {
+        config.fulu_fork_epoch = 0;
+    }
 
     config
 }
 
+/// The forks a transition case crosses: strictly after `from`, through `to`.
+pub fn forks_crossed(from: Fork, to: Fork) -> Vec<Fork> {
+    let all = [
+        Fork::Altair,
+        Fork::Bellatrix,
+        Fork::Capella,
+        Fork::Deneb,
+        Fork::Electra,
+        Fork::Fulu,
+    ];
+    all.into_iter().filter(|f| from < *f && *f <= to).collect()
+}
+
 pub fn transition_config(from: Fork, to: Fork) -> ChainSpecConfig {
     let mut config = single_fork_config(from);
-    let epoch = 3; // Epoch transitions are hardcoded in fixtures
 
-    match to {
-        Fork::Altair => config.altair_fork_epoch = epoch,
-        Fork::Bellatrix => config.bellatrix_fork_epoch = epoch,
-        Fork::Capella => config.capella_fork_epoch = epoch,
-        Fork::Deneb => config.deneb_fork_epoch = epoch,
-        Fork::Electra => config.electra_fork_epoch = epoch,
-        Fork::Fulu => config.fulu_fork_epoch = epoch,
+    // Every fork after `from` through `to` activates at epochs 3, 4, 5, …
+    for (i, fork) in forks_crossed(from, to).into_iter().enumerate() {
+        let epoch = 3 + i as u64;
+        match fork {
+            Fork::Altair => config.altair_fork_epoch = epoch,
+            Fork::Bellatrix => config.bellatrix_fork_epoch = epoch,
+            Fork::Capella => config.capella_fork_epoch = epoch,
+            Fork::Deneb => config.deneb_fork_epoch = epoch,
+            Fork::Electra => config.electra_fork_epoch = epoch,
+            Fork::Fulu => config.fulu_fork_epoch = epoch,
+        }
     }
 
     config
