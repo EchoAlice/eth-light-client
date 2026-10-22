@@ -23,27 +23,34 @@ fn altair_supply_sync_committee_from_past_update() {
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
 fn altair_light_client_sync_no_force_update() {
-    todo!()
+    run_public_api_sync(SyncTestCase::light_client_sync_no_force_update(
+        Fork::Altair,
+    ));
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
 fn altair_capella_store_with_legacy_data() {
-    todo!()
+    run_public_api_sync(SyncTestCase::store_with_legacy_data(
+        Fork::Altair,
+        Fork::Capella,
+    ));
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
 fn altair_deneb_store_with_legacy_data() {
-    todo!()
+    run_public_api_sync(SyncTestCase::store_with_legacy_data(
+        Fork::Altair,
+        Fork::Deneb,
+    ));
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
 fn altair_electra_store_with_legacy_data() {
-    todo!()
+    run_public_api_sync(SyncTestCase::store_with_legacy_data(
+        Fork::Altair,
+        Fork::Electra,
+    ));
 }
 
 #[test]
@@ -74,39 +81,47 @@ fn bellatrix_capella_fork() {
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
 fn bellatrix_light_client_sync_no_force_update() {
-    todo!()
+    run_public_api_sync(SyncTestCase::light_client_sync_no_force_update(
+        Fork::Bellatrix,
+    ));
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
 fn bellatrix_capella_deneb_fork() {
-    todo!()
+    run_public_api_sync(SyncTestCase::fork_transition(Fork::Bellatrix, Fork::Deneb));
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
 fn bellatrix_capella_electra_fork() {
-    todo!()
+    run_public_api_sync(SyncTestCase::fork_transition(
+        Fork::Bellatrix,
+        Fork::Electra,
+    ));
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
 fn bellatrix_capella_store_with_legacy_data() {
-    todo!()
+    run_public_api_sync(SyncTestCase::store_with_legacy_data(
+        Fork::Bellatrix,
+        Fork::Capella,
+    ));
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
 fn bellatrix_deneb_store_with_legacy_data() {
-    todo!()
+    run_public_api_sync(SyncTestCase::store_with_legacy_data(
+        Fork::Bellatrix,
+        Fork::Deneb,
+    ));
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
 fn bellatrix_electra_store_with_legacy_data() {
-    todo!()
+    run_public_api_sync(SyncTestCase::store_with_legacy_data(
+        Fork::Bellatrix,
+        Fork::Electra,
+    ));
 }
 
 #[test]
@@ -134,27 +149,31 @@ fn capella_deneb_fork() {
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
 fn capella_light_client_sync_no_force_update() {
-    todo!()
+    run_public_api_sync(SyncTestCase::light_client_sync_no_force_update(
+        Fork::Capella,
+    ));
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
 fn capella_deneb_electra_fork() {
-    todo!()
+    run_public_api_sync(SyncTestCase::fork_transition(Fork::Capella, Fork::Electra));
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
 fn capella_deneb_store_with_legacy_data() {
-    todo!()
+    run_public_api_sync(SyncTestCase::store_with_legacy_data(
+        Fork::Capella,
+        Fork::Deneb,
+    ));
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
 fn capella_electra_store_with_legacy_data() {
-    todo!()
+    run_public_api_sync(SyncTestCase::store_with_legacy_data(
+        Fork::Capella,
+        Fork::Electra,
+    ));
 }
 
 #[test]
@@ -182,15 +201,16 @@ fn deneb_electra_fork() {
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
 fn deneb_light_client_sync_no_force_update() {
-    todo!()
+    run_public_api_sync(SyncTestCase::light_client_sync_no_force_update(Fork::Deneb));
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
 fn deneb_electra_store_with_legacy_data() {
-    todo!()
+    run_public_api_sync(SyncTestCase::store_with_legacy_data(
+        Fork::Deneb,
+        Fork::Electra,
+    ));
 }
 
 #[test]
@@ -213,9 +233,10 @@ fn electra_supply_sync_committee_from_past_update() {
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
 fn electra_light_client_sync_no_force_update() {
-    todo!()
+    run_public_api_sync(SyncTestCase::light_client_sync_no_force_update(
+        Fork::Electra,
+    ));
 }
 
 #[test]
@@ -237,9 +258,9 @@ fn fulu_supply_sync_committee_from_past_update() {
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
+#[ignore = "TODO(#106): Fulu digest resolution"]
 fn fulu_light_client_sync_no_force_update() {
-    todo!()
+    run_public_api_sync(SyncTestCase::light_client_sync_no_force_update(Fork::Fulu));
 }
 
 // The replay: one fixture case through the public API.
