@@ -56,8 +56,6 @@ impl SyncTestCase {
         )
     }
 
-    /// Upstream names a transition by its endpoints: `capella_fork` for one
-    /// hop, `capella_electra_fork` for a chain that also crosses Deneb.
     pub fn fork_transition(from: Fork, to: Fork) -> Self {
         let from_dir = fork_dir(from);
         let first = fork_dir(forks_crossed(from, to)[0]);
