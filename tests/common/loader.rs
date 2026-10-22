@@ -14,7 +14,6 @@ pub struct SyncTestCase {
     spec: ChainSpec,
 }
 
-/// Public constructors exist for each type of test case supported.
 impl SyncTestCase {
     pub fn light_client_sync(fork: Fork) -> Self {
         let fork_dir = fork_dir(fork);
@@ -36,6 +35,14 @@ impl SyncTestCase {
         let fork_dir = fork_dir(fork);
         Self::open(
             case_path(fork_dir, "supply_sync_committee_from_past_update"),
+            single_fork_config(fork),
+        )
+    }
+
+    pub fn light_client_sync_no_force_update(fork: Fork) -> Self {
+        let fork_dir = fork_dir(fork);
+        Self::open(
+            case_path(fork_dir, "light_client_sync_no_force_update"),
             single_fork_config(fork),
         )
     }

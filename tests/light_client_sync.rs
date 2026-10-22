@@ -23,9 +23,10 @@ fn altair_supply_sync_committee_from_past_update() {
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
 fn altair_light_client_sync_no_force_update() {
-    todo!()
+    run_public_api_sync(SyncTestCase::light_client_sync_no_force_update(
+        Fork::Altair,
+    ));
 }
 
 #[test]
@@ -74,9 +75,10 @@ fn bellatrix_capella_fork() {
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
 fn bellatrix_light_client_sync_no_force_update() {
-    todo!()
+    run_public_api_sync(SyncTestCase::light_client_sync_no_force_update(
+        Fork::Bellatrix,
+    ));
 }
 
 #[test]
@@ -134,9 +136,10 @@ fn capella_deneb_fork() {
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
 fn capella_light_client_sync_no_force_update() {
-    todo!()
+    run_public_api_sync(SyncTestCase::light_client_sync_no_force_update(
+        Fork::Capella,
+    ));
 }
 
 #[test]
@@ -182,9 +185,8 @@ fn deneb_electra_fork() {
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
 fn deneb_light_client_sync_no_force_update() {
-    todo!()
+    run_public_api_sync(SyncTestCase::light_client_sync_no_force_update(Fork::Deneb));
 }
 
 #[test]
@@ -213,9 +215,10 @@ fn electra_supply_sync_committee_from_past_update() {
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
 fn electra_light_client_sync_no_force_update() {
-    todo!()
+    run_public_api_sync(SyncTestCase::light_client_sync_no_force_update(
+        Fork::Electra,
+    ));
 }
 
 #[test]
@@ -237,9 +240,9 @@ fn fulu_supply_sync_committee_from_past_update() {
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
+#[ignore = "TODO(#106): Fulu digest resolution"]
 fn fulu_light_client_sync_no_force_update() {
-    todo!()
+    run_public_api_sync(SyncTestCase::light_client_sync_no_force_update(Fork::Fulu));
 }
 
 // The replay: one fixture case through the public API.
