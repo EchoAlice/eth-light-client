@@ -14,7 +14,7 @@ tests/
 Run everything with `cargo test`; the replay alone with `cargo test --test light_client_sync`.
 
 ## Fixtures
-Vendored from [`ethereum/consensus-spec-tests`](https://github.com/ethereum/consensus-spec-tests) **v1.6.0-beta.0** (CC0-1.0): every `light_client/sync` case that release ships, 39 in all. The directory layout mirrors upstream, so re-vendoring a case is a straight `cp -r` of its directory.  All sync cases use the **minimal preset**: 32-member sync committees, 8 slots per epoch, 8 epochs per sync committee period.
+Vendored from [`ethereum/consensus-spec-tests`](https://github.com/ethereum/consensus-spec-tests) **v1.6.0-beta.0** (CC0-1.0): every `light_client/sync` case that release ships, 39 in all. The directory layout mirrors upstream, so re-vendoring a case is a straight `cp -r` of its directory.  All sync cases use the **minimal preset** (32-member sync committees, 8 slots per epoch, 8 epochs per sync committee period); upstream generates the sync suite for no other preset.
 
 ### A sync case
 Each case is one scenario in a box: a toy chain, a starting point, a sequence of inputs, and the reference implementation's expected store after each input.
