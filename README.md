@@ -41,7 +41,7 @@ The library currently supports fork-aware light client verification through **Fu
 | Capella | `LightClientHeader` gains the execution payload header and its inclusion branch | ✅ |
 | Deneb | Blobs; payload header adds `blob_gas_used` / `excess_blob_gas` | ✅ |
 | Electra | `BeaconState` restructured — generalized indices shift, committee and finality branches deepen | ✅ |
-| Fulu | PeerDAS; blob-parameter-only forks change the fork digest | pending ([#106](https://github.com/EchoAlice/eth-light-client/issues/106)) |
+| Fulu | PeerDAS; blob-parameter-only forks change the fork digest | ✅ |
 
 Capella+ light client headers include authenticated execution payload header data rooted within the verified beacon block.  This exposes trusted execution-layer commitments (like state, transaction, and receipt roots), which can serve as anchors for proving arbitrary execution-layer facts.
 
@@ -84,7 +84,7 @@ This library begins at the SSZ-decode and verification boundary, and is built on
 <br/>
 
 # Testing
-The official Ethereum consensus `light_client/sync` spec vectors (minimal preset) replay end-to-end through the public `LightClient` API, for every supported fork and every fork-transition boundary that changes light client behavior (Bellatrix→Capella, Capella→Deneb, Deneb→Electra).  Electra→Fulu is pending ([#106](https://github.com/EchoAlice/eth-light-client/issues/106)).
+The official Ethereum consensus `light_client/sync` spec vectors (minimal preset) replay end-to-end through the public `LightClient` API, for every supported fork and every fork-transition boundary the official suite covers (Bellatrix→Capella, Capella→Deneb, Deneb→Electra, and the multi-hop chains across them).  Fulu changes no light client container, so upstream ships no Electra→Fulu transition case; its single-fork cases exercise the blob-parameter fork digests instead.
 
 The consensus spec's sync replays are all-valid, so they only prove acceptance, not rejection.  Rejection is covered from two directions: (i) the official `fast_aggregate_verify` vectors and (ii) unit tests.
 

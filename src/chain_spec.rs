@@ -14,6 +14,7 @@ pub struct ChainSpec {
     sync_committee_size: usize,
     min_validator_withdrawability_delay: Epoch,
     churn_limit_quotient: u64,
+    max_blobs_per_block_electra: u64,
     fork_schedule: ForkSchedule,
     blob_schedule: &'static [BlobParameters],
 }
@@ -42,6 +43,7 @@ impl ChainSpec {
             sync_committee_size: config.sync_committee_size,
             min_validator_withdrawability_delay: config.min_validator_withdrawability_delay,
             churn_limit_quotient: config.churn_limit_quotient,
+            max_blobs_per_block_electra: config.max_blobs_per_block_electra,
             fork_schedule: ForkSchedule {
                 altair: ForkParameters {
                     version: config.altair_fork_version,
@@ -85,16 +87,23 @@ impl ChainSpec {
             (Fork::Deneb, self.fork_schedule.deneb.version),
             (Fork::Electra, self.fork_schedule.electra.version),
         ];
-
-        // Pre-Fulu candidates: the version alone determines the digest.
         for (fork, version) in candidates {
             if compute_fork_digest(version, genesis_validators_root) == digest {
                 return Some(fork);
             }
         }
 
-        // Fulu-era candidates: digests mix blob-schedule parameters (EIP-7892),
-        // one candidate per era -- the schedule doubles as the candidate list.
+        // Fulu-era candidates: digests mix blob-schedule parameters (EIP-7892).
+        // Fulu initially activates under Electra's blob parameters.
+        if compute_bpo_fork_digest(
+            self.fork_schedule.fulu.version,
+            genesis_validators_root,
+            self.fork_schedule.electra.epoch,
+            self.max_blobs_per_block_electra,
+        ) == digest
+        {
+            return Some(Fork::Fulu);
+        }
         for entry in self.blob_schedule {
             if compute_bpo_fork_digest(
                 self.fork_schedule.fulu.version,
@@ -196,6 +205,7 @@ pub struct ChainSpecConfig {
     /// Spec: `CHURN_LIMIT_QUOTIENT` is a divisor *despite the spec's misname*.
     /// Per-epoch churn limit = total active balance / this
     pub churn_limit_quotient: u64,
+    pub max_blobs_per_block_electra: u64,
 
     pub altair_fork_version: [u8; 4],
     pub bellatrix_fork_version: [u8; 4],
@@ -224,6 +234,7 @@ impl ChainSpecConfig {
             sync_committee_size: 512,
             min_validator_withdrawability_delay: 256,
             churn_limit_quotient: 65536,
+            max_blobs_per_block_electra: 9,
             altair_fork_version: [0x01, 0x00, 0x00, 0x00],
             bellatrix_fork_version: [0x02, 0x00, 0x00, 0x00],
             capella_fork_version: [0x03, 0x00, 0x00, 0x00],
@@ -238,10 +249,6 @@ impl ChainSpecConfig {
             fulu_fork_epoch: 411392,
             // consensus-specs v1.6.1 BLOB_SCHEDULE
             blob_schedule: &[
-                BlobParameters {
-                    epoch: 364032,
-                    max_blobs_per_block: 9,
-                },
                 BlobParameters {
                     epoch: 412672,
                     max_blobs_per_block: 15,
@@ -263,6 +270,7 @@ impl ChainSpecConfig {
             sync_committee_size: 32,
             min_validator_withdrawability_delay: 256,
             churn_limit_quotient: 32,
+            max_blobs_per_block_electra: 9,
             altair_fork_version: [0x01, 0x00, 0x00, 0x01],
             bellatrix_fork_version: [0x02, 0x00, 0x00, 0x01],
             capella_fork_version: [0x03, 0x00, 0x00, 0x01],
@@ -296,7 +304,6 @@ impl ChainSpecConfig {
             ));
         }
 
-        // Must match a compiled decoder shape (32 minimal / 512 mainnet).  See dispatch in types/ssz.rs
         if self.sync_committee_size != 32 && self.sync_committee_size != 512 {
             return Err(Error::InvalidConfig(
                 "sync_committee_size must be 32 or 512".to_string(),

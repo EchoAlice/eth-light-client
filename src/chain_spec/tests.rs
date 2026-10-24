@@ -9,6 +9,7 @@ fn valid_config() -> ChainSpecConfig {
         sync_committee_size: 512,
         min_validator_withdrawability_delay: 256,
         churn_limit_quotient: 65536,
+        max_blobs_per_block_electra: 9,
         altair_fork_version: [0x01, 0x00, 0x00, 0x00],
         bellatrix_fork_version: [0x02, 0x00, 0x00, 0x00],
         capella_fork_version: [0x03, 0x00, 0x00, 0x00],
