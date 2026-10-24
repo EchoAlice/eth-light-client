@@ -240,25 +240,29 @@ fn electra_light_client_sync_no_force_update() {
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
+#[ignore = "TODO(#106): fork_from_digest lacks the spec's blob-parameter fallback"]
 fn fulu_light_client_sync() {
-    todo!()
+    run_public_api_sync(SyncTestCase::light_client_sync(Fork::Fulu));
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
+#[ignore = "TODO(#106): fork_from_digest lacks the spec's blob-parameter fallback"]
 fn fulu_advance_finality_without_sync_committee() {
-    todo!()
+    run_public_api_sync(SyncTestCase::advance_finality_without_sync_committee(
+        Fork::Fulu,
+    ));
 }
 
 #[test]
-#[ignore = "TODO(#106): wire the constructor"]
+#[ignore = "TODO(#106): fork_from_digest lacks the spec's blob-parameter fallback"]
 fn fulu_supply_sync_committee_from_past_update() {
-    todo!()
+    run_public_api_sync(SyncTestCase::supply_sync_committee_from_past_update(
+        Fork::Fulu,
+    ));
 }
 
 #[test]
-#[ignore = "TODO(#106): Fulu digest resolution"]
+#[ignore = "TODO(#106): fork_from_digest lacks the spec's blob-parameter fallback"]
 fn fulu_light_client_sync_no_force_update() {
     run_public_api_sync(SyncTestCase::light_client_sync_no_force_update(Fork::Fulu));
 }

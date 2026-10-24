@@ -17,6 +17,7 @@ pub struct SyncTestCase {
 impl SyncTestCase {
     pub fn light_client_sync(fork: Fork) -> Self {
         let fork_dir = fork_dir(fork);
+
         Self::open(
             case_path(fork_dir, "light_client_sync"),
             single_fork_config(fork),
@@ -25,6 +26,7 @@ impl SyncTestCase {
 
     pub fn advance_finality_without_sync_committee(fork: Fork) -> Self {
         let fork_dir = fork_dir(fork);
+
         Self::open(
             case_path(fork_dir, "advance_finality_without_sync_committee"),
             single_fork_config(fork),
@@ -33,6 +35,7 @@ impl SyncTestCase {
 
     pub fn supply_sync_committee_from_past_update(fork: Fork) -> Self {
         let fork_dir = fork_dir(fork);
+
         Self::open(
             case_path(fork_dir, "supply_sync_committee_from_past_update"),
             single_fork_config(fork),
@@ -41,6 +44,7 @@ impl SyncTestCase {
 
     pub fn light_client_sync_no_force_update(fork: Fork) -> Self {
         let fork_dir = fork_dir(fork);
+
         Self::open(
             case_path(fork_dir, "light_client_sync_no_force_update"),
             single_fork_config(fork),
@@ -50,6 +54,7 @@ impl SyncTestCase {
     pub fn store_with_legacy_data(from: Fork, to: Fork) -> Self {
         let from_dir = fork_dir(from);
         let to_dir = fork_dir(to);
+
         Self::open(
             case_path(from_dir, &format!("{to_dir}_store_with_legacy_data")),
             single_fork_config(from),
@@ -64,6 +69,7 @@ impl SyncTestCase {
         } else {
             format!("{first}_{}_fork", fork_dir(to))
         };
+
         Self::open(case_path(from_dir, &case), transition_config(from, to))
     }
 
@@ -72,6 +78,7 @@ impl SyncTestCase {
             fs::read_to_string(case_dir.join("meta.yaml")).expect("read case meta.yaml");
         let meta: TestMeta = serde_yaml::from_str(&meta_contents).expect("parse case meta.yaml");
         let spec = ChainSpec::try_from_config(config).expect("case chain schedule is valid");
+
         Self {
             case_dir,
             meta,
@@ -85,14 +92,14 @@ impl SyncTestCase {
         let steps: Vec<TestStep> = serde_yaml::with::singleton_map_recursive::deserialize(
             serde_yaml::Deserializer::from_str(&steps_contents),
         )?;
+
         Ok(steps)
     }
 
     pub fn load_bootstrap(&self) -> TestUtilsResult<LightClientBootstrap> {
-        let fork = Self::resolve_fork(self.meta.bootstrap_fork_digest)?;
+        let fork = self.resolve_fork(self.meta.bootstrap_fork_digest)?;
         let bytes = snappy_decompress(&self.case_dir.join("bootstrap.ssz_snappy"))?;
-        // Drive the public decode path (dogfoods `from_ssz`); snappy framing is
-        // a fixture concern, so it stays here — the beacon API serves raw SSZ.
+
         Ok(LightClientBootstrap::from_ssz(
             &bytes,
             fork,
@@ -105,8 +112,9 @@ impl SyncTestCase {
         name: &str,
         fork_digest: [u8; 4],
     ) -> TestUtilsResult<LightClientUpdate> {
-        let fork = Self::resolve_fork(fork_digest)?;
+        let fork = self.resolve_fork(fork_digest)?;
         let bytes = snappy_decompress(&self.case_dir.join(format!("{name}.ssz_snappy")))?;
+
         Ok(LightClientUpdate::from_ssz(
             &bytes,
             fork,
@@ -114,19 +122,16 @@ impl SyncTestCase {
         )?)
     }
 
-    fn resolve_fork(digest: [u8; 4]) -> TestUtilsResult<Fork> {
-        match digest {
-            [0x15, 0xcf, 0xa0, 0xa7] => Ok(Fork::Altair),
-            [0x79, 0x0e, 0x5b, 0x44] => Ok(Fork::Bellatrix),
-            [0x85, 0x68, 0x42, 0xbe] => Ok(Fork::Capella),
-            [0x0c, 0xbc, 0xe9, 0x01] => Ok(Fork::Deneb),
-            [0x9a, 0xcb, 0x23, 0x0d] => Ok(Fork::Electra),
-            _ => Err(format!(
-                "no known minimal-preset fork digest matches 0x{}",
-                hex::encode(digest)
-            )
-            .into()),
-        }
+    fn resolve_fork(&self, digest: [u8; 4]) -> TestUtilsResult<Fork> {
+        self.chain_spec()
+            .fork_from_digest(digest, self.meta.genesis_validators_root)
+            .ok_or_else(|| {
+                format!(
+                    "no fork in this case's schedule matches digest 0x{}",
+                    hex::encode(digest)
+                )
+                .into()
+            })
     }
 
     pub fn chain_spec(&self) -> &ChainSpec {

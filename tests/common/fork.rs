@@ -1,5 +1,33 @@
 use eth_light_client::chain_spec::{ChainSpecConfig, Fork};
+use eth_light_client::BlobParameters;
 use std::path::{Path, PathBuf};
+
+static MINIMAL_FULU_BLOB_SCHEDULE: [BlobParameters; 6] = [
+    BlobParameters {
+        epoch: 5,
+        max_blobs_per_block: 9,
+    },
+    BlobParameters {
+        epoch: 10,
+        max_blobs_per_block: 100,
+    },
+    BlobParameters {
+        epoch: 15,
+        max_blobs_per_block: 175,
+    },
+    BlobParameters {
+        epoch: 20,
+        max_blobs_per_block: 200,
+    },
+    BlobParameters {
+        epoch: 25,
+        max_blobs_per_block: 275,
+    },
+    BlobParameters {
+        epoch: 30,
+        max_blobs_per_block: 300,
+    },
+];
 
 pub fn fork_dir(fork: Fork) -> &'static str {
     match fork {
@@ -30,12 +58,12 @@ pub fn single_fork_config(fork: Fork) -> ChainSpecConfig {
     }
     if fork >= Fork::Fulu {
         config.fulu_fork_epoch = 0;
+        config.blob_schedule = &MINIMAL_FULU_BLOB_SCHEDULE;
     }
 
     config
 }
 
-/// The forks a transition case crosses: strictly after `from`, through `to`.
 pub fn forks_crossed(from: Fork, to: Fork) -> Vec<Fork> {
     let all = [
         Fork::Altair,
