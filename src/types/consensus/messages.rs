@@ -2,6 +2,18 @@ use super::{LightClientHeader, SyncAggregate, SyncCommittee};
 use crate::types::primitives::{Root, Slot};
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct FinalityProof {
+    pub header: LightClientHeader,
+    pub branch: Vec<Root>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SyncCommitteeProof {
+    pub committee: SyncCommittee,
+    pub branch: Vec<Root>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct LightClientBootstrap {
     pub header: LightClientHeader,
     pub current_sync_committee: SyncCommittee,
@@ -54,16 +66,4 @@ pub struct LightClientFinalityUpdate {
     pub finalized: FinalityProof,
     pub sync_aggregate: SyncAggregate,
     pub signature_slot: Slot,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct FinalityProof {
-    pub header: LightClientHeader,
-    pub branch: Vec<Root>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct SyncCommitteeProof {
-    pub committee: SyncCommittee,
-    pub branch: Vec<Root>,
 }
