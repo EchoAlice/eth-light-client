@@ -47,7 +47,7 @@ Capella+ light client headers include authenticated execution payload header dat
 
 ## Roadmap
 ### V1
-**To Do:** Implement the rest of the official vectors and mainnet-preset replays.  
+**To Do:** Architecture doc, then the tag.  
 
 Tracking in issue [#131](https://github.com/EchoAlice/eth-light-client/issues/131).
 
@@ -91,7 +91,7 @@ The consensus spec's sync replays are all-valid, so they only prove acceptance, 
 The `fast_aggregate_verify` vectors pin the `blst` *adapter* (not `blst` itself), checking invalid inputs like tampered signatures, wrong pubkey sets, and infinity pubkeys.  Unit tests cover the rejection paths for things like wrong roots, malformed branches, and minority participation.
 
 **To Do:**
-- Mainnet-preset replays (512-member committees) are pending ([#122](https://github.com/EchoAlice/eth-light-client/issues/122))
+- The 512-member committee arm is exercised by `examples/live_sync.rs` against mainnet, not by the test suite: upstream generates the sync suite for the minimal preset only.  A recorded mainnet replay is a v2 item ([#263](https://github.com/EchoAlice/eth-light-client/issues/263)).
 - The vectors' `force_update` steps are deferred with the feature ([#205](https://github.com/EchoAlice/eth-light-client/issues/205)).
 
 Fixture layout, the vendored case inventory, and the loader are documented in [`tests/README.md`](tests/README.md).
