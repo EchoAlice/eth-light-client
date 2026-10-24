@@ -4,6 +4,67 @@ use crate::types::primitives::{Epoch, ForkDigest, Root, Slot};
 
 const SAFETY_DECAY: u64 = 10;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Fork {
+    Altair,
+    Bellatrix,
+    Capella,
+    Deneb,
+    Electra,
+    Fulu,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct ForkParameters {
+    version: [u8; 4],
+    epoch: Epoch,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct ForkSchedule {
+    altair: ForkParameters,
+    bellatrix: ForkParameters,
+    capella: ForkParameters,
+    deneb: ForkParameters,
+    electra: ForkParameters,
+    fulu: ForkParameters,
+}
+
+impl ForkSchedule {
+    pub(crate) const fn version_at_epoch(&self, epoch: u64) -> [u8; 4] {
+        match self.fork_at_epoch(epoch) {
+            Fork::Altair => self.altair.version,
+            Fork::Bellatrix => self.bellatrix.version,
+            Fork::Capella => self.capella.version,
+            Fork::Deneb => self.deneb.version,
+            Fork::Electra => self.electra.version,
+            Fork::Fulu => self.fulu.version,
+        }
+    }
+
+    pub(crate) const fn fork_at_epoch(&self, epoch: u64) -> Fork {
+        if epoch >= self.fulu.epoch {
+            Fork::Fulu
+        } else if epoch >= self.electra.epoch {
+            Fork::Electra
+        } else if epoch >= self.deneb.epoch {
+            Fork::Deneb
+        } else if epoch >= self.capella.epoch {
+            Fork::Capella
+        } else if epoch >= self.bellatrix.epoch {
+            Fork::Bellatrix
+        } else {
+            Fork::Altair
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BlobParameters {
+    pub epoch: Epoch,
+    pub max_blobs_per_block: u64,
+}
+
 /// Defines network-specific constants.
 #[derive(Debug, Clone)]
 pub struct ChainSpec {
@@ -339,67 +400,6 @@ impl ChainSpecConfig {
 
         Ok(())
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Fork {
-    Altair,
-    Bellatrix,
-    Capella,
-    Deneb,
-    Electra,
-    Fulu,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct ForkSchedule {
-    altair: ForkParameters,
-    bellatrix: ForkParameters,
-    capella: ForkParameters,
-    deneb: ForkParameters,
-    electra: ForkParameters,
-    fulu: ForkParameters,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct ForkParameters {
-    version: [u8; 4],
-    epoch: Epoch,
-}
-
-impl ForkSchedule {
-    pub(crate) const fn version_at_epoch(&self, epoch: u64) -> [u8; 4] {
-        match self.fork_at_epoch(epoch) {
-            Fork::Altair => self.altair.version,
-            Fork::Bellatrix => self.bellatrix.version,
-            Fork::Capella => self.capella.version,
-            Fork::Deneb => self.deneb.version,
-            Fork::Electra => self.electra.version,
-            Fork::Fulu => self.fulu.version,
-        }
-    }
-
-    pub(crate) const fn fork_at_epoch(&self, epoch: u64) -> Fork {
-        if epoch >= self.fulu.epoch {
-            Fork::Fulu
-        } else if epoch >= self.electra.epoch {
-            Fork::Electra
-        } else if epoch >= self.deneb.epoch {
-            Fork::Deneb
-        } else if epoch >= self.capella.epoch {
-            Fork::Capella
-        } else if epoch >= self.bellatrix.epoch {
-            Fork::Bellatrix
-        } else {
-            Fork::Altair
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BlobParameters {
-    pub epoch: Epoch,
-    pub max_blobs_per_block: u64,
 }
 
 #[cfg(test)]
