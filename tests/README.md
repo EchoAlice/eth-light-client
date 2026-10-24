@@ -30,9 +30,9 @@ Each case is one scenario in a box: a toy chain, a starting point, a sequence of
 ### Case kinds vendored
 | Case | What it exercises | Forks |
 |---|---|---|
-| `light_client_sync` | The primary replay: bootstrap, then updates through several sync periods with rotation | Altair → Electra |
-| `advance_finality_without_sync_committee` | Finality advances on updates that carry no committee | Altair → Electra |
-| `supply_sync_committee_from_past_update` | A non-advancing past update still teaches the next committee | Altair → Electra |
+| `light_client_sync` | The primary replay: bootstrap, then updates through several sync periods with rotation | Altair → Fulu |
+| `advance_finality_without_sync_committee` | Finality advances on updates that carry no committee | Altair → Fulu |
+| `supply_sync_committee_from_past_update` | A non-advancing past update still teaches the next committee | Altair → Fulu |
 | `<fork>_fork` | Fork-transition boundary: chain crosses into the next fork mid-replay, with an `upgrade_store` step | `capella_fork`, `deneb_fork`, `electra_fork` |
 | `<fork>_<fork>_fork` | Multi-hop transition: one store crosses two boundaries, so both shape changes land in one replay | `capella_deneb_fork`, `capella_electra_fork`, `deneb_electra_fork` |
 | `<fork>_store_with_legacy_data` | Bootstrap in one fork, store already migrated to a later one (pyspec's `upgrade_lc_store`) | 9 cases, Altair → Deneb origins |
