@@ -5,9 +5,11 @@ This library implements the verification and store-update logic of Ethereum’s 
 **Security Disclaimer:** Experimental.  Do not use for security-critical decisions.
 
 # Summary 
-Light clients give users a highly secure way to access information within Ethereum's blockchain without having to run a full node.  Where a full node *re-derives* the chain's validity from scratch, a light client just *verifies a commitment* to the current state of the chain.  The commitment is produced by a randomly-shuffled, rotating subset of validators called the sync committee.
+Light clients give users a highly secure way to access information within Ethereum's blockchain without having to run a full node.  Where a full node *re-derives* the chain's validity from scratch, a light client just *verifies commitments* to the current state of the chain.  
 
-This library exposes functionality to track and independently verify sync committee commitments to the latest (i) finalized and (ii) optimistic beacon block headers.
+Commitments are produced by a randomly-shuffled, rotating subset of validators called the sync committee.  **A sync committee's commitment is the single authority a light client derives its view of the chain from.**
+
+This library exposes functionality to track and independently verify sync committee commitments to the latest finalized and optimistic beacon block headers, and execution state roots for blocks in forks starting at Capella.
 
 ### Resource Requirements
 | | Full node | Light client |
@@ -25,11 +27,21 @@ This library exposes functionality to track and independently verify sync commit
 - Embedded / constrained devices: verify minimal facts with minimal resources.
 
 ## Trust Model
-- Users provide a **trusted block root**, which should be finalized, is chosen out-of-band (a checkpoint provider, a block explorer, a friend's node), and must be within the weak subjectivity period (~16 days on mainnet; the client rejects older roots).  This is the client's entire root of trust.  The bootstrap and all future updates can be provided by any untrusted source (beacon node API, relay, etc).  All updates ultimately stem from this root. 
-- After providing a trusted block root, users fetch the `LightClientBootstrap`.  Its `BeaconBlockHeader`'s root has to match the trusted block root and provide a valid proof that the sync committee it claims is rooted within the header.  This gives the light client its first sync committee. 
-- Users then fetch subsequent updates and verify each is signed by the sync committee associated with the block's sync period (which rotates every ~27 hrs).  Updates regularly advance a light client's optimistic/finalized view of the chain, and provide the light client with the next sync committee once per sync period.  
+#### The Trusted Block Root
+Because a light client doesn't download and process all blocks since the inception of Ethereum, information processing must start at some point along the chain.  This point is the **trusted block root** and is the one fact the library must accept without a proof.  
 
-Every update reduces to one question: *"Did at least 2/3 of the sync committee the client already trusts sign this beacon block header?"*.  If committee signatures pass this threshold and the light client's update source is responsive, the client sees the update as valid and remains **live**.  If more than 1/3 of the sync committee is honest, the light client won't accept a malicious update and remains **safe**.
+A user can cross-check this root against multiple independent sources (e.g. a checkpoint provider, a block explorer, a friend's node) to get strong evidence that the trusted root is valid.  The root should be finalized, and must fall within the weak subjectivity period (~16 days on mainnet) to protect against long-range attacks; the client rejects older roots. 
+
+All information the light client stores is grounded in this trusted block root.  
+
+#### Sync Committee Commitments
+The network's sync committee is the one party the light client has to constantly trust.  On mainnet, Ethereum's consensus protocol randomly selects 512 validators every ~27 hours to participate as the sync committee.
+
+The first committee the light client learns about comes from the trusted root's own block.  A user requests a bootstrap update from a light client server, which gives the client a sync committee + merkle proof that that committee is rooted within the block the trusted root represents.
+
+Every future update reduces to one question: *"Did at least 2/3 of the sync committee the client already trusts sign this beacon block header?"*.  If committee signatures pass this threshold and the light client's update source is responsive, the client sees the update as valid and remains **live**.  If more than 1/3 of the sync committee is honest, the light client won't accept a malicious update and remains **safe**.
+
+The bootstrap and every update can come from any source (e.g. beacon node API or block relay); a dishonest source can stall the client, but never mislead it. 
 
 ## Status
 The library currently supports fork-aware light client verification through **Fulu**.
