@@ -5,9 +5,9 @@ This library implements the verification and store-update logic of Ethereum’s 
 **Security Disclaimer:** Experimental.  Do not use for security-critical decisions.
 
 # Summary 
-Light clients give users a highly secure way to access information within Ethereum's blockchain without having to run a full node.  Where a full node *re-derives* the chain's validity from scratch, a light client just *verifies commitments* to the current state of the chain.  
+Light clients give users a highly secure way to access information within Ethereum's blockchain without having to run a full node.  Where a full node re-executes every transaction and verifies every attestation, a light client just *verifies signed commitments* to the current state of the chain.  
 
-Commitments are produced by a randomly-shuffled, rotating subset of validators called the sync committee.  **A sync committee's commitment is the single authority a light client derives its view of the chain from.**
+Signed commitments are produced by a randomly-shuffled, rotating subset of validators called the sync committee.  **A sync committee's signature over a beacon block root is the single authority a light client derives its view of the chain from.**
 
 This library exposes functionality to track and independently verify sync committee commitments to the latest finalized and optimistic beacon block headers, and execution state roots for blocks in forks starting at Capella.
 
@@ -39,7 +39,7 @@ The network's sync committee is the one party the light client has to constantly
 
 The first committee the light client learns about comes from the trusted root's own block.  A user requests a bootstrap update from a light client server, which gives the client a sync committee + merkle proof that that committee is rooted within the block the trusted root represents.
 
-Every future update reduces to one question: *"Did at least 2/3 of the sync committee the client already trusts sign this beacon block header?"*.  If committee signatures pass this threshold and the light client's update source is responsive, the client sees the update as valid and remains **live**.  If more than 1/3 of the sync committee is honest, the light client won't accept a malicious update and remains **safe**.
+Every future update reduces to one question: *"Did at least 2/3 of a sync committee the client already trusts sign this beacon block header?"*.  If committee signatures pass this threshold and the light client's update source is responsive, the client sees the update as valid and remains **live**.  If more than 1/3 of the sync committee is honest, the light client won't accept a malicious update and remains **safe**.
 
 The bootstrap and every update can come from any source (e.g. beacon node API or block relay); a dishonest source can stall the client, but never mislead it. 
 
