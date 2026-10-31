@@ -1,8 +1,9 @@
+use std::fs;
+use std::path::{Path, PathBuf};
+
 use eth_light_client::chain_spec::{ChainSpec, ChainSpecConfig, Fork};
 use eth_light_client::types::consensus::{LightClientBootstrap, LightClientUpdate};
 use eth_light_client::types::primitives::Root;
-use std::fs;
-use std::path::{Path, PathBuf};
 
 use super::fork::{case_path, fork_dir, forks_crossed, single_fork_config, transition_config};
 use super::steps::{TestMeta, TestStep};

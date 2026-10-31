@@ -1,6 +1,7 @@
+use std::path::{Path, PathBuf};
+
 use eth_light_client::chain_spec::{ChainSpecConfig, Fork};
 use eth_light_client::BlobParameters;
-use std::path::{Path, PathBuf};
 
 static MINIMAL_FULU_BLOB_SCHEDULE: [BlobParameters; 6] = [
     BlobParameters {
