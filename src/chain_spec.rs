@@ -189,7 +189,9 @@ impl ChainSpec {
         self.slot_to_epoch(slot) / self.epochs_per_sync_committee_period
     }
 
-    /// Fail-closed: a wrong/early clock lowers `current_slot`, and validation rejects updates with `signature_slot > current_slot`, so a bad clock rejects more, never accepts more.
+    /// Fail-closed: a wrong/early clock lowers `current_slot`, and validation
+    /// rejects updates with `signature_slot > current_slot`, so a bad clock
+    /// rejects more, never accepts more.
     pub const fn timestamp_to_slot(&self, timestamp_secs: u64) -> u64 {
         if timestamp_secs >= self.genesis_time {
             (timestamp_secs - self.genesis_time) / self.seconds_per_slot
@@ -198,17 +200,22 @@ impl ChainSpec {
         }
     }
 
-    /// Spec: `compute_weak_subjectivity_period` (Electra), reduced to config
-    /// constants.
+    /// Consensus Spec: `compute_weak_subjectivity_period` (Electra), reduced
+    /// to config constants.
     ///
     /// We assume per-epoch churn limit = t / CHURN_LIMIT_QUOTIENT.  Under
     /// this assumption, calculating the weak subjectivity period doesn't
-    /// depend on beacon state information.
+    /// depend on beacon state information.  
+    ///
+    /// Safe to assume on mainnet, but could create a wider window than is safe
+    /// for custom networks with less than ~8.4M ETH staked, where
+    /// MIN_PER_EPOCH_CHURN_LIMIT_ELECTRA binds instead.
     pub const fn weak_subjectivity_period(&self) -> Epoch {
         self.min_validator_withdrawability_delay + SAFETY_DECAY * self.churn_limit_quotient / 200
     }
 
-    /// Spec: `compute_start_slot_at_epoch` (a position); used here as a duration.
+    /// Spec: `compute_start_slot_at_epoch` (a position); used here as a
+    /// duration.
     pub const fn epoch_to_slot(&self, epoch: Epoch) -> Slot {
         epoch * self.slots_per_epoch
     }
@@ -223,7 +230,8 @@ impl ChainSpec {
         self.fork_schedule.version_at_epoch(epoch)
     }
 
-    /// Spec: the `*_gindex_at_slot(slot)` family — resolve the fork here, read the gindex off `Fork`.
+    /// Spec: the `*_gindex_at_slot(slot)` family — resolve the fork here, read
+    /// the gindex off `Fork`.
     pub(crate) const fn fork_at_slot(&self, slot: Slot) -> Fork {
         self.fork_schedule
             .fork_at_epoch(slot / self.slots_per_epoch)
