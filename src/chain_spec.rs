@@ -328,6 +328,11 @@ impl ChainSpecConfig {
                 "epochs_per_sync_committee_period must be > 0".to_string(),
             ));
         }
+        if self.churn_limit_quotient == 0 {
+            return Err(Error::InvalidConfig(
+                "churn_limit_quotient must be > 0".to_string(),
+            ));
+        }
 
         if self.sync_committee_size != 32 && self.sync_committee_size != 512 {
             return Err(Error::InvalidConfig(

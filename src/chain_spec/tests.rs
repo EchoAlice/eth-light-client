@@ -66,6 +66,14 @@ fn rejects_zero_epochs_per_period() {
 }
 
 #[test]
+fn rejects_zero_churn_limit_quotient() {
+    // A divisor: per-epoch churn limit = total active balance / this.
+    let mut config = valid_config();
+    config.churn_limit_quotient = 0;
+    assert!(matches!(config.validate(), Err(Error::InvalidConfig(_))));
+}
+
+#[test]
 fn rejects_unsupported_sync_committee_sizes() {
     // Valid sizes: 32 and 512
     let mut config = valid_config();
@@ -159,10 +167,6 @@ fn weak_subjectivity_period_matches_spec_table() {
     );
 }
 
-// Overflow in the bootstrap freshness gate. Both arithmetic steps run on
-// unbounded caller-supplied fields, so try_from_config has to refuse a config
-// whose period — or whose period in slots — doesn't fit in a u64.
-
 #[test]
 fn rejects_configs_that_overflow_the_weak_subjectivity_period() {
     // SAFETY_DECAY * churn_limit_quotient overflows the multiply.
@@ -190,12 +194,10 @@ fn rejects_configs_that_overflow_the_weak_subjectivity_period() {
 
 #[test]
 fn rejects_configs_whose_period_overflows_in_slots() {
-    // The period itself is representable here — 10 * 0 / 200 = 0, so the add
-    // returns Some(u64::MAX) — and only the conversion to slots overflows.
-    // Checking the period alone would let this config through.
+    // The period fits; only its conversion to slots overflows.
     let mut config = valid_config();
-    config.churn_limit_quotient = 0;
-    config.min_validator_withdrawability_delay = u64::MAX;
+    config.churn_limit_quotient = 1;
+    config.min_validator_withdrawability_delay = u64::MAX / 32 + 1;
 
     let spec = ChainSpec::from_config(config);
     let period = spec
