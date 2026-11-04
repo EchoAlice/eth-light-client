@@ -91,7 +91,19 @@ impl ChainSpec {
 
     pub fn try_from_config(config: ChainSpecConfig) -> Result<Self> {
         config.validate()?;
-        Ok(Self::from_config(config))
+
+        let chain_spec = Self::from_config(config);
+        match chain_spec.weak_subjectivity_period() {
+            Some(wsp) => match chain_spec.epoch_to_slot(wsp) {
+                Some(_) => Ok(chain_spec),
+                None => Err(Error::InvalidConfig(
+                    "custom config causes `epoch_to_slot` to overflow".to_string(),
+                )),
+            },
+            None => Err(Error::InvalidConfig(
+                "custom config causes `weak_subjectivity_period` to overflow".to_string(),
+            )),
+        }
     }
 
     /// The one place the config -> spec mapping lives; callers own validation.
@@ -205,19 +217,26 @@ impl ChainSpec {
     ///
     /// We assume per-epoch churn limit = t / CHURN_LIMIT_QUOTIENT.  Under
     /// this assumption, calculating the weak subjectivity period doesn't
-    /// depend on beacon state information.  
+    /// depend on beacon state information. Formula reduces to:
+    /// `min_validator_withdrawability_delay + ((SAFETY_DECAY *
+    /// churn_limit_quotient) / 200)`
     ///
     /// Safe to assume on mainnet, but could create a wider window than is safe
     /// for custom networks with less than ~8.4M ETH staked, where
     /// MIN_PER_EPOCH_CHURN_LIMIT_ELECTRA binds instead.
-    pub const fn weak_subjectivity_period(&self) -> Epoch {
-        self.min_validator_withdrawability_delay + SAFETY_DECAY * self.churn_limit_quotient / 200
+    pub const fn weak_subjectivity_period(&self) -> Option<Epoch> {
+        match SAFETY_DECAY.checked_mul(self.churn_limit_quotient) {
+            Some(scaled_decay) => self
+                .min_validator_withdrawability_delay
+                .checked_add(scaled_decay / 200),
+            None => None,
+        }
     }
 
     /// Spec: `compute_start_slot_at_epoch` (a position); used here as a
     /// duration.
-    pub const fn epoch_to_slot(&self, epoch: Epoch) -> Slot {
-        epoch * self.slots_per_epoch
+    pub const fn epoch_to_slot(&self, epoch: Epoch) -> Option<Slot> {
+        epoch.checked_mul(self.slots_per_epoch)
     }
 
     /// Spec: `compute_epoch_at_slot`
@@ -293,7 +312,7 @@ pub struct ChainSpecConfig {
 }
 
 impl ChainSpecConfig {
-    pub fn validate(&self) -> Result<()> {
+    fn validate(&self) -> Result<()> {
         if self.seconds_per_slot == 0 {
             return Err(Error::InvalidConfig(
                 "seconds_per_slot must be > 0".to_string(),
