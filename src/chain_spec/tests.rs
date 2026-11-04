@@ -66,6 +66,14 @@ fn rejects_zero_epochs_per_period() {
 }
 
 #[test]
+fn rejects_zero_churn_limit_quotient() {
+    // A divisor: per-epoch churn limit = total active balance / this.
+    let mut config = valid_config();
+    config.churn_limit_quotient = 0;
+    assert!(matches!(config.validate(), Err(Error::InvalidConfig(_))));
+}
+
+#[test]
 fn rejects_unsupported_sync_committee_sizes() {
     // Valid sizes: 32 and 512
     let mut config = valid_config();
@@ -148,7 +156,57 @@ fn mainnet_digests_match_wire_observations() {
 #[test]
 fn weak_subjectivity_period_matches_spec_table() {
     // mainnet: electra/weak-subjectivity.md example table, plateau rows (3532 at ≥8.39M ETH).
-    assert_eq!(ChainSpec::mainnet().weak_subjectivity_period(), 3532);
+    assert_eq!(
+        ChainSpec::mainnet().weak_subjectivity_period().unwrap(),
+        3532
+    );
     // minimal: our formula's value. Minimal networks sit below the churn floor, so this pins the transcription, not a spec-table row.
-    assert_eq!(ChainSpec::minimal().weak_subjectivity_period(), 257);
+    assert_eq!(
+        ChainSpec::minimal().weak_subjectivity_period().unwrap(),
+        257
+    );
+}
+
+#[test]
+fn rejects_configs_that_overflow_the_weak_subjectivity_period() {
+    // SAFETY_DECAY * churn_limit_quotient overflows the multiply.
+    let mut config = valid_config();
+    config.churn_limit_quotient = u64::MAX;
+    assert!(ChainSpec::from_config(config)
+        .weak_subjectivity_period()
+        .is_none());
+    assert!(matches!(
+        ChainSpec::try_from_config(config),
+        Err(Error::InvalidConfig(_))
+    ));
+
+    // The churn term fits; adding min_validator_withdrawability_delay overflows.
+    let mut config = valid_config();
+    config.min_validator_withdrawability_delay = u64::MAX;
+    assert!(ChainSpec::from_config(config)
+        .weak_subjectivity_period()
+        .is_none());
+    assert!(matches!(
+        ChainSpec::try_from_config(config),
+        Err(Error::InvalidConfig(_))
+    ));
+}
+
+#[test]
+fn rejects_configs_whose_period_overflows_in_slots() {
+    // The period fits; only its conversion to slots overflows.
+    let mut config = valid_config();
+    config.churn_limit_quotient = 1;
+    config.min_validator_withdrawability_delay = u64::MAX / 32 + 1;
+
+    let spec = ChainSpec::from_config(config);
+    let period = spec
+        .weak_subjectivity_period()
+        .expect("period itself is representable");
+    assert!(spec.epoch_to_slot(period).is_none());
+
+    assert!(matches!(
+        ChainSpec::try_from_config(config),
+        Err(Error::InvalidConfig(_))
+    ));
 }

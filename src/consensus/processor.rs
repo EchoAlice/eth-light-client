@@ -38,9 +38,15 @@ impl LightClientProcessor {
                 got: bootstrap.header.beacon().hash_tree_root(),
             });
         }
-        let ws_period_as_slots = chain_spec.epoch_to_slot(chain_spec.weak_subjectivity_period());
+
+        let ws_period = chain_spec
+            .weak_subjectivity_period()
+            .ok_or_else(|| Error::Internal("weak subjectivity period overflows".to_string()))?;
+        let ws_period_as_slots = chain_spec
+            .epoch_to_slot(ws_period)
+            .ok_or_else(|| Error::Internal("epoch to slot calculation overflows".to_string()))?;
         let header_slot = bootstrap.header.slot();
-        if current_slot > header_slot + ws_period_as_slots {
+        if current_slot.saturating_sub(header_slot) > ws_period_as_slots {
             return Err(Error::StaleTrustedRoot {
                 header_slot,
                 current_slot,

@@ -43,7 +43,8 @@ fn trusted_root_freshness_boundary() {
     let sync_test = SyncTestCase::light_client_sync(Fork::Altair);
     let ws_period_as_slots = sync_test
         .chain_spec()
-        .epoch_to_slot(sync_test.chain_spec().weak_subjectivity_period());
+        .epoch_to_slot(sync_test.chain_spec().weak_subjectivity_period().unwrap())
+        .unwrap();
 
     // Exactly one weak subjectivity period old: still accepted.
     let bootstrap = sync_test.load_bootstrap().unwrap();
