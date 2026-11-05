@@ -72,16 +72,16 @@ Syncing from the trusted root's sync committee period to the chain's current syn
 See `examples/live_sync.rs` for an example of this walk.
 
 # Deviations From Spec
-1. **No per-fork store type:**
+### 1. No Per-Fork Store Type
 The spec defines a different `LightClientStore` for each fork and requires `upgrade_lc_store_to_*` before post-fork data can be processed. Our store is a single type holding fork-tagged headers, so it accommodates every fork at once: no `upgrade_lc_store_to_*` is needed.
 
-2. **No `force_update`:** 
+### 2. No `force_update` 
 The escape hatch for a finality outage was left out for simplicity. Instead of implementing this fallback, the client would stall and need to be re-bootstrapped from a future trusted root once finality returns.  Because of this design decision, three pieces of the library diverge from the spec:
-  a. Strict 2/3rds participation is checked at the beginning of `LightClientProcessor::process_light_client_update`.
-  b. `apply_light_client_update` doesn't advance `optimistic_header` to `finalized_header` when finality passes it: `optimistic >= finalized` holds structurally.
-  c. `LightClientStore` doesn't hold `best_valid_update`, `previous_max_active_participants`, or `current_max_active_participants`. 
+- (i) Strict 2/3rds participation is checked at the beginning of `LightClientProcessor::process_light_client_update`.
+- (ii) `apply_light_client_update` doesn't advance `optimistic_header` to `finalized_header` when finality passes it: `optimistic >= finalized` holds structurally.
+- (iii) `LightClientStore` doesn't hold `best_valid_update`, `previous_max_active_participants`, or `current_max_active_participants`. 
 
-3. **Weak Subjectivity Period Check (Stricter than Spec):**
+### 3. Weak Subjectivity Period Check (Stricter than Spec)
 In the Light Client Sync Protocol spec, there is no weak subjectivity check for the user-supplied trusted block root.  Like Helios, we chose to implement one for safety. 
 
 Instead of directly translating the Ethereum Consensus spec's `compute_weak_subjectivity_period`, the library assumes the per-epoch churn limit equals total active balance / CHURN_LIMIT_QUOTIENT, which reduces the computation to config constants.  Calculating the WSP would otherwise depend on reading beacon state, which a light client doesn't have access to before bootstrap. See `ChainSpec::weak_subjectivity_period` for more details.
