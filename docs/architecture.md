@@ -51,6 +51,8 @@ c. Sync committee checks:
   - (iii) the committee that signed it is one of the two committees the client keeps track of.
 d. Store all relevant update's info (first optimistic, then finalized header and/or sync committee). 
 
+**Note:** Each update's `BeaconBlockHeader` is checked against the fork its block was proposed in, not the container it arrived in. Necessary for updates that cross fork boundaries.
+
 # Sync Committee Rotation
 To keep from creating an easy attack target, the protocol randomly selects and rotates the validators chosen to be in the sync committee. Sync committee rotation happens at fixed time intervals, known as the sync period (~27 hours on mainnet). The light client is responsible for keeping up with relevant sync committees as rotation happens across sync period boundaries. 
 
@@ -69,18 +71,25 @@ Syncing from the trusted root's sync committee period to the chain's current syn
 
 See `examples/live_sync.rs` for an example of this walk.
 
-# Deviations From Spec 
-1. **No `force_update:** 
+# Deviations From Spec
+1. **No per-fork store type:**
+The spec defines a different `LightClientStore` for each fork and requires `upgrade_lc_store_to_*` before post-fork data can be processed. Our store is a single type holding fork-tagged headers, so it accommodates every fork at once: no `upgrade_lc_store_to_*` is needed.
+
+2. **No `force_update`:** 
 The escape hatch for a finality outage was left out for simplicity. Instead of implementing this fallback, the client would stall and need to be re-bootstrapped from a future trusted root once finality returns.  Because of this design decision, three pieces of the library diverge from the spec:
   a. Strict 2/3rds participation is checked at the beginning of `LightClientProcessor::process_light_client_update`.
   b. `apply_light_client_update` doesn't advance `optimistic_header` to `finalized_header` when finality passes it: `optimistic >= finalized` holds structurally.
   c. `LightClientStore` doesn't hold `best_valid_update`, `previous_max_active_participants`, or `current_max_active_participants`. 
 
-2. **Weak Subjectivity Period Check (Stricter than Spec):**
+3. **Weak Subjectivity Period Check (Stricter than Spec):**
 In the Light Client Sync Protocol spec, there is no weak subjectivity check for the user-supplied trusted block root.  Like Helios, we chose to implement one for safety. 
 
-Instead of directly translating the Ethereum Consensus spec's `compute_weak_subjectivity_period`, the library assumes the per-epoch balance churn limit equals total active balance / CHURN_LIMIT_QUOTIENT, reducing the computation to config constants.  Calculating the WSP would otherwise depend on reading beacon state, which a light client doesn't have access to before bootstrap (a WSP is needed at light client inception). See `ChainSpec::weak_subjectivity_period` for more details.
+Instead of directly translating the Ethereum Consensus spec's `compute_weak_subjectivity_period`, the library assumes the per-epoch churn limit equals total active balance / CHURN_LIMIT_QUOTIENT, which reduces the computation to config constants.  Calculating the WSP would otherwise depend on reading beacon state, which a light client doesn't have access to before bootstrap. See `ChainSpec::weak_subjectivity_period` for more details.
 
-This assumption holds true on mainnet today, but can vastly overestimate the true WSP on custom networks, meaning the client could **accept trusted roots that are older than what's actually safe.**  Users can set `churn_limit_quotient` to account for this. 
+This assumption holds true on mainnet today, but can vastly overestimate the true WSP on custom networks, meaning the client could **accept trusted roots that are older than what's actually safe**. 
 
-**Note:** The assumption will not hold for the upcoming Gloas fork.
+**Note:** The library's `weak_subjectivity_period` will not reduce to config constants in the upcoming Gloas fork. The current constant would be ~2.25× too permissive on mainnet. 
+
+# Conventions 
+- `u64` for spec quantities vs `usize` for lengths, no casts between them
+- `x_to_y()` = arithmetic, `x_at_y()` = schedule lookup

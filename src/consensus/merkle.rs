@@ -85,6 +85,9 @@ pub(crate) fn get_lc_execution_root(header: &LightClientHeader, block_fork: Fork
 }
 
 /// Spec: `is_valid_merkle_branch`, fused with its caller-side `assert`.
+///
+/// No `is_valid_normalized_merkle_branch` is required because our store is
+/// fork-agnostic.
 pub(crate) fn verify_merkle_proof(
     leaf: &Root,
     branch: &[Root],
