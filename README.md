@@ -74,12 +74,14 @@ Tracking this and deferred features in issue [#205](https://github.com/EchoAlice
 eth-light-client = "0.1"
 ```
 
-Check out [`examples/live_sync.rs`](examples/live_sync.rs) for an example of how to use the library.  Run example binary with ```cargo run --example live_sync -- <provider-url> <trusted-block-root>```
+Check out [`examples/live_sync.rs`](https://github.com/EchoAlice/eth-light-client/blob/master/examples/live_sync.rs) for an example of how to use the library.  Run example binary with ```cargo run --example live_sync -- <provider-url> <trusted-block-root>```
 
 ### Scope
 This library begins at the SSZ-decode and verification boundary, and is built on Sigma Prime's SSZ stack (`ethereum_ssz`, `ssz_types`, `tree_hash`).  Users are responsible for obtaining the trusted block root, initial bootstrap, and each subsequent block update from an external data provider.  
 
 `ExecutionPayloadHeader`s are exposed by the library too. But gathering and validating information against the roots within the payload is also the user's responsibility.
+
+Crate layout, the path from wire bytes to store state, and the library's deviations from the consensus spec are documented in [`docs/architecture.md`](https://github.com/EchoAlice/eth-light-client/blob/master/docs/architecture.md).
 
 ### API Notes
 - Time is always the caller's: `process_light_client_update(update, current_slot)` takes the current slot explicitly and never reads the system clock. `ChainSpec::timestamp_to_slot(unix_secs)` does the conversion. A slow clock rejects more updates but accepts slightly older trusted roots.
@@ -105,7 +107,7 @@ The `fast_aggregate_verify` vectors pin the `blst` *adapter* (not `blst` itself)
 ### To Do
 The 512-member committee arm is exercised by `examples/live_sync.rs` against mainnet, not by the test suite: upstream generates the sync suite for the minimal preset only.  A recorded mainnet replay is a v2 item ([#263](https://github.com/EchoAlice/eth-light-client/issues/263)).
 
-Fixture layout, the vendored case inventory, and the loader are documented in [`tests/README.md`](tests/README.md).
+Fixture layout, the vendored case inventory, and the loader are documented in [`tests/README.md`](https://github.com/EchoAlice/eth-light-client/blob/master/tests/README.md).
 
 ## License
 MIT OR Apache-2.0
