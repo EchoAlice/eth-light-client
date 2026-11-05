@@ -58,20 +58,12 @@ The library currently supports fork-aware light client verification through **Fu
 Capella+ light client headers include authenticated execution payload header data rooted within the verified beacon block.  This exposes trusted execution-layer commitments (like state, transaction, and receipt roots), which can serve as anchors for proving arbitrary execution-layer facts.
 
 ## Roadmap
-### V1
-**To Do:** Architecture doc, then the tag.  
+### V2: Formal Verification
+Harden what exists before extending it.  First, implement bounded model checking (Kani) of the arithmetic predicates and the Merkle walker. Then create machine-checked proofs, via Rust-to-Lean translation, that the store's invariants survive every update.  
 
-Tracking in issue [#131](https://github.com/EchoAlice/eth-light-client/issues/131).
+BLS and SHA-256 stay the assumed primitives.
 
-### V2
-- **Formal verification** — harden what exists before extending it.  Bounded model checking (Kani) of the arithmetic predicates and the Merkle walker first; then machine-checked proofs, via Rust-to-Lean translation, that the store's invariants survive every update.  BLS and SHA-256 stay the assumed primitives.
-
-### Deferred
-- **`eth_getProof` verification** — the finalized execution state root is the anchor; EIP-1186 account and storage proofs are the questions.  A different tree (hexary Merkle-Patricia), so its own slice, and it gets the same harnesses.
-- **`force_update`** — the spec's escape hatch for finality outages.  The client stalls rather than force-applies; recovery is re-bootstrapping.  Keeping the store's state machine fixed is what makes proving its invariants worthwhile.
-- **Store persistence** — disk, a format, and trusting your own disk all sit outside what a prover models.  Callers that need it serialize the store at the facade.
-
-Tracking in issue [#205](https://github.com/EchoAlice/eth-light-client/issues/205)
+Tracking this and deferred features in issue [#205](https://github.com/EchoAlice/eth-light-client/issues/205).
 
 <br/>
 
@@ -96,18 +88,6 @@ This library begins at the SSZ-decode and verification boundary, and is built on
 <br/>
 
 # Testing
-The official Ethereum consensus `light_client/sync` spec vectors (minimal preset) replay end-to-end through the public `LightClient` API, for every supported fork and every fork-transition boundary the official suite covers (Bellatrix→Capella, Capella→Deneb, Deneb→Electra, and the multi-hop chains across them).  Fulu changes no light client container, so upstream ships no Electra→Fulu transition case; its single-fork cases exercise the blob-parameter fork digests instead.
-
-The consensus spec's sync replays are all-valid, so they only prove acceptance, not rejection.  Rejection is covered from two directions: (i) the official `fast_aggregate_verify` vectors and (ii) unit tests.
-
-The `fast_aggregate_verify` vectors pin the `blst` *adapter* (not `blst` itself), checking invalid inputs like tampered signatures, wrong pubkey sets, and infinity pubkeys.  Unit tests cover the rejection paths for things like wrong roots, malformed branches, and minority participation.
-
-**To Do:**
-- The 512-member committee arm is exercised by `examples/live_sync.rs` against mainnet, not by the test suite: upstream generates the sync suite for the minimal preset only.  A recorded mainnet replay is a v2 item ([#263](https://github.com/EchoAlice/eth-light-client/issues/263)).
-- The vectors' `force_update` steps are deferred with the feature ([#205](https://github.com/EchoAlice/eth-light-client/issues/205)).
-
-Fixture layout, the vendored case inventory, and the loader are documented in [`tests/README.md`](tests/README.md).
-
 ```bash
 # Lints (includes examples and tests)
 cargo clippy --all-targets -- -D warnings
@@ -115,6 +95,17 @@ cargo clippy --all-targets -- -D warnings
 # Unit + integration tests
 cargo test
 ```
+
+The official Ethereum consensus `light_client/sync` spec vectors (minimal preset) replay end-to-end through the public `LightClient` API, for every supported fork and every fork-transition boundary the official suite covers (Bellatrix→Capella, Capella→Deneb, Deneb→Electra, and the multi-hop chains across them).  Fulu changes no light client container, so upstream ships no Electra→Fulu transition case; its single-fork cases exercise the blob-parameter fork digests instead.
+
+The consensus spec's sync replays are all-valid, so they only prove acceptance, not rejection.  Rejection is covered from two directions: (i) the official `fast_aggregate_verify` vectors and (ii) unit tests.
+
+The `fast_aggregate_verify` vectors pin the `blst` *adapter* (not `blst` itself), checking invalid inputs like tampered signatures, wrong pubkey sets, and infinity pubkeys.  Unit tests cover the rejection paths for things like wrong roots, malformed branches, and minority participation.
+
+### To Do
+The 512-member committee arm is exercised by `examples/live_sync.rs` against mainnet, not by the test suite: upstream generates the sync suite for the minimal preset only.  A recorded mainnet replay is a v2 item ([#263](https://github.com/EchoAlice/eth-light-client/issues/263)).
+
+Fixture layout, the vendored case inventory, and the loader are documented in [`tests/README.md`](tests/README.md).
 
 ## License
 MIT OR Apache-2.0
