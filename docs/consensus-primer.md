@@ -5,6 +5,7 @@ Table of Contents:
     - Why and How
     - Transactions, Blocks, and The Blockchain
     - An Asynchronous Network
+    - Forks and Consensus
     - Safety and Liveness
 2. Ethereum Consensus
     - Overview 
@@ -53,8 +54,13 @@ The proposer groups a batch of pending transactions together into a *block*.  A 
 
 Nodes independently check the proposer's work and communicate with one another to make sure everyone is on the same page.  Nodes ask "Should we accept or reject the proposer's block?"  If enough of the network agrees a proposer's update is valid, all nodes append the block to their copy of the ledger — they "add the block to the chain."
 
-The blockchain itself is just a bunch of agreed-upon updates which each point to the one before it.  Pointing to a previous block forces every proposer to explicitly state what historical ledger they believe to be true: this is what enables the network to come to consensus on a single history at all.
+The blockchain itself is just a bunch of agreed-upon updates which each point to the one before it.  Pointing to a previous block forces every proposer to explicitly state what historical ledger they believe to be true.
 
 **Note:** A blockchain, like any database or ledger, is a [state machine](https://en.wikipedia.org/wiki/Finite-state_machine).  It's a system that keeps track of a current state (the ledger) by processing new inputs (a block) based on a specific set of rules (the protocol).
 
 ### An Asynchronous Network
+All nodes run a single, deterministic protocol: given the same input, every node computes the same output. But coming to agreement on one coherent ledger across a distributed network of thousands of computers is hard because **a node's inputs are nondeterministic**.
+
+This is a function of blockchain networks operating on top of the internet.  The internet itself is *asynchronous*, meaning there's no reliable bound for how long it may take a message to reach someone's computer.  Messages traveling over the internet typically take a few hundred milliseconds, but could take an indefinite amount of time to arrive or drop out completely.  Individual computers can't distinguish between the two failure modes: they can never *know* if more information is just around the corner, no matter how long they wait.
+
+Uncertainty within the underlying communication channel permeates up to a blockchain's peer-to-peer network.  There is no "god-mode" where any individual can have the complete picture of the network.  Each node operates with an incomplete, localized picture of the messages that are constantly being passed around.
