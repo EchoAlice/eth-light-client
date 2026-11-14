@@ -60,10 +60,10 @@ The blockchain itself is just a bunch of agreed-upon updates which each point to
 ### Communication Over the Internet
 All nodes run a single, deterministic protocol: given the same input, every node computes the same output. But coming to agreement on one coherent ledger across a distributed network of thousands of computers is hard because **a node's inputs are nondeterministic**.
 
-This is a function of blockchain networks operating on top of the internet.  Messages traveling over the internet typically take a few hundred milliseconds to land, but they could take a much longer time than that, or drop out completely.  Properties of uncertainty within the underlying communication channel permeate up.
+This is a function of blockchain networks operating on top of the internet.  Messages traveling over the internet typically take a few hundred milliseconds to land, but they could take a much longer time than that, or drop out completely.  Properties of uncertainty within the underlying communication channel permeate up the tech stack.
 
-Tons of messages are constantly churning through a blockchain's network: it's every node's job to parse this flow of information. Because the latency and delivery of messages can vary between nodes, each node ends up with their own *view* of what information exists within the network.
+Tons of messages about proposed blocks and transaction requests are constantly churning through a blockchain's network: it's every node's job to parse this flow of information. Because the delivery of messages varies between nodes, each node ends up with their own *view* of what information exists within the network.
 
-Because everyone runs the same deterministic protocol, differences between localized views are **the** reason why honest nodes can have different opinions on which history of blocks is real.
+Everyone runs the same deterministic protocol, so differences between localized views are **the** reason why honest nodes can have different opinions on which history of blocks is real.
 
 ### Forks and Consensus
