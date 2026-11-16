@@ -62,8 +62,17 @@ All nodes run a single, deterministic protocol: given the same input, every node
 
 This is a function of blockchain networks operating on top of the internet.  Messages traveling over the internet typically take a few hundred milliseconds to land, but they could take a much longer time than that, or drop out completely.  Properties of uncertainty within the underlying communication channel permeate up the tech stack.
 
-Tons of messages about proposed blocks and transaction requests are constantly churning through a blockchain's network: it's every node's job to parse this flow of information. Because the delivery of messages varies between nodes, each node ends up with their own *view* of what information exists within the network.
+Tons of messages about proposed blocks, transaction requests, and other nodes' perceptions are constantly churning through a blockchain's network: it's every node's job to parse this flow of information. Because the delivery of messages varies between nodes, each node ends up with their own *view* of what information exists within the network.
 
 Everyone runs the same deterministic protocol, so differences between localized views are **the** reason why honest nodes can have different opinions on which history of blocks is real.
 
 ### Forks and Consensus
+#### Forks
+Honest proposers could have different views of what the last proposed block was, what transaction requests are queued for inclusion, or what others in the network believe to be true.  Nodes can't wait around forever in hopes of gaining a more complete view of the network: they have to make decisions within bounded time intervals to ensure the ledger keeps progressing.  But decisions made with incomplete views can cause nodes to believe in and build blocks that contradict one another, splitting — or *forking* — the chain.
+
+A "fork" happens when multiple blocks name the same parent block.  From the parent backwards, every node agrees on the same historical ledger; but from the new conflicting blocks onward, the single ledger splits into different chains. These divergences can compound as new blocks continue to be created, and nodes keep accepting those that fall in line with their view of the chain.
+
+None of these branches are necessarily wrong. Each one could consist of a coherent ledger that different factions of the network believe to be true. But these factions can only cooperate with others who believe in the same version of record.  A blockchain aims to have one unified ledger, not tons of fragmented ledgers with some similar historical lineage: **true coordination requires disperate parties to be on the same page about what version of the ledger is canonical.**
+
+#### Consensus
+Achieving **consenus** amongst all nodes within the network is the goal. It's the system's job to resolve these otherwise compounding discrepancies through a *fork-choice rule*.
