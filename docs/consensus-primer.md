@@ -63,12 +63,13 @@ Tons of messages about proposed blocks and transaction requests are constantly c
 Since everyone runs the same deterministic protocol, differences between localized views are **the** reason why honest nodes can have different opinions on which historical set of blocks is real.
 
 ### Forks and Consensus
+Each block points to the one before it, so every proposed block commits to an entire history of blocks its proposer has chosen to build upon.
+
 #### Forks
-Honest proposers could have different views of what the last proposed block was, what transaction requests are queued for inclusion, or what others in the network believe to be true.  Nodes can't wait around forever in hopes of gaining a more complete view of the network: they have to make decisions within bounded time intervals to ensure the ledger keeps progressing.  But decisions made with incomplete views can cause nodes to believe in and build blocks that contradict one another, splitting — or *forking* — the chain.
+Nodes can't wait around forever in hopes of gaining a complete view of all information in the network: they have to make decisions within bounded time intervals to ensure the ledger keeps progressing.  But decisions made with incomplete views can cause nodes to believe in and build blocks that contradict one another, splitting — or *forking* — the chain.
 
-A "fork" happens when multiple blocks name the same parent block.  From the parent backwards, every node agrees on the same historical ledger; but from the new conflicting blocks onward, the single ledger splits into different chains. These divergences can compound as new blocks continue to be created, and nodes keep accepting those that fall in line with their view of the chain.
+A fork happens when multiple blocks name the same parent block.  From the parent backwards, nodes agree on the same historical ledger; but from the conflicting blocks onward, the single ledger splits. Divergent histories can compound as new blocks continue being created.
 
-None of these branches are necessarily wrong. Each one could consist of a coherent ledger that different factions of the network believe to be true. But these factions can only cooperate with others who believe in the same version of record.  A blockchain aims to have one unified ledger, not tons of fragmented ledgers with some similar historical lineage: **true coordination requires disperate parties to be on the same page about what version of the ledger is canonical.**
+None of these branches are necessarily wrong. Each could be a coherent ledger that different factions of the network believe is true. But if left unresolved, these factions could only cooperate with others who hold the same version of record.  A blockchain aims to have one unified ledger, not tons of fragmented ledgers with some similar historical lineage: **coordination requires disparate parties to be on the *same page* about what version of the ledger is canonical.**
 
 #### Consensus
-Achieving **consenus** amongst all nodes within the network is the goal. It's the system's job to resolve these otherwise compounding discrepancies through a *fork-choice rule*.
