@@ -1,7 +1,7 @@
 # Ethereum Consensus and Light Clients Primer (WIP)
 
 Table of Contents:
-1. Blockchains
+1. Blockchains: ELI5
     - Why and How
     - Transactions and Blocks
     - Communication Over the Internet 
@@ -21,7 +21,7 @@ Table of Contents:
 
 ------------------------------------------------
 
-## 1. Blockchains
+## 1. Blockchains: ELI5
 #### Why
 People coordinate with one another by sharing and acting upon information.  Throughout history, humanity has created new ways of representing and sharing information to coordinate more effectively.  In the 20th century, people created computers, which allow us to process and share vast amounts of digital information.  Almost all of humanity's organizing information now exists within this medium.
 
@@ -60,16 +60,21 @@ This is a function of blockchain networks operating on top of the internet.  Mes
 
 Tons of messages about proposed blocks and transaction requests are constantly churning through a blockchain's network: it's every node's job to parse this flow of information. Because the delivery of messages varies between nodes, each node ends up with their own *view* of what information exists within the network.
 
-Since everyone runs the same deterministic protocol, differences between localized views are **the** reason why honest nodes can have different opinions on which historical set of blocks is real.
-
 ### Forks and Consensus
-Each block points to the one before it, so every proposed block commits to an entire history of blocks its proposer has chosen to build upon.
+To ensure the ledger keeps progressing, proposers have to make decisions within bounded time intervals; they can't wait around indefinitely to gather all network information before taking action.
+
+But decisions made with incomplete views can cause nodes to believe in and build blocks that contradict one another.  Each block points to the one before it, so every proposed block commits to an entire history of blocks which reflects the proposer's view. 
 
 #### Forks
-Nodes can't wait around forever in hopes of gaining a complete view of all information in the network: they have to make decisions within bounded time intervals to ensure the ledger keeps progressing.  But decisions made with incomplete views can cause nodes to believe in and build blocks that contradict one another, splitting — or *forking* — the chain.
+A fork happens when multiple blocks name the same parent block.  From the parent backwards, nodes agree on the same historical ledger; but from the conflicting blocks onward, the single ledger splits. Divergent histories compound as proposers must choose between different branching chains to build upon.
 
-A fork happens when multiple blocks name the same parent block.  From the parent backwards, nodes agree on the same historical ledger; but from the conflicting blocks onward, the single ledger splits. Divergent histories can compound as new blocks continue being created.
+None of these branches are necessarily wrong. Each could be a coherent ledger that different factions of the network believe is true. But if left unresolved, factions could only cooperate with others who hold the same version of record.
 
-None of these branches are necessarily wrong. Each could be a coherent ledger that different factions of the network believe is true. But if left unresolved, these factions could only cooperate with others who hold the same version of record.  A blockchain aims to have one unified ledger, not tons of fragmented ledgers with some similar historical lineage: **coordination requires disparate parties to be on the *same page* about what version of the ledger is canonical.**
+A blockchain aims to have one unified ledger, not tons of fragmented ledgers with some similar historical lineage: **coordination requires disparate parties to be on the *same page* about what version of the ledger is canonical.**
 
 #### Consensus
+Achieving *consensus* amongst all nodes within the network is the goal. It's each node's job to help resolve otherwise compounding discrepancies by running the protocol's *fork-choice rule*.  Regardless of the specific rule, choosing between forks requires individuals to be able to (i) make claims about what version of the ledger they believe is true and (ii) interpret the weight of others' claims.
+
+The "weight" of a claim is measured by how much economic value was committed to make it (electricity spent in Bitcoin; stake put up in Ethereum).  Economic weight turns costless assertions into meaningful commitments.
+
+Nodes aren't attached to any specific chain: they are always listening for new information to update their view of the network. They don't just keep track of one ledger, they keep track of all possible ledgers they've heard of.  The fork-choice rule is constantly being applied to reevaluate the economic weight that has accumulated throughout conflicting branches.  The branch a node perceives to have the most weight is the branch they believe is the true chain.
